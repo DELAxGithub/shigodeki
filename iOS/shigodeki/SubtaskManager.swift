@@ -15,10 +15,12 @@ class SubtaskManager: ObservableObject {
     @Published var isLoading = false
     @Published var error: FirebaseError?
     
-    private var listeners: [ListenerRegistration] = []
+    internal var listeners: [ListenerRegistration] = []
     
     deinit {
-        removeAllListeners()
+        Task { @MainActor in
+            removeAllListeners()
+        }
     }
     
     func createSubtask(title: String, description: String? = nil, assignedTo: String? = nil,
@@ -28,7 +30,12 @@ class SubtaskManager: ObservableObject {
         defer { isLoading = false }
         
         do {
-            let finalOrder = order ?? (try await getNextSubtaskOrder(taskId: taskId, listId: listId, phaseId: phaseId, projectId: projectId))
+            let finalOrder: Int
+            if let order = order {
+                finalOrder = order
+            } else {
+                finalOrder = try await getNextSubtaskOrder(taskId: taskId, listId: listId, phaseId: phaseId, projectId: projectId)
+            }
             var subtask = Subtask(title: title, description: description, assignedTo: assignedTo,
                                 createdBy: createdBy, dueDate: dueDate, taskId: taskId, 
                                 listId: listId, phaseId: phaseId, projectId: projectId, order: finalOrder)
@@ -124,7 +131,7 @@ class SubtaskManager: ObservableObject {
         }
     }
     
-    private func getSubtaskCollection(taskId: String, listId: String, phaseId: String, projectId: String) -> CollectionReference {
+    internal func getSubtaskCollection(taskId: String, listId: String, phaseId: String, projectId: String) -> CollectionReference {
         return Firestore.firestore()
             .collection("projects").document(projectId)
             .collection("phases").document(phaseId)

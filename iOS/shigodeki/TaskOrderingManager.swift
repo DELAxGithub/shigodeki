@@ -23,7 +23,7 @@ struct TaskOrderingManager {
                 .collection("lists").document(listId)
                 .collection("tasks").document(task.id ?? "")
             
-            try batch.setData(try Firestore.Encoder().encode(updatedTask), forDocument: taskRef, merge: true)
+            batch.setData(try Firestore.Encoder().encode(updatedTask), forDocument: taskRef, merge: true)
         }
         
         try await batch.commit()
@@ -51,7 +51,7 @@ struct TaskOrderingManager {
         
         let batch = Firestore.firestore().batch()
         batch.deleteDocument(oldTaskRef)
-        try batch.setData(try Firestore.Encoder().encode(updatedTask), forDocument: newTaskRef)
+        batch.setData(try Firestore.Encoder().encode(updatedTask), forDocument: newTaskRef)
         
         try await batch.commit()
         return updatedTask

@@ -20,7 +20,7 @@ class DataMigrationUtility {
         // Create new project from family
         let project = Project(name: familyName, description: "Family: \(familyName) から移行", ownerId: ownerId)
         
-        let projectManager = ProjectManager()
+        let projectManager = await ProjectManager()
         let createdProject = try await projectManager.createProject(
             name: project.name, 
             description: project.description, 
@@ -28,7 +28,7 @@ class DataMigrationUtility {
         )
         
         // Create default phase
-        let phaseManager = PhaseManager()
+        let phaseManager = await PhaseManager()
         let defaultPhase = try await phaseManager.createPhase(
             name: "メインタスク", 
             description: "Family から移行されたタスク",
@@ -45,7 +45,7 @@ class DataMigrationUtility {
     
     private func migrateTaskLists(familyId: String, toPhaseId: String, projectId: String) async throws {
         let legacyTaskLists = try await getLegacyTaskLists(familyId: familyId)
-        let taskListManager = TaskListManager()
+        let taskListManager = await TaskListManager()
         
         for (index, legacyTaskList) in legacyTaskLists.enumerated() {
             let newTaskList = try await taskListManager.createTaskList(
@@ -71,7 +71,7 @@ class DataMigrationUtility {
     
     private func migrateTasks(fromLegacyListId: String, familyId: String, toNewListId: String, phaseId: String, projectId: String) async throws {
         let legacyTasks = try await getLegacyTasks(listId: fromLegacyListId, familyId: familyId)
-        let taskManager = EnhancedTaskManager()
+        let taskManager = await EnhancedTaskManager()
         
         for (index, legacyTask) in legacyTasks.enumerated() {
             _ = try await taskManager.createTask(
@@ -102,10 +102,10 @@ class DataMigrationUtility {
     
     func validateMigration(originalFamilyId: String, migratedProjectId: String) async throws -> Bool {
         let legacyTaskLists = try await getLegacyTaskLists(familyId: originalFamilyId)
-        let projectManager = ProjectManager()
-        guard let project = try await projectManager.getProject(id: migratedProjectId) else { return false }
+        let projectManager = await ProjectManager()
+        guard (try await projectManager.getProject(id: migratedProjectId)) != nil else { return false }
         
-        let phaseManager = PhaseManager()
+        let phaseManager = await PhaseManager()
         let phases = try await phaseManager.getPhases(projectId: migratedProjectId)
         
         return legacyTaskLists.count > 0 && phases.count > 0

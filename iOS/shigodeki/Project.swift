@@ -10,13 +10,15 @@ import FirebaseFirestore
 
 struct Project: Identifiable, Codable, Hashable {
     var id: String?
-    let name: String
-    let description: String?
+    var name: String
+    var description: String?
     let ownerId: String
     var memberIds: [String]
     var createdAt: Date?
     var lastModifiedAt: Date?
     var isArchived: Bool
+    var isCompleted: Bool
+    var completedAt: Date?
     var settings: ProjectSettings?
     var statistics: ProjectStats?
     
@@ -26,6 +28,8 @@ struct Project: Identifiable, Codable, Hashable {
         self.ownerId = ownerId
         self.memberIds = [ownerId]
         self.isArchived = false
+        self.isCompleted = false
+        self.completedAt = nil
     }
     
     func hash(into hasher: inout Hasher) {

@@ -19,7 +19,7 @@ class OfflineManager {
     private func configureOfflineSettings() {
         let settings = FirestoreSettings()
         settings.cacheSettings = MemoryCacheSettings()
-        settings.isOfflinePersistenceEnabled = true
+        // Note: Offline persistence is enabled by default in the new Firebase SDK
         db.settings = settings
     }
     

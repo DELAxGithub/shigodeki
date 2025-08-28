@@ -66,3 +66,29 @@ firebase apps:create
 - Verify Firestore connectivity by testing data writes to the `users` collection
 - Firebase SDK includes: `FirebaseAuth`, `FirebaseFirestore`, `FirebaseFirestoreSwift`
 - Initialization code: `FirebaseApp.configure()` in AppDelegate or main App file
+
+## Code Organization Principles
+
+### Single Responsibility Principle
+- **1ファイル1責任**: Each file should have one clear responsibility
+- **File Size Limit**: Keep files under 300 lines when possible
+- **Component Separation**: Separate views, view models, and utility functions into different files
+- **Shared Components**: Extract reusable components into separate files
+
+### File Structure Guidelines
+- **Views**: Each SwiftUI View should be in its own file
+- **Row Components**: Extract row views (e.g., `TaskRowView`, `ProjectRowView`) into separate files
+- **Shared Components**: Create a `Components/` folder for reusable UI elements
+- **Extensions**: Put extensions in separate files grouped by type
+
+### Naming Conventions
+- Views: `[Feature][Purpose]View.swift` (e.g., `ProjectDetailView.swift`)
+- Components: `[Entity]RowView.swift` (e.g., `ProjectRowView.swift`)
+- Managers: `[Entity]Manager.swift` (e.g., `ProjectManager.swift`)
+
+### Refactoring Guidelines
+When a file becomes too large (>300 lines):
+1. Extract row components into separate files
+2. Extract utility functions into extensions
+3. Break complex views into smaller sub-views
+4. Move shared components to a common location

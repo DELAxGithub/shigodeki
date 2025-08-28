@@ -81,17 +81,14 @@ actor FirebaseOperationBase<Model: Codable & Identifiable> {
         var mutableModel = model
         let documentRef = collection.document()
         
-        if model.id == nil {
-            // Use reflection to set the id if possible
-            if var idSetter = mutableModel as? any _IdSettable {
-                idSetter.setId(documentRef.documentID)
-                mutableModel = idSetter as! Model
-            }
+        // Use reflection to set the id if possible
+        if var idSetter = mutableModel as? any _IdSettable {
+            idSetter.setId(documentRef.documentID)
+            mutableModel = idSetter as! Model
         }
         
         do {
-            try encoder.encode(mutableModel, to: documentRef)
-            await documentRef.setData(try encoder.encode(mutableModel))
+            try await documentRef.setData(try encoder.encode(mutableModel))
             return mutableModel
         } catch {
             throw FirebaseError.from(error)

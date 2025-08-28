@@ -16,10 +16,12 @@ class EnhancedTaskManager: ObservableObject {
     @Published var isLoading = false
     @Published var error: FirebaseError?
     
-    private var listeners: [ListenerRegistration] = []
+    internal var listeners: [ListenerRegistration] = []
     
     deinit {
-        removeAllListeners()
+        Task { @MainActor in
+            removeAllListeners()
+        }
     }
     
     // MARK: - Task CRUD Operations
@@ -31,7 +33,12 @@ class EnhancedTaskManager: ObservableObject {
         defer { isLoading = false }
         
         do {
-            let finalOrder = order ?? (try await getNextTaskOrder(listId: listId, phaseId: phaseId, projectId: projectId))
+            let finalOrder: Int
+            if let order = order {
+                finalOrder = order
+            } else {
+                finalOrder = try await getNextTaskOrder(listId: listId, phaseId: phaseId, projectId: projectId)
+            }
             var task = ShigodekiTask(title: title, description: description, assignedTo: assignedTo, 
                                    createdBy: createdBy, dueDate: dueDate, priority: priority,
                                    listId: listId, phaseId: phaseId, projectId: projectId, order: finalOrder)
@@ -144,7 +151,7 @@ class EnhancedTaskManager: ObservableObject {
     
     // MARK: - Helper Methods
     
-    private func getTaskCollection(listId: String, phaseId: String, projectId: String) -> CollectionReference {
+    internal func getTaskCollection(listId: String, phaseId: String, projectId: String) -> CollectionReference {
         return Firestore.firestore()
             .collection("projects").document(projectId)
             .collection("phases").document(phaseId)

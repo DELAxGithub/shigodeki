@@ -19,7 +19,9 @@ class TaskListManager: ObservableObject {
     private var listeners: [ListenerRegistration] = []
     
     deinit {
-        removeAllListeners()
+        Task { @MainActor in
+            removeAllListeners()
+        }
     }
     
     // MARK: - TaskList CRUD Operations
@@ -29,7 +31,12 @@ class TaskListManager: ObservableObject {
         defer { isLoading = false }
         
         do {
-            let finalOrder = order ?? (try await getNextTaskListOrder(phaseId: phaseId, projectId: projectId))
+            let finalOrder: Int
+            if let order = order {
+                finalOrder = order
+            } else {
+                finalOrder = try await getNextTaskListOrder(phaseId: phaseId, projectId: projectId)
+            }
             var taskList = TaskList(name: name, phaseId: phaseId, projectId: projectId, createdBy: createdBy, color: color, order: finalOrder)
             
             try taskList.validate()
@@ -233,7 +240,7 @@ class TaskListManager: ObservableObject {
                 updatedTaskList.order = index
                 
                 let taskListRef = getTaskListCollection(phaseId: phaseId, projectId: projectId).document(taskList.id ?? "")
-                try batch.setData(try Firestore.Encoder().encode(updatedTaskList), forDocument: taskListRef, merge: true)
+                batch.setData(try Firestore.Encoder().encode(updatedTaskList), forDocument: taskListRef, merge: true)
             }
             
             try await batch.commit()

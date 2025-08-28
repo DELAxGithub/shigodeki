@@ -19,7 +19,9 @@ class PhaseManager: ObservableObject {
     private var listeners: [ListenerRegistration] = []
     
     deinit {
-        removeAllListeners()
+        Task { @MainActor in
+            removeAllListeners()
+        }
     }
     
     // MARK: - Phase CRUD Operations
@@ -29,7 +31,12 @@ class PhaseManager: ObservableObject {
         defer { isLoading = false }
         
         do {
-            let finalOrder = order ?? (try await getNextPhaseOrder(projectId: projectId))
+            let finalOrder: Int
+            if let order = order {
+                finalOrder = order
+            } else {
+                finalOrder = try await getNextPhaseOrder(projectId: projectId)
+            }
             var phase = Phase(name: name, description: description, projectId: projectId, createdBy: createdBy, order: finalOrder)
             
             try phase.validate()
@@ -162,7 +169,7 @@ class PhaseManager: ObservableObject {
                 updatedPhase.order = index
                 
                 let phaseRef = Firestore.firestore().collection("projects").document(projectId).collection("phases").document(phase.id ?? "")
-                try batch.setData(try Firestore.Encoder().encode(updatedPhase), forDocument: phaseRef, merge: true)
+                batch.setData(try Firestore.Encoder().encode(updatedPhase), forDocument: phaseRef, merge: true)
             }
             
             try await batch.commit()

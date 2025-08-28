@@ -21,7 +21,7 @@ struct ShigodekiTask: Identifiable, Codable, Hashable {
     let createdBy: String
     
     // Hierarchy fields
-    let listId: String
+    var listId: String
     let phaseId: String
     let projectId: String
     var order: Int

@@ -21,7 +21,9 @@ class ProjectManager: ObservableObject {
     private var listeners: [ListenerRegistration] = []
     
     deinit {
-        removeAllListeners()
+        Task { @MainActor in
+            removeAllListeners()
+        }
     }
     
     // MARK: - Project CRUD Operations
@@ -31,7 +33,7 @@ class ProjectManager: ObservableObject {
         defer { isLoading = false }
         
         do {
-            var project = Project(name: name, description: description, ownerId: ownerId)
+            let project = Project(name: name, description: description, ownerId: ownerId)
             try project.validate()
             
             let createdProject = try await projectOperations.create(project)
@@ -221,8 +223,8 @@ class ProjectManager: ObservableObject {
     
     // MARK: - Real-time Listeners
     
-    func startListeningForUserProjects(userId: String) {
-        let listener = projectOperations.listen(where: "memberIds", isEqualTo: userId) { [weak self] result in
+    func startListeningForUserProjects(userId: String) async {
+        let listener = await projectOperations.listen(where: "memberIds", isEqualTo: userId) { [weak self] result in
             DispatchQueue.main.async {
                 switch result {
                 case .success(let projects):

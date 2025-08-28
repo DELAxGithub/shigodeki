@@ -9,9 +9,16 @@ import SwiftUI
 
 struct MainTabView: View {
     @StateObject private var authManager = AuthenticationManager()
+    @StateObject private var themeManager = ThemeManager()
     
     var body: some View {
         TabView {
+            ProjectListView()
+                .tabItem {
+                    Image(systemName: "folder.fill")
+                    Text("プロジェクト")
+                }
+            
             FamilyView()
                 .tabItem {
                     Image(systemName: "person.3.fill")
@@ -30,7 +37,9 @@ struct MainTabView: View {
                     Text("設定")
                 }
         }
-        .accentColor(.blue)
+        .accentColor(.primaryBlue)
+        .preferredColorScheme(themeManager.currentTheme.colorScheme)
+        .environmentObject(themeManager)
     }
 }
 
@@ -38,43 +47,88 @@ struct MainTabView: View {
 
 struct SettingsView: View {
     @StateObject private var authManager = AuthenticationManager()
+    @EnvironmentObject var themeManager: ThemeManager
     
     var body: some View {
         NavigationView {
             List {
+                // User Profile Section
                 Section {
                     if let user = authManager.currentUser {
-                        HStack {
-                            Image(systemName: "person.circle.fill")
-                                .font(.title2)
-                                .foregroundColor(.blue)
-                            
-                            VStack(alignment: .leading) {
-                                Text(user.name)
-                                    .font(.headline)
-                                Text(user.email)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 16) {
+                                // Profile Avatar
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.primaryBlue.opacity(0.1))
+                                        .frame(width: 60, height: 60)
+                                    
+                                    Image(systemName: "person.fill")
+                                        .font(.title)
+                                        .foregroundColor(.primaryBlue)
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(user.name)
+                                        .font(.title3)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.primaryText)
+                                    
+                                    Text(user.email)
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondaryText)
+                                }
+                                
+                                Spacer()
                             }
                         }
-                        .padding(.vertical, 4)
+                        .primaryCard()
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
                     }
                 }
                 
+                // Appearance Section
+                Section("外観") {
+                    HStack {
+                        Image(systemName: "paintbrush.fill")
+                            .foregroundColor(.primaryBlue)
+                            .frame(width: 24)
+                        
+                        Text("テーマ")
+                            .foregroundColor(.primaryText)
+                        
+                        Spacer()
+                        
+                        Picker("テーマ", selection: $themeManager.currentTheme) {
+                            ForEach(ThemeManager.AppTheme.allCases, id: \.self) { theme in
+                                Text(theme.displayName)
+                                    .tag(theme)
+                            }
+                        }
+                        .pickerStyle(MenuPickerStyle())
+                    }
+                }
+                
+                // Actions Section
                 Section {
                     Button(action: {
                         authManager.signOut()
                     }) {
                         HStack {
                             Image(systemName: "arrow.right.square")
-                                .foregroundColor(.red)
+                                .foregroundColor(.error)
+                                .frame(width: 24)
+                            
                             Text("サインアウト")
-                                .foregroundColor(.red)
+                                .foregroundColor(.error)
+                                .fontWeight(.medium)
                         }
                     }
                 }
             }
             .navigationTitle("設定")
+            .navigationBarTitleDisplayMode(.large)
         }
     }
 }

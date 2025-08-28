@@ -147,7 +147,7 @@ struct ModelRelationships {
     }
     
     private static func validateNoCyclicDependencies(tasks: [ShigodekiTask]) throws {
-        let taskDict = Dictionary(uniqueKeysWithValues: tasks.compactMap { task in
+        let taskDict: [String: ShigodekiTask] = Dictionary(uniqueKeysWithValues: tasks.compactMap { task in
             guard let id = task.id else { return nil }
             return (id, task)
         })
