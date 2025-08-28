@@ -20,15 +20,19 @@ struct LoginView: View {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 60))
                     .foregroundColor(.blue)
+                    .scaleEffect(authManager.isLoading ? 0.95 : 1.0)
+                    .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: authManager.isLoading)
                 
                 Text("シゴデキ")
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
+                    .accessibilityAddTraits(.isHeader)
                 
                 Text("家族みんなでタスク管理")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+                    .accessibilityLabel("家族全員でタスクを管理するアプリです")
             }
             
             Spacer()
@@ -45,12 +49,22 @@ struct LoginView: View {
                 )
                 .signInWithAppleButtonStyle(.black)
                 .frame(height: 50)
+                .cornerRadius(8)
+                .scaleEffect(authManager.isLoading ? 0.98 : 1.0)
+                .opacity(authManager.isLoading ? 0.7 : 1.0)
+                .animation(.easeInOut(duration: 0.2), value: authManager.isLoading)
                 .onTapGesture {
-                    Task.detached {
+                    // Haptic feedback
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                    impactFeedback.impactOccurred()
+                    
+                    Task {
                         await authManager.signInWithApple()
                     }
                 }
                 .disabled(authManager.isLoading)
+                .accessibilityLabel("Appleでサインイン")
+                .accessibilityHint("Appleアカウントを使用してサインインします")
                 
                 // Loading indicator
                 if authManager.isLoading {
@@ -62,15 +76,32 @@ struct LoginView: View {
                             .foregroundColor(.secondary)
                     }
                     .padding(.top, 8)
+                    .transition(.opacity.combined(with: .scale))
+                    .accessibilityLabel("サインイン処理中です")
                 }
                 
                 // Error message
                 if let errorMessage = authManager.errorMessage {
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.red)
+                            .font(.caption)
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(8)
+                    .multilineTextAlignment(.center)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .accessibilityLabel("エラー: \(errorMessage)")
+                    .onAppear {
+                        // Error haptic feedback
+                        let notificationFeedback = UINotificationFeedbackGenerator()
+                        notificationFeedback.notificationOccurred(.error)
+                    }
                 }
             }
             .padding(.horizontal, 32)

@@ -1,0 +1,12 @@
+
+Showing Recent Errors Only
+Prepare build
+ComputePackagePrebuildTargetDependencyGraph
+
+error: Could not compute dependency graph: unable to load transferred PIF: The workspace contains multiple references with the same GUID 'PACKAGE:1WNDO950G8JPNQ27LE5D0F7671MNUVYKS::MAINGROUP'
+
+Could not compute dependency graph: unable to load transferred PIF: The workspace contains multiple references with the same GUID 'PACKAGE:1WNDO950G8JPNQ27LE5D0F7671MNUVYKS::MAINGROUP'
+
+
+
+Activity Log Complete    2025-08-27, 8:01 PM    1.2 seconds

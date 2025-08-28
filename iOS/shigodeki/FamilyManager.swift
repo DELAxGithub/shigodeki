@@ -17,6 +17,7 @@ class FamilyManager: ObservableObject {
     
     private let db = Firestore.firestore()
     private var familyListeners: [ListenerRegistration] = []
+    private let listenerQueue = DispatchQueue(label: "com.shigodeki.familyManager.listeners", qos: .userInteractive)
     
     // MARK: - Family Creation
     
@@ -122,7 +123,7 @@ class FamilyManager: ObservableObject {
     func startListeningToFamilies(userId: String) {
         stopListeningToFamilies()
         
-        Task.detached { [self] @MainActor in
+        Task { @MainActor in
             do {
                 // Get user's family IDs
                 let userDoc = try await db.collection("users").document(userId).getDocument()
@@ -135,9 +136,12 @@ class FamilyManager: ObservableObject {
                 for familyId in familyIds {
                     let listener = db.collection("families").document(familyId)
                         .addSnapshotListener { [weak self] documentSnapshot, error in
-                            Task.detached { @MainActor in
+                            Task { @MainActor in
+                                guard let self = self else { return }
+                                
                                 if let error = error {
                                     print("Family listener error: \(error)")
+                                    self.errorMessage = "家族データの同期中にエラーが発生しました"
                                     return
                                 }
                                 
@@ -153,12 +157,8 @@ class FamilyManager: ObservableObject {
                                 family.id = document.documentID
                                 family.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
                                 
-                                // Update families array
-                                if let index = self?.families.firstIndex(where: { $0.id == family.id }) {
-                                    self?.families[index] = family
-                                } else {
-                                    self?.families.append(family)
-                                }
+                                // Update families array thread-safely
+                                self.updateFamilyInArray(family)
                             }
                         }
                     
@@ -167,6 +167,7 @@ class FamilyManager: ObservableObject {
                 
             } catch {
                 print("Error setting up family listeners: \(error)")
+                errorMessage = "家族データの監視設定に失敗しました"
             }
         }
     }
@@ -257,6 +258,14 @@ class FamilyManager: ObservableObject {
     
     // MARK: - Helper Methods
     
+    private func updateFamilyInArray(_ family: Family) {
+        if let index = families.firstIndex(where: { $0.id == family.id }) {
+            families[index] = family
+        } else {
+            families.append(family)
+        }
+    }
+    
     private enum FamilyIdAction {
         case add, remove
     }
@@ -277,6 +286,16 @@ class FamilyManager: ObservableObject {
     }
     
     // MARK: - Cleanup
+    
+    func cleanupInactiveListeners() {
+        // Remove listeners for families that no longer exist in the current list
+        let activeFamilyIds = Set(families.compactMap { $0.id })
+        familyListeners.removeAll { listener in
+            // This would require more sophisticated tracking to identify which listener belongs to which family
+            // For now, we'll keep all listeners active
+            false
+        }
+    }
     
     deinit {
         familyListeners.forEach { $0.remove() }

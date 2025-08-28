@@ -28,13 +28,14 @@ class AuthenticationManager: NSObject, ObservableObject {
         super.init()
         
         // Listen for authentication state changes
-        auth.addStateDidChangeListener { [weak self] _, user in
-            Task.detached { @MainActor in
-                self?.isAuthenticated = user != nil
+        _ = auth.addStateDidChangeListener { [weak self] _, user in
+            Task { @MainActor in
+                guard let self = self else { return }
+                self.isAuthenticated = user != nil
                 if let user = user {
-                    await self?.loadUserData(uid: user.uid)
+                    await self.loadUserData(uid: user.uid)
                 } else {
-                    self?.currentUser = nil
+                    self.currentUser = nil
                 }
             }
         }
@@ -130,7 +131,7 @@ extension AuthenticationManager: ASAuthorizationControllerDelegate {
     
     func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
         
-        Task.detached { @MainActor in
+        Task { @MainActor in
             defer { isLoading = false }
             
             guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
@@ -169,7 +170,7 @@ extension AuthenticationManager: ASAuthorizationControllerDelegate {
     }
     
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-        Task.detached { @MainActor in
+        Task { @MainActor in
             isLoading = false
             print("Apple Sign In error: \(error)")
             
@@ -185,6 +186,14 @@ extension AuthenticationManager: ASAuthorizationControllerDelegate {
                     errorMessage = "Apple Sign In not handled"
                 case .unknown:
                     errorMessage = "Unknown Apple Sign In error"
+                case .notInteractive:
+                    errorMessage = "Apple Sign In not interactive"
+                case .matchedExcludedCredential:
+                    errorMessage = "Excluded credential matched"
+                case .credentialImport:
+                    errorMessage = "Credential import error"
+                case .credentialExport:
+                    errorMessage = "Credential export error"
                 @unknown default:
                     errorMessage = "Apple Sign In error occurred"
                 }

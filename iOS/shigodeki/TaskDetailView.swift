@@ -70,6 +70,10 @@ struct TaskDetailView: View {
                             taskManager: taskManager,
                             familyMembers: familyMembers
                         )
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .leading).combined(with: .opacity),
+                            removal: .move(edge: .trailing).combined(with: .opacity)
+                        ))
                     }
                 }
             }
@@ -85,6 +89,10 @@ struct TaskDetailView: View {
                             taskManager: taskManager,
                             familyMembers: familyMembers
                         )
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .leading).combined(with: .opacity),
+                            removal: .move(edge: .trailing).combined(with: .opacity)
+                        ))
                     }
                 }
             }
@@ -224,8 +232,12 @@ struct TaskRowView: View {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
                     .foregroundColor(task.isCompleted ? .green : .gray)
+                    .scaleEffect(task.isCompleted ? 1.1 : 1.0)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: task.isCompleted)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(task.isCompleted ? "完了したタスク" : "未完了のタスク")
+            .accessibilityHint(task.isCompleted ? "タップして未完了にします" : "タップして完了にします")
             
             VStack(alignment: .leading, spacing: 4) {
                 // Task title
@@ -234,6 +246,8 @@ struct TaskRowView: View {
                         .font(.headline)
                         .strikethrough(task.isCompleted)
                         .foregroundColor(task.isCompleted ? .secondary : .primary)
+                        .animation(.easeInOut(duration: 0.2), value: task.isCompleted)
+                        .accessibilityLabel("タスク: \(task.title)")
                     
                     Spacer()
                     
@@ -294,7 +308,17 @@ struct TaskRowView: View {
               let taskListId = taskList.id,
               let familyId = family.id else { return }
         
-        Task.detached {
+        // Haptic feedback based on completion state
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        let notificationFeedback = UINotificationFeedbackGenerator()
+        
+        if task.isCompleted {
+            impactFeedback.impactOccurred()
+        } else {
+            notificationFeedback.notificationOccurred(.success)
+        }
+        
+        Task {
             do {
                 try await taskManager.toggleTaskCompletion(
                     taskId: taskId,
@@ -303,6 +327,9 @@ struct TaskRowView: View {
                 )
             } catch {
                 print("Error toggling task completion: \(error)")
+                // Error feedback
+                let errorFeedback = UINotificationFeedbackGenerator()
+                errorFeedback.notificationOccurred(.error)
             }
         }
     }

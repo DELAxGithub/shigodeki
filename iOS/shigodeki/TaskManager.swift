@@ -19,6 +19,7 @@ class TaskManager: ObservableObject {
     private let db = Firestore.firestore()
     private var taskListListeners: [ListenerRegistration] = []
     private var taskListeners: [String: ListenerRegistration] = [:]
+    private let listenerQueue = DispatchQueue(label: "com.shigodeki.taskManager.listeners", qos: .userInteractive)
     
     // MARK: - TaskList Operations
     
@@ -200,9 +201,12 @@ class TaskManager: ObservableObject {
             .whereField("isArchived", isEqualTo: false)
             .order(by: "createdAt", descending: false)
             .addSnapshotListener { [weak self] querySnapshot, error in
-                Task.detached { @MainActor in
+                Task { @MainActor in
+                    guard let self = self else { return }
+                    
                     if let error = error {
                         print("TaskList listener error: \(error)")
+                        self.errorMessage = "タスクリストの同期中にエラーが発生しました"
                         return
                     }
                     
@@ -210,12 +214,12 @@ class TaskManager: ObservableObject {
                     
                     var updatedTaskLists: [TaskList] = []
                     for document in documents {
-                        if let taskList = self?.parseTaskList(from: document) {
+                        if let taskList = self.parseTaskList(from: document) {
                             updatedTaskLists.append(taskList)
                         }
                     }
                     
-                    self?.taskLists = updatedTaskLists
+                    self.taskLists = updatedTaskLists
                 }
             }
         
@@ -231,9 +235,12 @@ class TaskManager: ObservableObject {
             .collection("tasks")
             .order(by: "createdAt", descending: false)
             .addSnapshotListener { [weak self] querySnapshot, error in
-                Task.detached { @MainActor in
+                Task { @MainActor in
+                    guard let self = self else { return }
+                    
                     if let error = error {
                         print("Tasks listener error: \(error)")
+                        self.errorMessage = "タスクの同期中にエラーが発生しました"
                         return
                     }
                     
@@ -241,12 +248,12 @@ class TaskManager: ObservableObject {
                     
                     var updatedTasks: [ShigodekiTask] = []
                     for document in documents {
-                        if let task = self?.parseTask(from: document) {
+                        if let task = self.parseTask(from: document) {
                             updatedTasks.append(task)
                         }
                     }
                     
-                    self?.tasks[taskListId] = updatedTasks
+                    self.tasks[taskListId] = updatedTasks
                 }
             }
         
@@ -324,6 +331,18 @@ class TaskManager: ObservableObject {
     }
     
     // MARK: - Cleanup
+    
+    func cleanupInactiveTaskListeners() {
+        // Remove listeners for task lists that no longer exist
+        let activeTaskListIds = Set(taskLists.compactMap { $0.id })
+        let inactiveIds = Set(taskListeners.keys).subtracting(activeTaskListIds)
+        
+        for taskListId in inactiveIds {
+            taskListeners[taskListId]?.remove()
+            taskListeners.removeValue(forKey: taskListId)
+            tasks.removeValue(forKey: taskListId)
+        }
+    }
     
     deinit {
         taskListListeners.forEach { $0.remove() }
