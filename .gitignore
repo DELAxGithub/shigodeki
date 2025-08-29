@@ -67,3 +67,14 @@ iOS/GoogleService-Info*.plist
 
 # Session logs
 *session*.md
+
+# Build error logs and reports
+ahigodekibuilderror/
+**/Build*.txt
+
+# Documentation and setup files (project-specific)
+setup-ph1.md
+DEMO-PREPARATION-REPORT.md
+
+# Temporary documentation
+docs/setup-ph1.md
