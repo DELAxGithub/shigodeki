@@ -12,7 +12,7 @@ struct PhaseListView: View {
     let project: Project
     @ObservedObject var phaseManager: PhaseManager
     @StateObject private var taskListManager = TaskListManager()
-    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
+    @StateObject private var authManager = AuthenticationManager()
     @State private var showingCreatePhase = false
     @State private var selectedPhase: Phase?
     
@@ -161,7 +161,7 @@ struct PhaseTaskListView: View {
     let phase: Phase
     let project: Project
     @ObservedObject var taskListManager: TaskListManager
-    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
+    @StateObject private var authManager = AuthenticationManager()
     @State private var showingCreateTaskList = false
     
     var body: some View {
@@ -284,7 +284,7 @@ struct TaskListDetailView: View {
     let phase: Phase
     let project: Project
     @StateObject private var taskManager = TaskManager()
-    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
+    @StateObject private var authManager = AuthenticationManager()
     @State private var showingCreateTask = false
     
     var body: some View {
@@ -466,7 +466,7 @@ struct CreatePhaseTaskView: View {
     let phase: Phase
     let project: Project
     @ObservedObject var taskManager: TaskManager
-    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
+    @StateObject private var authManager = AuthenticationManager()
     @Environment(\.dismiss) private var dismiss
     
     @State private var taskTitle: String = ""

@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct FamilyView: View {
-    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
+    @StateObject private var authManager = AuthenticationManager()
     @StateObject private var familyManager = FamilyManager()
     @State private var showingCreateFamily = false
     @State private var showingJoinFamily = false
@@ -118,10 +118,10 @@ struct FamilyView: View {
                 familyManager.stopListeningToFamilies()
             }
             .sheet(isPresented: $showingCreateFamily) {
-                CreateFamilyView(authManager: authManager, familyManager: familyManager)
+                CreateFamilyView(familyManager: familyManager)
             }
             .sheet(isPresented: $showingJoinFamily) {
-                JoinFamilyView(authManager: authManager, familyManager: familyManager)
+                JoinFamilyView(familyManager: familyManager)
             }
             .alert("エラー", isPresented: .constant(familyManager.errorMessage != nil)) {
                 Button("OK") {
@@ -176,7 +176,7 @@ struct CreateFamilyView: View {
     @State private var showSuccess = false
     @State private var invitationCode: String?
     
-    let authManager: SimpleAuthenticationManager
+    @StateObject private var authManager = AuthenticationManager()
     let familyManager: FamilyManager
     
     var body: some View {
@@ -273,7 +273,7 @@ struct JoinFamilyView: View {
     @State private var showSuccess = false
     @State private var successMessage = ""
     
-    let authManager: SimpleAuthenticationManager
+    @StateObject private var authManager = AuthenticationManager()
     let familyManager: FamilyManager
     
     var body: some View {

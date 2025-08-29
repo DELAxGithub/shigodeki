@@ -9,7 +9,7 @@ import SwiftUI
 
 struct CreateProjectView: View {
     @ObservedObject var projectManager: ProjectManager
-    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
+    @StateObject private var authManager = AuthenticationManager()
     @Environment(\.presentationMode) var presentationMode
     
     @State private var projectName = ""

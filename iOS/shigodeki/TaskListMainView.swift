@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct TaskListMainView: View {
-    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
+    @StateObject private var authManager = AuthenticationManager()
     @StateObject private var familyManager = FamilyManager()
     @StateObject private var taskManager = TaskManager()
     @State private var selectedFamily: Family?
@@ -172,7 +172,7 @@ struct TaskListsView: View {
     let family: Family
     @ObservedObject var taskManager: TaskManager
     @State private var showingCreateTaskList = false
-    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
+    @StateObject private var authManager = AuthenticationManager()
     
     var body: some View {
         VStack {

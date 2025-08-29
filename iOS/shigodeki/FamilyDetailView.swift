@@ -10,7 +10,7 @@ import FirebaseFirestore
 
 struct FamilyDetailView: View {
     let family: Family
-    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
+    @StateObject private var authManager = AuthenticationManager()
     @StateObject private var familyManager = FamilyManager()
     @State private var showingInviteCode = false
     @State private var currentInviteCode: String = ""

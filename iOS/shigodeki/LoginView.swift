@@ -9,7 +9,7 @@ import SwiftUI
 import AuthenticationServices
 
 struct LoginView: View {
-    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
+    @StateObject private var authManager = AuthenticationManager()
     
     var body: some View {
         VStack(spacing: 32) {
@@ -38,7 +38,21 @@ struct LoginView: View {
             Spacer()
             
             VStack(spacing: 16) {
-                // Simple Anonymous Sign In Button
+                // Apple Sign In Button
+                SignInWithAppleButton(.signIn) { request in
+                    request.requestedScopes = [.fullName, .email]
+                } onCompletion: { result in
+                    authManager.handleSignInWithApple(result: result)
+                }
+                .signInWithAppleButtonStyle(.black)
+                .frame(height: 50)
+                .cornerRadius(8)
+                .disabled(authManager.isLoading)
+                .scaleEffect(authManager.isLoading ? 0.98 : 1.0)
+                .opacity(authManager.isLoading ? 0.7 : 1.0)
+                .animation(.easeInOut(duration: 0.2), value: authManager.isLoading)
+                
+                // Demo Sign In Button (Secondary)
                 Button {
                     Task {
                         await authManager.signInAnonymously()
@@ -48,18 +62,22 @@ struct LoginView: View {
                         if authManager.isLoading {
                             ProgressView()
                                 .scaleEffect(0.8)
-                                .foregroundColor(.white)
+                                .foregroundColor(.secondary)
                         } else {
                             Image(systemName: "person.fill")
                         }
                         Text("デモとしてサインイン")
-                            .fontWeight(.semibold)
+                            .fontWeight(.medium)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(Color.blue)
-                    .foregroundColor(.white)
+                    .frame(height: 44)
+                    .background(Color(.systemGray6))
+                    .foregroundColor(.secondary)
                     .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(.systemGray4), lineWidth: 1)
+                    )
                 }
                 .scaleEffect(authManager.isLoading ? 0.98 : 1.0)
                 .opacity(authManager.isLoading ? 0.7 : 1.0)

@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
+    @StateObject private var authManager = AuthenticationManager()
     @StateObject private var themeManager = ThemeManager()
     
     var body: some View {
@@ -31,6 +31,14 @@ struct MainTabView: View {
                     Text("タスク")
                 }
             
+            #if DEBUG
+            AuthTestView()
+                .tabItem {
+                    Image(systemName: "flask")
+                    Text("テスト")
+                }
+            #endif
+            
             SettingsView()
                 .tabItem {
                     Image(systemName: "gear")
@@ -46,7 +54,7 @@ struct MainTabView: View {
 // MARK: - Placeholder Views
 
 struct SettingsView: View {
-    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
+    @StateObject private var authManager = AuthenticationManager()
     @EnvironmentObject var themeManager: ThemeManager
     
     var body: some View {

@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ProjectListView: View {
     @StateObject private var projectManager = ProjectManager()
-    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
+    @StateObject private var authManager = AuthenticationManager()
     @State private var showingCreateProject = false
     @State private var selectedProject: Project?
     

@@ -54,6 +54,7 @@ class AuthenticationManager: NSObject, ObservableObject {
         
         let authorizationController = ASAuthorizationController(authorizationRequests: [request])
         authorizationController.delegate = self
+        authorizationController.presentationContextProvider = self
         authorizationController.performRequests()
     }
     
@@ -109,8 +110,10 @@ class AuthenticationManager: NSObject, ObservableObject {
             return
         }
         
-        // Initialize Firebase Auth credential
-        let credential = OAuthProvider.credential(withProviderID: "apple.com", idToken: idTokenString, rawNonce: nonce)
+        // Initialize Firebase Auth credential  
+        let credential = OAuthProvider.appleCredential(withIDToken: idTokenString, 
+                                                      rawNonce: nonce, 
+                                                      fullName: appleIDCredential.fullName)
         
         do {
             let authResult = try await auth.signIn(with: credential)
@@ -162,7 +165,7 @@ class AuthenticationManager: NSObject, ObservableObject {
         let userData: [String: Any] = [
             "name": name,
             "email": email,
-            "familyIds": user.familyIds,
+            "familyIds": user.familyIds ?? [],
             "createdAt": FieldValue.serverTimestamp()
         ]
         
@@ -173,6 +176,51 @@ class AuthenticationManager: NSObject, ObservableObject {
         } catch {
             print("Error saving user to Firestore: \(error)")
             errorMessage = "Failed to save user data"
+        }
+    }
+    
+    // MARK: - Anonymous Sign In (Demo)
+    
+    func signInAnonymously() async {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let result = try await auth.signInAnonymously()
+            let user = result.user
+            await saveUserToFirestore(uid: user.uid, name: "Demo User", email: "")
+            isLoading = false
+        } catch {
+            print("Anonymous sign in error: \(error)")
+            // Fallback to demo email sign in
+            await signInWithDemoEmail()
+        }
+    }
+    
+    private func signInWithDemoEmail() async {
+        let email = "demo@shigodeki.com"
+        let password = "demo123456"
+        
+        do {
+            // Try to sign in first
+            let result = try await auth.signIn(withEmail: email, password: password)
+            let user = result.user
+            await saveUserToFirestore(uid: user.uid, name: "Demo User", email: email)
+            isLoading = false
+            print("Demo email sign in successful")
+        } catch {
+            // If sign in fails, try to create account
+            do {
+                let result = try await auth.createUser(withEmail: email, password: password)
+                let user = result.user
+                await saveUserToFirestore(uid: user.uid, name: "Demo User", email: email)
+                isLoading = false
+                print("Demo account created successfully")
+            } catch {
+                print("Demo email sign in/create failed: \(error)")
+                errorMessage = "Demo sign in failed: \(error.localizedDescription)"
+                isLoading = false
+            }
         }
     }
     
@@ -207,7 +255,9 @@ extension AuthenticationManager: ASAuthorizationControllerDelegate {
                 return
             }
             
-            let credential = OAuthProvider.credential(withProviderID: "apple.com", idToken: idTokenString, rawNonce: nonce)
+            let credential = OAuthProvider.appleCredential(withIDToken: idTokenString, 
+                                                          rawNonce: nonce, 
+                                                          fullName: appleIDCredential.fullName)
             
             do {
                 let result = try await auth.signIn(with: credential)
@@ -308,5 +358,16 @@ extension AuthenticationManager: ASAuthorizationControllerDelegate {
         }.joined()
         
         return hashString
+    }
+}
+
+// MARK: - ASAuthorizationControllerPresentationContextProviding
+extension AuthenticationManager: ASAuthorizationControllerPresentationContextProviding {
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else {
+            return ASPresentationAnchor()
+        }
+        return window
     }
 }

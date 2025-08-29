@@ -13,7 +13,7 @@ struct TaskDetailView: View {
     let family: Family
     @ObservedObject var taskManager: TaskManager
     
-    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
+    @StateObject private var authManager = AuthenticationManager()
     @State private var familyMembers: [User] = []
     @State private var isLoadingMembers = false
     @State private var showingCreateTask = false
