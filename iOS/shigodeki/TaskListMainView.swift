@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct TaskListMainView: View {
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
     @StateObject private var familyManager = FamilyManager()
     @StateObject private var taskManager = TaskManager()
     @State private var selectedFamily: Family?
@@ -172,7 +172,7 @@ struct TaskListsView: View {
     let family: Family
     @ObservedObject var taskManager: TaskManager
     @State private var showingCreateTaskList = false
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
     
     var body: some View {
         VStack {
@@ -243,7 +243,7 @@ struct TaskListRowView: View {
     var body: some View {
         HStack {
             Circle()
-                .fill(Color(taskList.color.rawValue))
+                .fill(taskList.color.swiftUIColor)
                 .frame(width: 16, height: 16)
             
             VStack(alignment: .leading, spacing: 4) {

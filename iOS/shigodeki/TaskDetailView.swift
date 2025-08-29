@@ -13,7 +13,7 @@ struct TaskDetailView: View {
     let family: Family
     @ObservedObject var taskManager: TaskManager
     
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
     @State private var familyMembers: [User] = []
     @State private var isLoadingMembers = false
     @State private var showingCreateTask = false
@@ -37,7 +37,7 @@ struct TaskDetailView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Circle()
-                            .fill(Color(taskList.color.rawValue))
+                            .fill(taskList.color.swiftUIColor)
                             .frame(width: 20, height: 20)
                         
                         Text(taskList.name)
@@ -253,7 +253,7 @@ struct TaskRowView: View {
                     
                     // Priority indicator
                     Circle()
-                        .fill(Color(task.priority.color))
+                        .fill(task.priority.swiftUIColor)
                         .frame(width: 8, height: 8)
                 }
                 

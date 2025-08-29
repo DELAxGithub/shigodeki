@@ -19,9 +19,9 @@ class PhaseManager: ObservableObject {
     private var listeners: [ListenerRegistration] = []
     
     deinit {
-        Task { @MainActor in
-            removeAllListeners()
-        }
+        // Clean up listeners synchronously in deinit to prevent retain cycles
+        listeners.forEach { $0.remove() }
+        listeners.removeAll()
     }
     
     // MARK: - Phase CRUD Operations

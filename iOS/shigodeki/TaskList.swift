@@ -7,6 +7,7 @@
 
 import Foundation
 import FirebaseFirestore
+import SwiftUI
 
 struct TaskList: Identifiable, Codable, Hashable {
     var id: String?
@@ -85,6 +86,19 @@ enum TaskListColor: String, CaseIterable, Codable, Hashable {
         case .pink: return "ピンク"
         case .yellow: return "黄"
         case .gray: return "グレー"
+        }
+    }
+    
+    var swiftUIColor: Color {
+        switch self {
+        case .blue: return Color.primaryBlue
+        case .green: return Color.success
+        case .orange: return Color.warning
+        case .red: return Color.error
+        case .purple: return Color(red: 0.6, green: 0.2, blue: 0.8)
+        case .pink: return Color(red: 1.0, green: 0.4, blue: 0.7)
+        case .yellow: return Color(red: 1.0, green: 0.8, blue: 0.0)
+        case .gray: return Color.pending
         }
     }
 }

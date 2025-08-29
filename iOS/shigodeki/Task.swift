@@ -7,6 +7,7 @@
 
 import Foundation
 import FirebaseFirestore
+import SwiftUI
 
 struct ShigodekiTask: Identifiable, Codable, Hashable {
     var id: String?
@@ -118,6 +119,14 @@ enum TaskPriority: String, CaseIterable, Codable, Hashable {
         case .low: return "blue"
         case .medium: return "orange"
         case .high: return "red"
+        }
+    }
+    
+    var swiftUIColor: Color {
+        switch self {
+        case .low: return Color.primaryBlue
+        case .medium: return Color.warning
+        case .high: return Color.error
         }
     }
 }

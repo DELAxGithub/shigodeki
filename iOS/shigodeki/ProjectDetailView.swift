@@ -11,7 +11,7 @@ struct ProjectDetailView: View {
     let project: Project
     @ObservedObject var projectManager: ProjectManager
     @StateObject private var phaseManager = PhaseManager()
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
     @State private var showingCreatePhase = false
     @State private var showingProjectSettings = false
     @State private var selectedPhase: Phase?

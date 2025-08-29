@@ -94,6 +94,75 @@ class TaskManager: ObservableObject {
     
     // MARK: - Task Operations
     
+    // MARK: - Phase-based Task Creation
+    
+    func createPhaseTask(title: String, description: String? = nil, taskListId: String, projectId: String, phaseId: String, creatorUserId: String, assignedTo: String? = nil, dueDate: Date? = nil, priority: TaskPriority = .medium) async throws -> String {
+        isLoading = true
+        errorMessage = nil
+        
+        defer { isLoading = false }
+        
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw TaskError.invalidTitle
+        }
+        
+        var task = ShigodekiTask(title: title.trimmingCharacters(in: .whitespacesAndNewlines), 
+                       description: description?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       assignedTo: assignedTo,
+                       createdBy: creatorUserId,
+                       dueDate: dueDate,
+                       priority: priority)
+        task.createdAt = Date()
+        
+        let taskData: [String: Any] = [
+            "title": task.title,
+            "description": task.description ?? "",
+            "isCompleted": task.isCompleted,
+            "assignedTo": task.assignedTo ?? "",
+            "createdBy": task.createdBy,
+            "priority": task.priority.rawValue,
+            "createdAt": FieldValue.serverTimestamp(),
+            "completedAt": NSNull(),
+            "dueDate": task.dueDate != nil ? Timestamp(date: task.dueDate!) : NSNull()
+        ]
+        
+        do {
+            // 🚀 Optimistic UI Update: Add to local list immediately
+            print("⚡ Adding phase task optimistically to UI")
+            task.id = "optimistic_\(UUID().uuidString)"
+            
+            if tasks[taskListId] == nil {
+                tasks[taskListId] = []
+            }
+            tasks[taskListId]?.append(task)
+            
+            // Save to project-based path: projects/{projectId}/phases/{phaseId}/lists/{taskListId}/tasks
+            let taskRef = try await db.collection("projects").document(projectId)
+                .collection("phases").document(phaseId)
+                .collection("lists").document(taskListId)
+                .collection("tasks").addDocument(data: taskData)
+            let taskId = taskRef.documentID
+            
+            // Update the local task with the real ID from Firestore
+            if let taskIndex = tasks[taskListId]?.firstIndex(where: { $0.id == task.id }) {
+                tasks[taskListId]?[taskIndex].id = taskId
+            }
+            
+            print("Phase task created successfully with ID: \(taskId)")
+            return taskId
+            
+        } catch {
+            print("Error creating phase task: \(error)")
+            errorMessage = "フェーズタスクの作成に失敗しました"
+            
+            // 🔄 Rollback: Remove optimistically added task on error
+            print("🔄 Rolling back optimistic UI update")
+            tasks[taskListId]?.removeAll { $0.id == task.id }
+            
+            throw TaskError.creationFailed(error.localizedDescription)
+        }
+    }
+
     func createTask(title: String, description: String? = nil, taskListId: String, familyId: String, creatorUserId: String, assignedTo: String? = nil, dueDate: Date? = nil, priority: TaskPriority = .medium) async throws -> String {
         isLoading = true
         errorMessage = nil
@@ -125,10 +194,24 @@ class TaskManager: ObservableObject {
         ]
         
         do {
+            // 🚀 Optimistic UI Update: Add to local list immediately
+            print("⚡ Adding task optimistically to UI")
+            task.id = "optimistic_\(UUID().uuidString)"
+            
+            if tasks[taskListId] == nil {
+                tasks[taskListId] = []
+            }
+            tasks[taskListId]?.append(task)
+            
             let taskRef = try await db.collection("families").document(familyId)
                 .collection("taskLists").document(taskListId)
                 .collection("tasks").addDocument(data: taskData)
             let taskId = taskRef.documentID
+            
+            // Update the local task with the real ID from Firestore
+            if let taskIndex = tasks[taskListId]?.firstIndex(where: { $0.id == task.id }) {
+                tasks[taskListId]?[taskIndex].id = taskId
+            }
             
             print("Task created successfully with ID: \(taskId)")
             return taskId
@@ -136,6 +219,11 @@ class TaskManager: ObservableObject {
         } catch {
             print("Error creating task: \(error)")
             errorMessage = "タスクの作成に失敗しました"
+            
+            // 🔄 Rollback: Remove optimistically added task on error
+            print("🔄 Rolling back optimistic UI update")
+            tasks[taskListId]?.removeAll { $0.id == task.id }
+            
             throw TaskError.creationFailed(error.localizedDescription)
         }
     }

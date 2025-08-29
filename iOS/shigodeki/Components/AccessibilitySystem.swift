@@ -396,3 +396,13 @@ struct AccessibilityTestingView: View {
     }
 }
 #endif
+
+// MARK: - Missing View Extensions
+
+extension View {
+    func interactiveScale(isPressed: Binding<Bool>) -> some View {
+        self
+            .scaleEffect(isPressed.wrappedValue ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: isPressed.wrappedValue)
+    }
+}

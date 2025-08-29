@@ -9,7 +9,7 @@ import SwiftUI
 
 struct CreateProjectView: View {
     @ObservedObject var projectManager: ProjectManager
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
     @Environment(\.presentationMode) var presentationMode
     
     @State private var projectName = ""
@@ -139,40 +139,57 @@ struct CreateProjectView: View {
     }
     
     private func createProject() {
+        print("🎯 Create project button tapped")
+        print("📝 Input - Name: '\(projectName)', Description: '\(projectDescription)'")
+        
         guard let userId = authManager.currentUser?.id else {
+            print("❌ No user ID found")
             errorMessage = "ユーザー情報が見つかりません"
             showingError = true
             return
         }
         
+        print("👤 Current user ID: '\(userId)'")
+        
         let trimmedName = projectName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
+            print("❌ Project name is empty")
             errorMessage = "プロジェクト名を入力してください"
             showingError = true
             return
         }
         
+        print("✅ Validation passed - proceeding with creation")
         isCreating = true
         
         Task {
             do {
                 let description = projectDescription.trimmingCharacters(in: .whitespacesAndNewlines)
                 let finalDescription = description.isEmpty ? nil : description
+                print("📋 Final inputs - Name: '\(trimmedName)', Description: '\(finalDescription ?? "nil")', Owner: '\(userId)'")
                 
-                _ = try await projectManager.createProject(
+                let createdProject = try await projectManager.createProject(
                     name: trimmedName,
                     description: finalDescription,
                     ownerId: userId
                 )
                 
+                print("🎉 Project creation successful in view! Project ID: \(createdProject.id ?? "NO_ID")")
+                
                 await MainActor.run {
+                    print("📱 Dismissing create project view")
                     presentationMode.wrappedValue.dismiss()
                 }
             } catch {
+                print("❌ Project creation failed in view: \(error)")
+                print("❌ Error type: \(type(of: error))")
+                print("❌ Error details: \(error.localizedDescription)")
+                
                 await MainActor.run {
                     isCreating = false
                     errorMessage = error.localizedDescription
                     showingError = true
+                    print("📱 Showing error to user: \(errorMessage)")
                 }
             }
         }

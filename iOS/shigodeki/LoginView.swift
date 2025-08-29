@@ -9,7 +9,7 @@ import SwiftUI
 import AuthenticationServices
 
 struct LoginView: View {
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
     
     var body: some View {
         VStack(spacing: 32) {
@@ -38,33 +38,35 @@ struct LoginView: View {
             Spacer()
             
             VStack(spacing: 16) {
-                // Apple Sign In Button
-                SignInWithAppleButton(
-                    onRequest: { request in
-                        // This is handled in AuthenticationManager
-                    },
-                    onCompletion: { result in
-                        // This is handled in AuthenticationManager
+                // Simple Anonymous Sign In Button
+                Button {
+                    Task {
+                        await authManager.signInAnonymously()
                     }
-                )
-                .signInWithAppleButtonStyle(.black)
-                .frame(height: 50)
-                .cornerRadius(8)
+                } label: {
+                    HStack {
+                        if authManager.isLoading {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .foregroundColor(.white)
+                        } else {
+                            Image(systemName: "person.fill")
+                        }
+                        Text("デモとしてサインイン")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                }
                 .scaleEffect(authManager.isLoading ? 0.98 : 1.0)
                 .opacity(authManager.isLoading ? 0.7 : 1.0)
                 .animation(.easeInOut(duration: 0.2), value: authManager.isLoading)
-                .onTapGesture {
-                    // Haptic feedback
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
-                    
-                    Task {
-                        await authManager.signInWithApple()
-                    }
-                }
                 .disabled(authManager.isLoading)
-                .accessibilityLabel("Appleでサインイン")
-                .accessibilityHint("Appleアカウントを使用してサインインします")
+                .accessibilityLabel("デモとしてサインイン")
+                .accessibilityHint("匿名でサインインしてアプリをテストします")
                 
                 // Loading indicator
                 if authManager.isLoading {

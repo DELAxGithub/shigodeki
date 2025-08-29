@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
     @StateObject private var themeManager = ThemeManager()
     
     var body: some View {
@@ -46,7 +46,7 @@ struct MainTabView: View {
 // MARK: - Placeholder Views
 
 struct SettingsView: View {
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
     @EnvironmentObject var themeManager: ThemeManager
     
     var body: some View {
@@ -113,7 +113,9 @@ struct SettingsView: View {
                 // Actions Section
                 Section {
                     Button(action: {
-                        authManager.signOut()
+                        Task {
+                            await authManager.signOut()
+                        }
                     }) {
                         HStack {
                             Image(systemName: "arrow.right.square")

@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct FamilyView: View {
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
     @StateObject private var familyManager = FamilyManager()
     @State private var showingCreateFamily = false
     @State private var showingJoinFamily = false
@@ -176,7 +176,7 @@ struct CreateFamilyView: View {
     @State private var showSuccess = false
     @State private var invitationCode: String?
     
-    let authManager: AuthenticationManager
+    let authManager: SimpleAuthenticationManager
     let familyManager: FamilyManager
     
     var body: some View {
@@ -273,7 +273,7 @@ struct JoinFamilyView: View {
     @State private var showSuccess = false
     @State private var successMessage = ""
     
-    let authManager: AuthenticationManager
+    let authManager: SimpleAuthenticationManager
     let familyManager: FamilyManager
     
     var body: some View {

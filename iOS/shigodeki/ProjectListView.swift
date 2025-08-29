@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ProjectListView: View {
     @StateObject private var projectManager = ProjectManager()
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
     @State private var showingCreateProject = false
     @State private var selectedProject: Project?
     
@@ -22,25 +22,25 @@ struct ProjectListView: View {
                     }
                     
                 } else {
-                    ScrollView {
-                        OptimizedList(items: projectManager.projects) { project in
-                            NavigationLink(
-                                destination: ProjectDetailView(project: project, projectManager: projectManager),
-                                tag: project,
-                                selection: $selectedProject
-                            ) {
+                    List {
+                        ForEach(projectManager.projects) { project in
+                            NavigationLink(destination: ProjectDetailView(project: project, projectManager: projectManager)) {
                                 ProjectRowView(project: project)
-                                    .buttonStyle(PlainButtonStyle())
-                                    .optimizedForList()
                             }
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                         }
-                        .padding(.horizontal)
-                        .padding(.top, 8)
+                        .onDelete(perform: deleteProjects)
                     }
+                    .listStyle(.plain)
                     .refreshable {
                         if let userId = authManager.currentUser?.id {
                             Task {
-                                try await projectManager.getUserProjects(userId: userId)
+                                do {
+                                    try await projectManager.getUserProjects(userId: userId)
+                                } catch {
+                                    print("❌ ProjectListView: Refresh error: \(error)")
+                                }
                             }
                         }
                     }
@@ -66,47 +66,105 @@ struct ProjectListView: View {
                 }
             }
             .onAppear {
+                print("📱 ProjectListView: onAppear triggered")
                 loadUserProjects()
             }
+            .onReceive(authManager.$isAuthenticated) { isAuthenticated in
+                print("📱 ProjectListView: Authentication state changed: \(isAuthenticated)")
+                if isAuthenticated {
+                    print("🔄 ProjectListView: User authenticated, loading projects")
+                    loadUserProjects()
+                }
+            }
             .onDisappear {
+                print("👋 ProjectListView: Disappearing, cleaning up listeners")
+                projectManager.removeAllListeners()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
+                print("🔚 ProjectListView: App terminating, cleaning up")
                 projectManager.removeAllListeners()
             }
             .sheet(isPresented: $showingCreateProject) {
                 CreateProjectView(projectManager: projectManager)
             }
-            .alert("エラー", isPresented: .constant(projectManager.error != nil)) {
+            .alert("エラー", isPresented: Binding(
+                get: { projectManager.error != nil },
+                set: { _ in projectManager.error = nil }
+            )) {
                 Button("OK") {
                     projectManager.error = nil
                 }
             } message: {
-                Text(projectManager.error?.localizedDescription ?? "")
+                if let error = projectManager.error {
+                    Text(error.localizedDescription)
+                } else {
+                    Text("不明なエラーが発生しました")
+                }
             }
         }
     }
     
+    @State private var retryCount = 0
+    private let maxRetries = 3
+    
     private func loadUserProjects() {
-        guard let userId = authManager.currentUser?.id else { return }
+        print("📱 ProjectListView: loadUserProjects called (attempt \(retryCount + 1))")
+        
+        guard let userId = authManager.currentUser?.id else {
+            guard retryCount < maxRetries else {
+                print("❌ ProjectListView: Max retries reached, stopping")
+                return
+            }
+            
+            print("❌ ProjectListView: No user ID available, will retry in 1 second")
+            retryCount += 1
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                print("🔄 ProjectListView: Retrying loadUserProjects after delay (\(self.retryCount)/\(self.maxRetries))")
+                self.loadUserProjects()
+            }
+            return 
+        }
+        
+        retryCount = 0 // Reset on successful user ID
+        
+        print("👤 ProjectListView: Loading projects for user: \(userId)")
         
         Task {
             do {
+                print("🔄 ProjectListView: Starting project listener and fetching projects")
                 await projectManager.startListeningForUserProjects(userId: userId)
-                _ = try await projectManager.getUserProjects(userId: userId)
+                let projects = try await projectManager.getUserProjects(userId: userId)
+                
+                await MainActor.run {
+                    print("✨ ProjectListView: Successfully loaded \(projects.count) projects")
+                    print("📊 ProjectListView: Current projectManager.projects count: \(projectManager.projects.count)")
+                }
             } catch {
-                print("Error loading projects: \(error)")
+                print("❌ ProjectListView: Error loading projects: \(error)")
+                print("❌ ProjectListView: Error details: \(error.localizedDescription)")
             }
         }
     }
     
     private func deleteProjects(at offsets: IndexSet) {
-        for index in offsets {
-            let project = projectManager.projects[index]
+        guard !projectManager.projects.isEmpty else { return }
+        
+        let projectsToDelete = offsets.compactMap { index -> Project? in
+            guard index < projectManager.projects.count else { return nil }
+            return projectManager.projects[index]
+        }
+        
+        for project in projectsToDelete {
             guard let projectId = project.id else { continue }
             
             Task {
                 do {
                     try await projectManager.deleteProject(id: projectId)
                 } catch {
-                    print("Error deleting project: \(error)")
+                    await MainActor.run {
+                        projectManager.error = FirebaseError.from(error)
+                    }
+                    print("❌ ProjectListView: Error deleting project: \(error)")
                 }
             }
         }

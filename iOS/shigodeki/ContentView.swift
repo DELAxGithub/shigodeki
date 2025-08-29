@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var authManager = AuthenticationManager()
+    @StateObject private var authManager = SimpleAuthenticationManager.shared
     
     var body: some View {
         Group {

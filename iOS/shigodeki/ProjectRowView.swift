@@ -58,18 +58,6 @@ struct ProjectRowView: View {
         )
         .highContrastColors()
         .interactiveScale(isPressed: $isPressed)
-        .onTapGesture {
-            let animation: Animation? = reduceMotion ? nil : .quickEase
-            withAnimation(animation) {
-                isPressed = true
-            }
-            HapticFeedbackManager.shared.light()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation(animation) {
-                    isPressed = false
-                }
-            }
-        }
     }
     
     private var accessibilityLabel: String {

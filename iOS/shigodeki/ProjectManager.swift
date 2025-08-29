@@ -19,31 +19,64 @@ class ProjectManager: ObservableObject {
     private let projectOperations = FirebaseOperationBase<Project>(collectionPath: "projects")
     private let memberOperations = FirebaseOperationBase<ProjectMember>(collectionPath: "projects")
     private var listeners: [ListenerRegistration] = []
+    private var activeUserIds: Set<String> = []
     
     deinit {
-        Task { @MainActor in
-            removeAllListeners()
-        }
+        // Clean up listeners - called from deinit, can't be async
+        listeners.forEach { $0.remove() }
+        listeners.removeAll()
     }
     
     // MARK: - Project CRUD Operations
     
     func createProject(name: String, description: String? = nil, ownerId: String) async throws -> Project {
+        print("🚀 Starting project creation - Name: '\(name)', Owner: '\(ownerId)'")
         isLoading = true
         defer { isLoading = false }
         
         do {
-            let project = Project(name: name, description: description, ownerId: ownerId)
-            try project.validate()
+            print("📝 Creating project object...")
+            var project = Project(name: name, description: description, ownerId: ownerId)
+            print("📝 Project object created: \(project)")
             
+            print("✅ Validating project...")
+            try project.validate()
+            print("✅ Project validation passed")
+            
+            // 🚀 Optimistic UI Update: Add to local list immediately
+            print("⚡ Adding project optimistically to UI")
+            projects.append(project)
+            
+            print("🔄 Creating project in Firestore...")
             let createdProject = try await projectOperations.create(project)
+            print("🎉 Project created successfully with ID: \(createdProject.id ?? "NO_ID")")
+            
+            // Update the local project with the real ID from Firestore
+            if let index = projects.firstIndex(where: { $0.name == project.name && $0.ownerId == ownerId }) {
+                projects[index] = createdProject
+            }
             
             // Create initial project member entry for the owner
+            print("👤 Creating owner member entry...")
             let ownerMember = ProjectMember(userId: ownerId, projectId: createdProject.id ?? "", role: .owner)
             try await createProjectMember(ownerMember, in: createdProject.id ?? "")
+            print("👤 Owner member created successfully")
             
+            print("✨ Project creation completed successfully!")
             return createdProject
         } catch {
+            print("❌ Project creation failed: \(error)")
+            print("❌ Error details: \(error.localizedDescription)")
+            if let firestoreError = error as NSError? {
+                print("❌ Firestore error code: \(firestoreError.code)")
+                print("❌ Firestore error domain: \(firestoreError.domain)")
+                print("❌ Firestore error userInfo: \(firestoreError.userInfo)")
+            }
+            
+            // 🔄 Rollback: Remove optimistically added project on error
+            print("🔄 Rolling back optimistic UI update")
+            projects.removeAll { $0.name == name && $0.ownerId == ownerId }
+            
             let firebaseError = FirebaseError.from(error)
             self.error = firebaseError
             throw firebaseError
@@ -116,12 +149,29 @@ class ProjectManager: ObservableObject {
     }
     
     func getUserProjects(userId: String) async throws -> [Project] {
+        print("📋 Loading projects for user: '\(userId)'")
         isLoading = true
         defer { isLoading = false }
         
         do {
-            return try await projectOperations.list(where: "memberIds", isEqualTo: userId)
+            print("🔍 Querying projects where memberIds array contains user...")
+            let foundProjects = try await projectOperations.list(where: "memberIds", arrayContains: userId)
+            print("📊 Found \(foundProjects.count) projects for user")
+            
+            for (index, project) in foundProjects.enumerated() {
+                print("📄 Project \(index + 1): '\(project.name)' (ID: \(project.id ?? "NO_ID"))")
+            }
+            
+            // 🔥 CRITICAL FIX: Update the @Published projects array
+            await MainActor.run {
+                self.projects = foundProjects
+                print("🔄 Updated ProjectManager.projects array with \(foundProjects.count) projects")
+            }
+            
+            return foundProjects
         } catch {
+            print("❌ Failed to load user projects: \(error)")
+            print("❌ Error details: \(error.localizedDescription)")
             let firebaseError = FirebaseError.from(error)
             self.error = firebaseError
             throw firebaseError
@@ -224,13 +274,31 @@ class ProjectManager: ObservableObject {
     // MARK: - Real-time Listeners
     
     func startListeningForUserProjects(userId: String) async {
+        guard !userId.isEmpty else {
+            print("❌ ProjectManager: Invalid userId for listener")
+            return
+        }
+        
+        // Prevent duplicate listeners for same user
+        if activeUserIds.contains(userId) {
+            print("⚠️ ProjectManager: Listener already exists for user: \(userId)")
+            return
+        }
+        
+        print("🎧 ProjectManager: Starting listener for user: \(userId)")
+        activeUserIds.insert(userId)
         let listener = await projectOperations.listen(where: "memberIds", isEqualTo: userId) { [weak self] result in
-            DispatchQueue.main.async {
+            Task { @MainActor in
+                guard let self = self else { return }
+                
                 switch result {
                 case .success(let projects):
-                    self?.projects = projects
+                    print("🔄 ProjectManager: Listener received \(projects.count) projects")
+                    self.projects = projects
                 case .failure(let error):
-                    self?.error = error
+                    print("❌ ProjectManager: Listener error: \(error)")
+                    let firebaseError = FirebaseError.from(error)
+                    self.error = firebaseError
                 }
             }
         }
@@ -238,24 +306,34 @@ class ProjectManager: ObservableObject {
     }
     
     func startListeningForProject(id: String) {
+        guard !id.isEmpty else {
+            print("❌ ProjectManager: Invalid project ID for listener")
+            return
+        }
+        
+        print("🎧 ProjectManager: Starting listener for project: \(id)")
         let projectCollection = Firestore.firestore().collection("projects")
         let listener = projectCollection.document(id).addSnapshotListener { [weak self] snapshot, error in
-            DispatchQueue.main.async {
+            Task { @MainActor in
+                guard let self = self else { return }
+                
                 if let error = error {
-                    self?.error = FirebaseError.from(error)
+                    print("❌ ProjectManager: Project listener error: \(error)")
+                    self.error = FirebaseError.from(error)
                     return
                 }
                 
                 guard let document = snapshot, document.exists else {
-                    self?.currentProject = nil
+                    print("📎 ProjectManager: Project document does not exist")
+                    self.currentProject = nil
                     return
                 }
                 
                 do {
                     let project = try document.data(as: Project.self)
-                    self?.currentProject = project
+                    self.currentProject = project
                 } catch {
-                    self?.error = FirebaseError.from(error)
+                    self.error = FirebaseError.from(error)
                 }
             }
         }
@@ -263,15 +341,28 @@ class ProjectManager: ObservableObject {
     }
     
     func removeAllListeners() {
-        listeners.forEach { $0.remove() }
+        print("🔄 ProjectManager: Removing \(listeners.count) listeners")
+        listeners.forEach { listener in
+            listener.remove()
+        }
         listeners.removeAll()
+        activeUserIds.removeAll()
+        print("✅ ProjectManager: All listeners removed")
     }
     
     // MARK: - Validation Helpers
     
     func validateProjectHierarchy(project: Project) async throws {
+        guard let projectId = project.id, !projectId.isEmpty else {
+            throw FirebaseError.operationFailed("Project ID is required for hierarchy validation")
+        }
+        
         let phaseManager = PhaseManager()
-        let phases = try await phaseManager.getPhases(projectId: project.id ?? "")
-        try ModelRelationships.validateProjectHierarchy(project: project, phases: phases)
+        do {
+            let phases = try await phaseManager.getPhases(projectId: projectId)
+            try ModelRelationships.validateProjectHierarchy(project: project, phases: phases)
+        } catch {
+            throw FirebaseError.from(error)
+        }
     }
 }

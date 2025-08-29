@@ -11,7 +11,7 @@ struct ProjectSettingsView: View {
     let project: Project
     @ObservedObject var projectManager: ProjectManager
     @Environment(\.presentationMode) var presentationMode
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = SimpleAuthenticationManager.shared
     
     @State private var projectName: String
     @State private var projectDescription: String

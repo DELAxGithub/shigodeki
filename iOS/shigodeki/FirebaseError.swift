@@ -150,6 +150,17 @@ actor FirebaseOperationBase<Model: Codable & Identifiable> {
         }
     }
     
+    func list(where field: String, arrayContains value: Any) async throws -> [Model] {
+        do {
+            let snapshot = try await collection.whereField(field, arrayContains: value).getDocuments()
+            return try snapshot.documents.compactMap { document in
+                try document.data(as: Model.self, decoder: decoder)
+            }
+        } catch {
+            throw FirebaseError.from(error)
+        }
+    }
+    
     func listen(completion: @escaping (Result<[Model], FirebaseError>) -> Void) -> ListenerRegistration {
         return collection.addSnapshotListener { snapshot, error in
             if let error = error {

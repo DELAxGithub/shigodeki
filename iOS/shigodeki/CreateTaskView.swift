@@ -62,7 +62,7 @@ struct CreateTaskView: View {
                                     }) {
                                         HStack {
                                             Circle()
-                                                .fill(Color(priority.color))
+                                                .fill(priority.swiftUIColor)
                                                 .frame(width: 12, height: 12)
                                             Text(priority.displayName)
                                                 .font(.subheadline)
