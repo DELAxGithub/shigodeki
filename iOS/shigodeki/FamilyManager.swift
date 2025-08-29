@@ -289,7 +289,7 @@ class FamilyManager: ObservableObject {
     
     func cleanupInactiveListeners() {
         // Remove listeners for families that no longer exist in the current list
-        let activeFamilyIds = Set(families.compactMap { $0.id })
+        _ = Set(families.compactMap { $0.id })
         familyListeners.removeAll { listener in
             // This would require more sophisticated tracking to identify which listener belongs to which family
             // For now, we'll keep all listeners active

@@ -18,6 +18,16 @@ class AuthenticationManager: NSObject, ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     
+    /// Convenience property to get current user ID
+    /// Falls back to Firebase Auth if User model isn't loaded yet
+    var currentUserId: String? {
+        if let userId = currentUser?.id {
+            return userId
+        }
+        // Fallback to Firebase Auth user if User model not loaded yet
+        return auth.currentUser?.uid
+    }
+    
     private let auth = Auth.auth()
     private let db = Firestore.firestore()
     
@@ -31,11 +41,17 @@ class AuthenticationManager: NSObject, ObservableObject {
         _ = auth.addStateDidChangeListener { [weak self] _, user in
             Task { @MainActor in
                 guard let self = self else { return }
-                self.isAuthenticated = user != nil
                 if let user = user {
+                    print("🔐 AuthManager: Firebase user authenticated: \(user.uid)")
+                    // Set authenticated immediately for faster UI response
+                    self.isAuthenticated = true
+                    // Load user data asynchronously
                     await self.loadUserData(uid: user.uid)
+                    print("👤 AuthManager: User data loaded, currentUserId: \(self.currentUserId ?? "nil")")
                 } else {
+                    print("🔐 AuthManager: User signed out")
                     self.currentUser = nil
+                    self.isAuthenticated = false
                 }
             }
         }
@@ -226,7 +242,7 @@ class AuthenticationManager: NSObject, ObservableObject {
     
     // MARK: - Sign Out
     
-    func signOut() {
+    func signOut() async {
         do {
             try auth.signOut()
             currentUser = nil

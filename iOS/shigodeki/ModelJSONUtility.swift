@@ -68,4 +68,28 @@ class ModelJSONUtility {
     func importFullProject(from data: Data) throws -> ProjectExport {
         return try decoder.decode(ProjectExport.self, from: data)
     }
+    
+    // MARK: - Template JSON Operations
+    
+    func importTemplate(from data: Data) throws -> ProjectTemplate {
+        return try decoder.decode(ProjectTemplate.self, from: data)
+    }
+    
+    func importLegacyTemplate(from data: Data) throws -> LegacyJSONTemplate {
+        return try decoder.decode(LegacyJSONTemplate.self, from: data)
+    }
+    
+    func exportTemplate(_ template: ProjectTemplate) throws -> Data {
+        return try encoder.encode(template)
+    }
+    
+    // MARK: - Unified Decoder Access
+    
+    var sharedDecoder: JSONDecoder {
+        return decoder
+    }
+    
+    var sharedEncoder: JSONEncoder {
+        return encoder
+    }
 }

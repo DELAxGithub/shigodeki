@@ -41,7 +41,7 @@ class TaskManager: ObservableObject {
         
         let taskListData: [String: Any] = [
             "name": taskList.name,
-            "familyId": taskList.familyId,
+            "familyId": taskList.familyId as Any,
             "createdBy": taskList.createdBy,
             "color": taskList.color.rawValue,
             "isArchived": taskList.isArchived,

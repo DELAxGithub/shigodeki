@@ -18,9 +18,9 @@ class SubtaskManager: ObservableObject {
     internal var listeners: [ListenerRegistration] = []
     
     deinit {
-        Task { @MainActor in
-            removeAllListeners()
-        }
+        // Clean up listeners synchronously - no async operations in deinit
+        listeners.forEach { $0.remove() }
+        listeners.removeAll()
     }
     
     func createSubtask(title: String, description: String? = nil, assignedTo: String? = nil,

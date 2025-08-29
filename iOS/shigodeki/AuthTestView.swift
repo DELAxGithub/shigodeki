@@ -121,7 +121,9 @@ struct TestControlsCard: View {
                     color: .red,
                     isLoading: false
                 ) {
-                    authManager.signOut()
+                    Task {
+                        await authManager.signOut()
+                    }
                 }
                 
                 TestButton(

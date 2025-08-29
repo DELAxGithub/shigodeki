@@ -12,8 +12,11 @@ struct ProjectDetailView: View {
     @ObservedObject var projectManager: ProjectManager
     @StateObject private var phaseManager = PhaseManager()
     @StateObject private var authManager = AuthenticationManager()
+    @StateObject private var aiGenerator = AITaskGenerator()
     @State private var showingCreatePhase = false
     @State private var showingProjectSettings = false
+    @State private var showingAIAnalysis = false
+    @State private var showingAISettings = false
     @State private var selectedPhase: Phase?
     
     var body: some View {
@@ -38,6 +41,16 @@ struct ProjectDetailView: View {
                     }
                     
                     Button(action: {
+                        if aiGenerator.availableProviders.isEmpty {
+                            showingAISettings = true
+                        } else {
+                            showingAIAnalysis = true
+                        }
+                    }) {
+                        Label("AI分析", systemImage: "brain")
+                    }
+                    
+                    Button(action: {
                         showingProjectSettings = true
                     }) {
                         Label("プロジェクト設定", systemImage: "gear")
@@ -55,6 +68,19 @@ struct ProjectDetailView: View {
         }
         .sheet(isPresented: $showingProjectSettings) {
             ProjectSettingsView(project: project, projectManager: projectManager)
+        }
+        .sheet(isPresented: $showingAIAnalysis) {
+            ProjectAIAnalysisView(
+                project: project,
+                phaseManager: phaseManager,
+                aiGenerator: aiGenerator
+            )
+        }
+        .sheet(isPresented: $showingAISettings) {
+            APISettingsView()
+                .onDisappear {
+                    aiGenerator.updateAvailableProviders()
+                }
         }
         .alert("エラー", isPresented: .constant(phaseManager.error != nil)) {
             Button("OK") {

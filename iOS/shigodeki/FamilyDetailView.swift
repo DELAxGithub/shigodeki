@@ -124,7 +124,7 @@ struct FamilyDetailView: View {
     }
     
     private func loadFamilyMembers() {
-        guard let familyId = family.id else { return }
+        guard family.id != nil else { return }
         
         isLoadingMembers = true
         
@@ -183,7 +183,7 @@ struct FamilyDetailView: View {
                     // Generate new invite code if none exists
                     try await familyManager.generateInvitationCode(familyId: familyId, familyName: family.name)
                     // Reload to get the new code
-                    loadInviteCode()
+                    await loadInviteCode()
                 }
                 
             } catch {

@@ -172,7 +172,10 @@ struct TaskListsView: View {
     let family: Family
     @ObservedObject var taskManager: TaskManager
     @State private var showingCreateTaskList = false
+    @State private var showingQuickAIGeneration = false
+    @State private var showingAISettings = false
     @StateObject private var authManager = AuthenticationManager()
+    @StateObject private var aiGenerator = AITaskGenerator()
     
     var body: some View {
         VStack {
@@ -194,27 +197,94 @@ struct TaskListsView: View {
                             .multilineTextAlignment(.center)
                     }
                     
-                    Button(action: {
-                        showingCreateTaskList = true
-                    }) {
-                        HStack {
-                            Image(systemName: "plus")
-                            Text("タスクリストを作成")
+                    VStack(spacing: 12) {
+                        Button(action: {
+                            showingCreateTaskList = true
+                        }) {
+                            HStack {
+                                Image(systemName: "plus")
+                                Text("タスクリストを作成")
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.blue)
+                            .cornerRadius(12)
                         }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.blue)
-                        .cornerRadius(12)
+                        
+                        Button(action: {
+                            if aiGenerator.availableProviders.isEmpty {
+                                showingAISettings = true
+                            } else {
+                                showingQuickAIGeneration = true
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "brain")
+                                Text("AI でタスクを生成")
+                            }
+                            .font(.subheadline)
+                            .foregroundColor(.blue)
+                            .padding()
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(12)
+                        }
                     }
                 }
                 .padding()
                 
             } else {
                 List {
-                    ForEach(taskManager.taskLists) { taskList in
-                        NavigationLink(destination: TaskDetailView(taskList: taskList, family: family, taskManager: taskManager)) {
-                            TaskListRowView(taskList: taskList, taskCount: taskManager.tasks[taskList.id!]?.count ?? 0)
+                    // Quick AI Generation Section
+                    Section {
+                        Button(action: {
+                            if aiGenerator.availableProviders.isEmpty {
+                                showingAISettings = true
+                            } else {
+                                showingQuickAIGeneration = true
+                            }
+                        }) {
+                            HStack {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color.blue.opacity(0.15))
+                                        .frame(width: 40, height: 40)
+                                    
+                                    Image(systemName: "brain")
+                                        .font(.title3)
+                                        .foregroundColor(.blue)
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("AI クイック生成")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.primary)
+                                    
+                                    Text("自然言語からタスクを瞬時に生成")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    // Task Lists Section
+                    if !taskManager.taskLists.isEmpty {
+                        Section("タスクリスト") {
+                            ForEach(taskManager.taskLists) { taskList in
+                                NavigationLink(destination: TaskDetailView(taskList: taskList, family: family, taskManager: taskManager)) {
+                                    TaskListRowView(taskList: taskList, taskCount: taskManager.tasks[taskList.id!]?.count ?? 0)
+                                }
+                            }
                         }
                     }
                 }
@@ -232,6 +302,19 @@ struct TaskListsView: View {
             if let userId = authManager.currentUser?.id {
                 CreateTaskListView(family: family, taskManager: taskManager, creatorUserId: userId)
             }
+        }
+        .sheet(isPresented: $showingQuickAIGeneration) {
+            QuickAIGenerationView(
+                family: family,
+                taskManager: taskManager,
+                aiGenerator: aiGenerator
+            )
+        }
+        .sheet(isPresented: $showingAISettings) {
+            APISettingsView()
+                .onDisappear {
+                    aiGenerator.updateAvailableProviders()
+                }
         }
     }
 }

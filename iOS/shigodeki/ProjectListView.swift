@@ -37,7 +37,7 @@ struct ProjectListView: View {
                         if let userId = authManager.currentUser?.id {
                             Task {
                                 do {
-                                    try await projectManager.getUserProjects(userId: userId)
+                                    _ = try await projectManager.getUserProjects(userId: userId)
                                 } catch {
                                     print("❌ ProjectListView: Refresh error: \(error)")
                                 }
@@ -50,7 +50,14 @@ struct ProjectListView: View {
                     }
                 }
                 
-                if projectManager.isLoading {
+                // Loading states with better feedback
+                if authManager.isLoading {
+                    LoadingStateView(message: "認証中...")
+                        .padding()
+                } else if isWaitingForAuth {
+                    LoadingStateView(message: "ユーザー情報を取得中...")
+                        .padding()
+                } else if projectManager.isLoading {
                     LoadingStateView(message: "プロジェクトを読み込み中...")
                         .padding()
                 }
@@ -73,7 +80,12 @@ struct ProjectListView: View {
                 print("📱 ProjectListView: Authentication state changed: \(isAuthenticated)")
                 if isAuthenticated {
                     print("🔄 ProjectListView: User authenticated, loading projects")
+                    retryCount = 0 // Reset retry count on auth state change
                     loadUserProjects()
+                } else {
+                    // Reset states when user signs out
+                    retryCount = 0
+                    isWaitingForAuth = false
                 }
             }
             .onDisappear {
@@ -105,27 +117,39 @@ struct ProjectListView: View {
     }
     
     @State private var retryCount = 0
-    private let maxRetries = 3
+    @State private var isWaitingForAuth = false
+    private let maxRetries = 3  // Reduced from 5 to 3
     
     private func loadUserProjects() {
         print("📱 ProjectListView: loadUserProjects called (attempt \(retryCount + 1))")
         
-        guard let userId = authManager.currentUser?.id else {
-            guard retryCount < maxRetries else {
+        guard let userId = authManager.currentUserId else {
+            // If user is authenticated but userId is nil, wait briefly
+            if authManager.isAuthenticated && retryCount < maxRetries {
+                isWaitingForAuth = true
+                let delay = exponentialBackoffDelay(for: retryCount)
+                print("⏳ ProjectListView: User authenticated but ID loading, retry in \(String(format: "%.1f", delay))s")
+                retryCount += 1
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    print("🔄 ProjectListView: Retrying loadUserProjects after delay (\(self.retryCount)/\(self.maxRetries))")
+                    self.loadUserProjects()
+                }
+                return
+            } else if !authManager.isAuthenticated {
+                print("🔐 ProjectListView: User not authenticated, waiting for sign in")
+                isWaitingForAuth = false
+                retryCount = 0
+                return
+            } else {
                 print("❌ ProjectListView: Max retries reached, stopping")
+                isWaitingForAuth = false
                 return
             }
-            
-            print("❌ ProjectListView: No user ID available, will retry in 1 second")
-            retryCount += 1
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                print("🔄 ProjectListView: Retrying loadUserProjects after delay (\(self.retryCount)/\(self.maxRetries))")
-                self.loadUserProjects()
-            }
-            return 
         }
         
         retryCount = 0 // Reset on successful user ID
+        isWaitingForAuth = false // Clear waiting state
         
         print("👤 ProjectListView: Loading projects for user: \(userId)")
         
@@ -144,6 +168,14 @@ struct ProjectListView: View {
                 print("❌ ProjectListView: Error details: \(error.localizedDescription)")
             }
         }
+    }
+    
+    /// Exponential backoff delay calculation
+    private func exponentialBackoffDelay(for attempt: Int) -> TimeInterval {
+        let baseDelay: TimeInterval = 0.1  // Start with 100ms (reduced from 250ms)
+        let maxDelay: TimeInterval = 1.0   // Cap at 1 second (reduced from 2s)
+        let delay = baseDelay * pow(2.0, Double(attempt))
+        return min(delay, maxDelay)
     }
     
     private func deleteProjects(at offsets: IndexSet) {

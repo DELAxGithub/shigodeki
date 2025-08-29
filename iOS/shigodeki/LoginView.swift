@@ -46,6 +46,7 @@ struct LoginView: View {
                 }
                 .signInWithAppleButtonStyle(.black)
                 .frame(height: 50)
+                .frame(maxWidth: 375)
                 .cornerRadius(8)
                 .disabled(authManager.isLoading)
                 .scaleEffect(authManager.isLoading ? 0.98 : 1.0)

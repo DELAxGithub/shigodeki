@@ -19,9 +19,8 @@ class EnhancedTaskManager: ObservableObject {
     internal var listeners: [ListenerRegistration] = []
     
     deinit {
-        Task { @MainActor in
-            removeAllListeners()
-        }
+        listeners.forEach { $0.remove() }
+        listeners.removeAll()
     }
     
     // MARK: - Task CRUD Operations

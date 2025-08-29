@@ -16,8 +16,14 @@ class ProjectManager: ObservableObject {
     @Published var isLoading = false
     @Published var error: FirebaseError?
     
+    // Template integration
+    @Published var templates: [ProjectTemplate] = []
+    @Published var isLoadingTemplates = false
+    
     private let projectOperations = FirebaseOperationBase<Project>(collectionPath: "projects")
     private let memberOperations = FirebaseOperationBase<ProjectMember>(collectionPath: "projects")
+    private let templateImporter = TemplateImporter()
+    private let templateExporter = TemplateExporter()
     private var listeners: [ListenerRegistration] = []
     private var activeUserIds: Set<String> = []
     
@@ -36,7 +42,7 @@ class ProjectManager: ObservableObject {
         
         do {
             print("📝 Creating project object...")
-            var project = Project(name: name, description: description, ownerId: ownerId)
+            let project = Project(name: name, description: description, ownerId: ownerId)
             print("📝 Project object created: \(project)")
             
             print("✅ Validating project...")
@@ -288,7 +294,7 @@ class ProjectManager: ObservableObject {
         print("🎧 ProjectManager: Starting listener for user: \(userId)")
         activeUserIds.insert(userId)
         let listener = await projectOperations.listen(where: "memberIds", isEqualTo: userId) { [weak self] result in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 
                 switch result {
@@ -314,7 +320,7 @@ class ProjectManager: ObservableObject {
         print("🎧 ProjectManager: Starting listener for project: \(id)")
         let projectCollection = Firestore.firestore().collection("projects")
         let listener = projectCollection.document(id).addSnapshotListener { [weak self] snapshot, error in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 
                 if let error = error {
@@ -348,6 +354,222 @@ class ProjectManager: ObservableObject {
         listeners.removeAll()
         activeUserIds.removeAll()
         print("✅ ProjectManager: All listeners removed")
+    }
+    
+    // MARK: - Template Integration
+    
+    func loadBuiltInTemplates() async {
+        isLoadingTemplates = true
+        defer { isLoadingTemplates = false }
+        
+        // Load templates on background queue
+        let builtInTemplates = BuiltInTemplates.allTemplates
+        
+        await MainActor.run {
+            self.templates = builtInTemplates
+            print("📚 Loaded \(builtInTemplates.count) built-in templates")
+        }
+    }
+    
+    func createProjectFromTemplate(_ template: ProjectTemplate, 
+                                  projectName: String? = nil,
+                                  ownerId: String,
+                                  customizations: ProjectCustomizations? = nil) async throws -> Project {
+        print("🎯 Creating project from template: '\(template.name)'")
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            // Import template and create project
+            let finalProjectName = projectName ?? template.name
+            let project = try await templateImporter.createProject(
+                from: template,
+                ownerId: ownerId,
+                projectName: finalProjectName,
+                customizations: customizations
+            )
+            
+            // Create project in Firebase
+            let createdProject = try await createProject(
+                name: project.name,
+                description: project.description,
+                ownerId: ownerId
+            )
+            
+            // Create phases, task lists, and tasks from template
+            try await createProjectStructureFromTemplate(
+                template: template,
+                projectId: createdProject.id ?? "",
+                ownerId: ownerId,
+                customizations: customizations
+            )
+            
+            print("🎉 Project created from template successfully!")
+            return createdProject
+        } catch {
+            print("❌ Failed to create project from template: \(error)")
+            let firebaseError = FirebaseError.from(error)
+            self.error = firebaseError
+            throw firebaseError
+        }
+    }
+    
+    private func createProjectStructureFromTemplate(
+        template: ProjectTemplate,
+        projectId: String,
+        ownerId: String,
+        customizations: ProjectCustomizations? = nil
+    ) async throws {
+        let phaseManager = PhaseManager()
+        let taskListManager = TaskListManager()
+        let taskManager = EnhancedTaskManager()
+        let subtaskManager = SubtaskManager()
+        
+        // Create phases in order
+        for phaseTemplate in template.phases.sorted(by: { $0.order < $1.order }) {
+            let createdPhase = try await phaseManager.createPhase(
+                name: phaseTemplate.title,
+                description: phaseTemplate.description,
+                projectId: projectId,
+                createdBy: ownerId,
+                order: phaseTemplate.order
+            )
+            guard let phaseId = createdPhase.id else { continue }
+            
+            // Create task lists for this phase
+            for taskListTemplate in phaseTemplate.taskLists.sorted(by: { $0.order < $1.order }) {
+                let createdTaskList = try await taskListManager.createTaskList(
+                    name: taskListTemplate.name,
+                    phaseId: phaseId,
+                    projectId: projectId,
+                    createdBy: ownerId,
+                    color: customizations?.customPhaseColors[phaseTemplate.title] ?? taskListTemplate.color,
+                    order: taskListTemplate.order
+                )
+                guard let taskListId = createdTaskList.id else { continue }
+                
+                // Create tasks for this task list
+                for (taskIndex, taskTemplate) in taskListTemplate.tasks.enumerated() {
+                    // Skip optional tasks if customizations specify to do so
+                    if taskTemplate.isOptional && (customizations?.skipOptionalTasks == true) {
+                        continue
+                    }
+                    
+                    // Apply priority overrides if specified
+                    let priority = customizations?.taskPriorityOverrides[taskTemplate.title] ?? taskTemplate.priority
+                    
+                    let createdTask = try await taskManager.createTask(
+                        title: taskTemplate.title,
+                        description: taskTemplate.description,
+                        assignedTo: nil,
+                        createdBy: ownerId,
+                        dueDate: nil,
+                        priority: priority,
+                        listId: taskListId,
+                        phaseId: phaseId,
+                        projectId: projectId,
+                        order: taskIndex
+                    )
+                    guard let taskId = createdTask.id else { continue }
+                    
+                    // Create subtasks if present
+                    for (subtaskIndex, subtaskTemplate) in taskTemplate.subtasks.enumerated() {
+                        _ = try await subtaskManager.createSubtask(
+                            title: subtaskTemplate.title,
+                            description: subtaskTemplate.description,
+                            assignedTo: nil,
+                            createdBy: ownerId,
+                            dueDate: nil,
+                            taskId: taskId,
+                            listId: taskListId,
+                            phaseId: phaseId,
+                            projectId: projectId,
+                            order: subtaskIndex
+                        )
+                    }
+                }
+            }
+        }
+    }
+    
+    func exportProjectAsTemplate(_ project: Project) async throws -> ProjectTemplate {
+        print("📤 Exporting project as template: '\(project.name)'")
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            // Get all project components
+            let phaseManager = PhaseManager()
+            let taskListManager = TaskListManager()
+            _ = EnhancedTaskManager()
+            let subtaskManager = SubtaskManager()
+            
+            guard let projectId = project.id else {
+                throw FirebaseError.operationFailed("Project ID is required for export")
+            }
+            
+            let phases = try await phaseManager.getPhases(projectId: projectId)
+            var taskLists: [String: [TaskList]] = [:]
+            var tasks: [String: [ShigodekiTask]] = [:]
+            var subtasks: [String: [Subtask]] = [:]
+            
+            // Collect all task lists, tasks, and subtasks
+            for phase in phases {
+                guard let phaseId = phase.id else { continue }
+                let phaseLists = try await taskListManager.getTaskLists(phaseId: phaseId, projectId: projectId)
+                taskLists[phaseId] = phaseLists
+                
+                for taskList in phaseLists {
+                    guard let taskListId = taskList.id else { continue }
+                    // Load tasks for this task list (assuming this is for export, we may need to adjust)
+                    let listTasks: [ShigodekiTask] = [] // TODO: Implement proper task loading for export
+                    tasks[taskListId] = listTasks
+                    
+                    for task in listTasks {
+                        guard let taskId = task.id else { continue }
+                        let taskSubtasks = try await subtaskManager.getSubtasks(
+                            taskId: taskId,
+                            listId: taskListId,
+                            phaseId: phaseId,
+                            projectId: projectId
+                        )
+                        subtasks[taskId] = taskSubtasks
+                    }
+                }
+            }
+            
+            // Export to template
+            let template = try await templateExporter.exportProject(
+                project,
+                phases: phases,
+                taskLists: taskLists,
+                tasks: tasks,
+                subtasks: subtasks,
+                options: .default
+            )
+            
+            print("✅ Project exported as template successfully!")
+            return template
+        } catch {
+            print("❌ Failed to export project as template: \(error)")
+            let firebaseError = FirebaseError.from(error)
+            self.error = firebaseError
+            throw firebaseError
+        }
+    }
+    
+    func importTemplateFromFile(url: URL) async throws -> ProjectTemplate {
+        isLoadingTemplates = true
+        defer { isLoadingTemplates = false }
+        
+        do {
+            let result = try await templateImporter.importTemplateFromFile(url: url)
+            return result.projectTemplate
+        } catch {
+            let firebaseError = FirebaseError.from(error)
+            self.error = firebaseError
+            throw firebaseError
+        }
     }
     
     // MARK: - Validation Helpers

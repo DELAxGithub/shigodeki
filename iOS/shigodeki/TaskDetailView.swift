@@ -14,9 +14,12 @@ struct TaskDetailView: View {
     @ObservedObject var taskManager: TaskManager
     
     @StateObject private var authManager = AuthenticationManager()
+    @StateObject private var aiGenerator = AITaskGenerator()
     @State private var familyMembers: [User] = []
     @State private var isLoadingMembers = false
     @State private var showingCreateTask = false
+    @State private var showingAIAssistant = false
+    @State private var showingAISettings = false
     
     private var tasks: [ShigodekiTask] {
         taskManager.tasks[taskList.id!] ?? []
@@ -132,12 +135,27 @@ struct TaskDetailView: View {
         .navigationTitle(taskList.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                // AI Assistant Button
+                Button(action: {
+                    if aiGenerator.availableProviders.isEmpty {
+                        showingAISettings = true
+                    } else {
+                        showingAIAssistant = true
+                    }
+                }) {
+                    Image(systemName: "brain")
+                        .foregroundColor(.blue)
+                }
+                .help("AI タスク提案")
+                
+                // Add Task Button
                 Button(action: {
                     showingCreateTask = true
                 }) {
                     Image(systemName: "plus")
                 }
+                .help("新しいタスクを作成")
             }
         }
         .onAppear {
@@ -156,6 +174,23 @@ struct TaskDetailView: View {
                     familyMembers: familyMembers
                 )
             }
+        }
+        .sheet(isPresented: $showingAIAssistant) {
+            TaskAIAssistantView(
+                taskList: taskList,
+                existingTasks: tasks,
+                aiGenerator: aiGenerator,
+                onTasksGenerated: { generatedTasks in
+                    // Handle generated tasks
+                    print("Generated \(generatedTasks.count) tasks")
+                }
+            )
+        }
+        .sheet(isPresented: $showingAISettings) {
+            APISettingsView()
+                .onDisappear {
+                    aiGenerator.updateAvailableProviders()
+                }
         }
     }
     
