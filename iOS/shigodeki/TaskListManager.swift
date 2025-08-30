@@ -47,7 +47,7 @@ class TaskListManager: ObservableObject {
             taskList.createdAt = Date()
             
             try await documentRef.setData(try Firestore.Encoder().encode(taskList))
-            
+            print("📦 TaskListManager: Created list '" + name + "' [" + (taskList.id ?? "") + "] in phase " + phaseId)
             return taskList
         } catch {
             let firebaseError = FirebaseError.from(error)
@@ -313,6 +313,9 @@ class TaskListManager: ObservableObject {
                         try document.data(as: TaskList.self)
                     }
                     self?.taskLists = taskLists
+                    #if DEBUG
+                    print("🔔 TaskListManager: Listener received \(taskLists.count) lists for phase \(phaseId)")
+                    #endif
                 } catch {
                     self?.error = FirebaseError.from(error)
                 }

@@ -47,7 +47,7 @@ class PhaseManager: ObservableObject {
             phase.createdAt = Date()
             
             try await documentRef.setData(try Firestore.Encoder().encode(phase))
-            
+            print("🧱 PhaseManager: Created phase '" + name + "' [" + (phase.id ?? "") + "] in project " + projectId)
             return phase
         } catch {
             let firebaseError = FirebaseError.from(error)

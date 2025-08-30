@@ -51,6 +51,7 @@ class SubtaskManager: ObservableObject {
             
             // Update parent task subtask count
             try await updateTaskSubtaskCounts(taskId: taskId, listId: listId, phaseId: phaseId, projectId: projectId)
+            print("• SubtaskManager: Created subtask '" + title + "' [" + (subtask.id ?? "") + "] for task " + taskId)
             
             return subtask
         } catch {

@@ -24,13 +24,17 @@ class ProjectManager: ObservableObject {
     private let memberOperations = FirebaseOperationBase<ProjectMember>(collectionPath: "projects")
     private let templateImporter = TemplateImporter()
     private let templateExporter = TemplateExporter()
-    private var listeners: [ListenerRegistration] = []
-    private var activeUserIds: Set<String> = []
+    
+    // 🆕 統合された Firebase リスナー管理
+    private let listenerManager = FirebaseListenerManager.shared
+    private var activeListenerIds: Set<String> = []
+    private var currentUserId: String?
     
     deinit {
-        // Clean up listeners - called from deinit, can't be async
-        listeners.forEach { $0.remove() }
-        listeners.removeAll()
+        // 🆕 中央集中化されたリスナー管理で削除
+        Task { @MainActor [weak self] in
+            self?.removeAllListeners()
+        }
     }
     
     // MARK: - Project CRUD Operations
@@ -277,38 +281,46 @@ class ProjectManager: ObservableObject {
         _ = try await updateProject(project)
     }
     
-    // MARK: - Real-time Listeners
+    // MARK: - Real-time Listeners (🆕 統合版)
     
-    func startListeningForUserProjects(userId: String) async {
+    func startListeningForUserProjects(userId: String) {
         guard !userId.isEmpty else {
             print("❌ ProjectManager: Invalid userId for listener")
             return
         }
         
-        // Prevent duplicate listeners for same user
-        if activeUserIds.contains(userId) {
+        // 重複リスナーの防止
+        let listenerId = "projects_\(userId)"
+        if activeListenerIds.contains(listenerId) {
             print("⚠️ ProjectManager: Listener already exists for user: \(userId)")
             return
         }
         
-        print("🎧 ProjectManager: Starting listener for user: \(userId)")
-        activeUserIds.insert(userId)
-        let listener = await projectOperations.listen(where: "memberIds", isEqualTo: userId) { [weak self] result in
+        print("🎧 ProjectManager: Starting optimized listener for user: \(userId)")
+        currentUserId = userId
+        
+        // 🆕 統合されたリスナー管理システムを使用
+        let actualListenerId = listenerManager.createProjectListener(userId: userId) { [weak self] result in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 
                 switch result {
                 case .success(let projects):
-                    print("🔄 ProjectManager: Listener received \(projects.count) projects")
+                    print("🔄 ProjectManager: Optimized listener received \(projects.count) projects")
+                    print("📊 ProjectManager: Before update - self.projects.count: \(self.projects.count)")
+                    self.isLoading = false // 🔧 リスナー成功時にローディング終了
                     self.projects = projects
+                    print("✅ ProjectManager: After update - self.projects.count: \(self.projects.count)")
+                    print("📋 ProjectManager: Updated projects: \(self.projects.map { $0.name })")
                 case .failure(let error):
-                    print("❌ ProjectManager: Listener error: \(error)")
-                    let firebaseError = FirebaseError.from(error)
-                    self.error = firebaseError
+                    print("❌ ProjectManager: Optimized listener error: \(error)")
+                    self.isLoading = false // 🔧 エラー時もローディング終了
+                    self.error = error
                 }
             }
         }
-        listeners.append(listener)
+        
+        activeListenerIds.insert(actualListenerId)
     }
     
     func startListeningForProject(id: String) {
@@ -317,43 +329,77 @@ class ProjectManager: ObservableObject {
             return
         }
         
-        print("🎧 ProjectManager: Starting listener for project: \(id)")
-        let projectCollection = Firestore.firestore().collection("projects")
-        let listener = projectCollection.document(id).addSnapshotListener { [weak self] snapshot, error in
+        let listenerId = "project_detail_\(id)"
+        if activeListenerIds.contains(listenerId) {
+            print("⚠️ ProjectManager: Project listener already exists for: \(id)")
+            return
+        }
+        
+        print("🎧 ProjectManager: Starting optimized project listener: \(id)")
+        
+        // 🆕 統合されたリスナー管理システムを使用
+        let document = Firestore.firestore().collection("projects").document(id)
+        let actualListenerId = listenerManager.createDocumentListener(
+            id: listenerId,
+            document: document,
+            type: .project,
+            priority: .medium
+        ) { [weak self] (result: Result<Project?, FirebaseError>) in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 
-                if let error = error {
-                    print("❌ ProjectManager: Project listener error: \(error)")
-                    self.error = FirebaseError.from(error)
-                    return
-                }
-                
-                guard let document = snapshot, document.exists else {
-                    print("📎 ProjectManager: Project document does not exist")
-                    self.currentProject = nil
-                    return
-                }
-                
-                do {
-                    let project = try document.data(as: Project.self)
+                switch result {
+                case .success(let project):
+                    print("🔄 ProjectManager: Optimized project listener received update")
                     self.currentProject = project
-                } catch {
-                    self.error = FirebaseError.from(error)
+                case .failure(let error):
+                    print("❌ ProjectManager: Optimized project listener error: \(error)")
+                    self.error = error
+                    self.currentProject = nil
                 }
             }
         }
-        listeners.append(listener)
+        
+        activeListenerIds.insert(actualListenerId)
     }
     
     func removeAllListeners() {
-        print("🔄 ProjectManager: Removing \(listeners.count) listeners")
-        listeners.forEach { listener in
-            listener.remove()
+        print("🔄 ProjectManager: Removing \(activeListenerIds.count) optimized listeners")
+        
+        // 🆕 統合されたリスナー管理システムで削除
+        for listenerId in activeListenerIds {
+            listenerManager.removeListener(id: listenerId)
         }
-        listeners.removeAll()
-        activeUserIds.removeAll()
-        print("✅ ProjectManager: All listeners removed")
+        
+        activeListenerIds.removeAll()
+        currentUserId = nil
+        
+        print("✅ ProjectManager: All optimized listeners removed")
+        
+        // デバッグ情報の出力
+        listenerManager.logDebugInfo()
+    }
+    
+    // 🆕 特定のリスナーのみ削除
+    func removeProjectListener() {
+        if let userId = currentUserId {
+            let listenerId = "projects_\(userId)"
+            if activeListenerIds.contains(listenerId) {
+                listenerManager.removeListener(id: listenerId)
+                activeListenerIds.remove(listenerId)
+                print("✅ ProjectManager: Project list listener removed for user: \(userId)")
+            }
+        }
+    }
+    
+    // 🆕 現在のプロジェクト詳細リスナーのみ削除
+    func removeCurrentProjectListener() {
+        let listenersToRemove = activeListenerIds.filter { $0.hasPrefix("project_detail_") }
+        for listenerId in listenersToRemove {
+            listenerManager.removeListener(id: listenerId)
+            activeListenerIds.remove(listenerId)
+        }
+        print("✅ ProjectManager: Project detail listeners removed")
     }
     
     // MARK: - Template Integration
@@ -403,6 +449,8 @@ class ProjectManager: ObservableObject {
                 ownerId: ownerId,
                 customizations: customizations
             )
+            // 🛡️ Post-import stabilization: extend performance monitor grace period to avoid aggressive cleanup
+            IntegratedPerformanceMonitor.shared.extendGracePeriod(seconds: 45)
             
             print("🎉 Project created from template successfully!")
             return createdProject
@@ -424,6 +472,10 @@ class ProjectManager: ObservableObject {
         let taskListManager = TaskListManager()
         let taskManager = EnhancedTaskManager()
         let subtaskManager = SubtaskManager()
+        var phaseCount = 0
+        var listCount = 0
+        var taskCount = 0
+        var subtaskCount = 0
         
         // Create phases in order
         for phaseTemplate in template.phases.sorted(by: { $0.order < $1.order }) {
@@ -435,6 +487,8 @@ class ProjectManager: ObservableObject {
                 order: phaseTemplate.order
             )
             guard let phaseId = createdPhase.id else { continue }
+            phaseCount += 1
+            print("🧱 Created phase: \(createdPhase.name) [\(phaseId)]")
             
             // Create task lists for this phase
             for taskListTemplate in phaseTemplate.taskLists.sorted(by: { $0.order < $1.order }) {
@@ -447,6 +501,8 @@ class ProjectManager: ObservableObject {
                     order: taskListTemplate.order
                 )
                 guard let taskListId = createdTaskList.id else { continue }
+                listCount += 1
+                print("📦 Created list: \(createdTaskList.name) [\(taskListId)] in phase \(phaseId)")
                 
                 // Create tasks for this task list
                 for (taskIndex, taskTemplate) in taskListTemplate.tasks.enumerated() {
@@ -471,10 +527,12 @@ class ProjectManager: ObservableObject {
                         order: taskIndex
                     )
                     guard let taskId = createdTask.id else { continue }
+                    taskCount += 1
+                    print("✅ Created task: \(createdTask.title) [\(taskId)] in list \(taskListId)")
                     
                     // Create subtasks if present
                     for (subtaskIndex, subtaskTemplate) in taskTemplate.subtasks.enumerated() {
-                        _ = try await subtaskManager.createSubtask(
+                        let createdSubtask = try await subtaskManager.createSubtask(
                             title: subtaskTemplate.title,
                             description: subtaskTemplate.description,
                             assignedTo: nil,
@@ -486,9 +544,26 @@ class ProjectManager: ObservableObject {
                             projectId: projectId,
                             order: subtaskIndex
                         )
+                        subtaskCount += 1
+                        print("• Created subtask: \(createdSubtask.title) [\(createdSubtask.id ?? "")] for task \(taskId)")
                     }
                 }
             }
+        }
+
+        print("📈 Template creation summary → phases: \(phaseCount), lists: \(listCount), tasks: \(taskCount), subtasks: \(subtaskCount)")
+        // 更新された統計情報をプロジェクトに保存
+        let stats = ProjectStats(
+            totalTasks: taskCount,
+            completedTasks: 0,
+            totalPhases: phaseCount,
+            activeMembers: 1
+        )
+        do {
+            try await updateProjectStatistics(projectId: projectId, stats: stats)
+            print("🧮 Project statistics updated: phases=\(phaseCount), tasks=\(taskCount)")
+        } catch {
+            print("⚠️ Failed to update project statistics: \(error)")
         }
     }
     

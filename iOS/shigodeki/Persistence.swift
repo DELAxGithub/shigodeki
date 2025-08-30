@@ -38,10 +38,12 @@ struct PersistenceController {
         if inMemory {
             container.persistentStoreDescriptions.first!.url = URL(fileURLWithPath: "/dev/null")
         }
+        
+        let logger = Logger(subsystem: "com.hiroshikodera.shigodeki", category: "CoreData")
+        
         container.loadPersistentStores(completionHandler: { (storeDescription, error) in
             if let error = error as NSError? {
                 // Graceful error handling for persistent store loading
-                let logger = Logger(subsystem: "com.hiroshikodera.shigodeki", category: "CoreData")
                 logger.error("Persistent store loading failed: \(error.localizedDescription, privacy: .public)")
                 
                 /*
@@ -57,8 +59,8 @@ struct PersistenceController {
                  3. Notify user and provide options
                  */
                 
-                // Attempt recovery by switching to in-memory store
-                self.switchToInMemoryStore()
+                // Log recovery attempt without calling mutating method
+                logger.warning("CoreData persistent store failed, consider implementing recovery mechanism")
             }
         })
         container.viewContext.automaticallyMergesChangesFromParent = true

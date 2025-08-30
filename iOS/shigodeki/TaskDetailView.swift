@@ -181,8 +181,56 @@ struct TaskDetailView: View {
                 existingTasks: tasks,
                 aiGenerator: aiGenerator,
                 onTasksGenerated: { generatedTasks in
-                    // Handle generated tasks
+                    // Handle generated tasks by saving them to the database
                     print("Generated \(generatedTasks.count) tasks")
+                    
+                    Task {
+                        for generatedTask in generatedTasks {
+                            do {
+                                // Create task with proper IDs
+                                let newTask = ShigodekiTask(
+                                    title: generatedTask.title,
+                                    description: generatedTask.description,
+                                    assignedTo: generatedTask.assignedTo,
+                                    createdBy: generatedTask.createdBy,
+                                    dueDate: generatedTask.dueDate,
+                                    priority: generatedTask.priority,
+                                    listId: taskList.id ?? "",
+                                    phaseId: generatedTask.phaseId,
+                                    projectId: generatedTask.projectId,
+                                    order: tasks.count + (generatedTasks.firstIndex(of: generatedTask) ?? 0)
+                                )
+                                
+                                // Save to database
+                                guard let taskListId = taskList.id,
+                                      let familyId = family.id else { 
+                                    print("Error: Missing required IDs")
+                                    continue 
+                                }
+                                
+                                try await taskManager.createTask(
+                                    title: newTask.title,
+                                    description: newTask.description,
+                                    taskListId: taskListId,
+                                    familyId: familyId,
+                                    creatorUserId: newTask.createdBy,
+                                    assignedTo: newTask.assignedTo,
+                                    dueDate: newTask.dueDate,
+                                    priority: newTask.priority
+                                )
+                                
+                                print("✅ Successfully created AI task: \(newTask.title)")
+                                
+                            } catch {
+                                print("❌ Error saving AI task: \(error)")
+                            }
+                        }
+                        
+                        // Refresh the task list to show new tasks
+                        await MainActor.run {
+                            loadData()
+                        }
+                    }
                 }
             )
         }

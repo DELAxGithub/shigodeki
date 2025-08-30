@@ -16,11 +16,15 @@ class EnhancedTaskManager: ObservableObject {
     @Published var isLoading = false
     @Published var error: FirebaseError?
     
-    internal var listeners: [ListenerRegistration] = []
+    // 🆕 統合された Firebase リスナー管理
+    private let listenerManager = FirebaseListenerManager.shared
+    private var activeListenerIds: Set<String> = []
     
     deinit {
-        listeners.forEach { $0.remove() }
-        listeners.removeAll()
+        // 🆕 中央集中化されたリスナー管理で削除
+        Task { @MainActor [weak self] in
+            self?.removeAllListeners()
+        }
     }
     
     // MARK: - Task CRUD Operations
@@ -50,7 +54,7 @@ class EnhancedTaskManager: ObservableObject {
             task.createdAt = Date()
             
             try await documentRef.setData(try Firestore.Encoder().encode(task))
-            
+            print("✅ EnhancedTaskManager: Created task '" + title + "' [" + (task.id ?? "") + "] in list " + listId)
             return task
         } catch {
             let firebaseError = FirebaseError.from(error)
@@ -173,8 +177,90 @@ class EnhancedTaskManager: ObservableObject {
         try await TaskOrderingManager.reorderTasks(reorderedTasks, listId: listId, phaseId: phaseId, projectId: projectId)
     }
     
+    // 🆕 統合されたリスナー管理システム
     func removeAllListeners() {
-        listeners.forEach { $0.remove() }
-        listeners.removeAll()
+        print("🔄 EnhancedTaskManager: Removing \(activeListenerIds.count) optimized listeners")
+        
+        // 🆕 統合されたリスナー管理システムで削除
+        for listenerId in activeListenerIds {
+            listenerManager.removeListener(id: listenerId)
+        }
+        
+        activeListenerIds.removeAll()
+        print("✅ EnhancedTaskManager: All optimized listeners removed")
+    }
+    
+    // 🆕 統合されたリスナー作成
+    func startListeningForTasks(listId: String, phaseId: String, projectId: String) {
+        let listenerId = "tasks_\(projectId)_\(phaseId)_\(listId)"
+        
+        if activeListenerIds.contains(listenerId) {
+            print("⚠️ EnhancedTaskManager: Task listener already exists")
+            return
+        }
+        
+        print("🎧 EnhancedTaskManager: Starting optimized task listener")
+        
+        let actualListenerId = listenerManager.createTaskListener(
+            projectId: projectId,
+            phaseId: phaseId,
+            listId: listId
+        ) { [weak self] result in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                
+                switch result {
+                case .success(let tasks):
+                    print("🔄 EnhancedTaskManager: Received \(tasks.count) tasks")
+                    self.tasks = tasks
+                case .failure(let error):
+                    print("❌ EnhancedTaskManager: Task listener error: \(error)")
+                    self.error = error
+                }
+            }
+        }
+        
+        activeListenerIds.insert(actualListenerId)
+    }
+    
+    // 🆕 個別タスク用の統合リスナー
+    func startListeningForTask(id: String, listId: String, phaseId: String, projectId: String) {
+        let listenerId = "task_detail_\(id)"
+        
+        if activeListenerIds.contains(listenerId) {
+            print("⚠️ EnhancedTaskManager: Task detail listener already exists")
+            return
+        }
+        
+        print("🎧 EnhancedTaskManager: Starting optimized task detail listener")
+        
+        let document = Firestore.firestore()
+            .collection("projects").document(projectId)
+            .collection("phases").document(phaseId)
+            .collection("lists").document(listId)
+            .collection("tasks").document(id)
+        
+        let actualListenerId = listenerManager.createDocumentListener(
+            id: listenerId,
+            document: document,
+            type: .task,
+            priority: .low
+        ) { [weak self] (result: Result<ShigodekiTask?, FirebaseError>) in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                
+                switch result {
+                case .success(let task):
+                    print("🔄 EnhancedTaskManager: Task detail updated")
+                    self.currentTask = task
+                case .failure(let error):
+                    print("❌ EnhancedTaskManager: Task detail listener error: \(error)")
+                    self.error = error
+                    self.currentTask = nil
+                }
+            }
+        }
+        
+        activeListenerIds.insert(actualListenerId)
     }
 }

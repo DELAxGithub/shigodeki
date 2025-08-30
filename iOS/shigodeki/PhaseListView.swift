@@ -110,7 +110,11 @@ struct PhaseListView: View {
         
         Task {
             do {
-                _ = try await phaseManager.getPhases(projectId: projectId)
+                let phases = try await phaseManager.getPhases(projectId: projectId)
+                await MainActor.run {
+                    phaseManager.phases = phases
+                }
+                print("📥 PhaseListView: Loaded \(phases.count) phases for project \(projectId)")
             } catch {
                 print("Error loading phases: \(error)")
             }
@@ -234,6 +238,16 @@ struct PhaseTaskListView: View {
             Task {
                 await loadTaskLists(phaseId: phaseId, projectId: projectId)
             }
+            taskListManager.startListeningForTaskLists(phaseId: phaseId, projectId: projectId)
+            #if DEBUG
+            print("🎧 PhaseTaskListView: Started list listener for phase \(phaseId)")
+            #endif
+        }
+        .onDisappear {
+            taskListManager.removeAllListeners()
+            #if DEBUG
+            print("🧹 PhaseTaskListView: Removed list listeners")
+            #endif
         }
         .sheet(isPresented: $showingCreateTaskList) {
             CreatePhaseTaskListView(phase: phase, project: project, taskListManager: taskListManager)
@@ -242,7 +256,11 @@ struct PhaseTaskListView: View {
     
     private func loadTaskLists(phaseId: String, projectId: String) async {
         do {
-            _ = try await taskListManager.getTaskLists(phaseId: phaseId, projectId: projectId)
+            let lists = try await taskListManager.getTaskLists(phaseId: phaseId, projectId: projectId)
+            await MainActor.run {
+                taskListManager.taskLists = lists
+            }
+            print("📥 PhaseTaskListView: Loaded \(lists.count) lists for phase \(phaseId) in project \(projectId)")
         } catch {
             print("Error loading task lists: \(error)")
         }
@@ -293,12 +311,12 @@ struct TaskListDetailView: View {
                 List {
                     ForEach(tasks) { task in
                         HStack {
-                            Circle()
-                                .fill(task.priority.swiftUIColor)
-                                .frame(width: 8, height: 8)
+                            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(task.isCompleted ? .green : .secondary)
                             VStack(alignment: .leading) {
                                 Text(task.title)
                                     .font(.headline)
+                                    .strikethrough(task.isCompleted, pattern: .solid, color: .secondary)
                                 if let description = task.description, !description.isEmpty {
                                     Text(description)
                                         .font(.caption)
@@ -308,6 +326,18 @@ struct TaskListDetailView: View {
                             Spacer()
                         }
                         .padding(.vertical, 4)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            toggleCompletion(task)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button {
+                                toggleCompletion(task)
+                            } label: {
+                                Label(task.isCompleted ? "未完了" : "完了", systemImage: task.isCompleted ? "arrow.uturn.left.circle" : "checkmark.circle")
+                            }
+                            .tint(task.isCompleted ? .orange : .green)
+                        }
                     }
                 }
             } else {
@@ -345,6 +375,26 @@ struct TaskListDetailView: View {
         }
     }
     
+    private func toggleCompletion(_ task: ShigodekiTask) {
+        guard let taskListId = taskList.id else { return }
+        var updated = task
+        updated.isCompleted.toggle()
+        Task {
+            do {
+                let manager = EnhancedTaskManager()
+                _ = try await manager.updateTask(updated)
+                await MainActor.run {
+                    if var arr = taskManager.tasks[taskListId], let idx = arr.firstIndex(where: { $0.id == task.id }) {
+                        arr[idx] = updated
+                        taskManager.tasks[taskListId] = arr
+                    }
+                }
+            } catch {
+                print("Error toggling task completion: \(error)")
+            }
+        }
+    }
+
     private func loadTasks() {
         guard let taskListId = taskList.id,
               let phaseId = phase.id,
@@ -374,24 +424,38 @@ struct TaskListDetailView: View {
             .collection("lists").document(taskListId)
             .collection("tasks")
         
-        let snapshot = try await tasksCollection.getDocuments()
+        let snapshot = try await tasksCollection.order(by: "order").getDocuments()
         
         return try snapshot.documents.compactMap { document in
             let data = document.data()
+            let title = data["title"] as? String ?? ""
+            let description = data["description"] as? String
+            let assignedTo = data["assignedTo"] as? String
+            let createdBy = data["createdBy"] as? String ?? ""
+            let dueDate = (data["dueDate"] as? Timestamp)?.dateValue()
+            let priority = TaskPriority(rawValue: data["priority"] as? String ?? "medium") ?? .medium
+            let order = data["order"] as? Int ?? 0
             
             var task = ShigodekiTask(
-                title: data["title"] as? String ?? "",
-                description: data["description"] as? String,
-                assignedTo: data["assignedTo"] as? String,
-                createdBy: data["createdBy"] as? String ?? "",
-                dueDate: (data["dueDate"] as? Timestamp)?.dateValue(),
-                priority: TaskPriority(rawValue: data["priority"] as? String ?? "medium") ?? .medium
+                title: title,
+                description: description,
+                assignedTo: assignedTo,
+                createdBy: createdBy,
+                dueDate: dueDate,
+                priority: priority,
+                listId: taskListId,
+                phaseId: phaseId,
+                projectId: projectId,
+                order: order
             )
             
             task.id = document.documentID
             task.isCompleted = data["isCompleted"] as? Bool ?? false
             task.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
             task.completedAt = (data["completedAt"] as? Timestamp)?.dateValue()
+            task.hasSubtasks = data["hasSubtasks"] as? Bool ?? false
+            task.subtaskCount = data["subtaskCount"] as? Int ?? 0
+            task.completedSubtaskCount = data["completedSubtaskCount"] as? Int ?? 0
             
             return task
         }

@@ -62,5 +62,10 @@ service cloud.firestore {
     match /{path=**}/phases/{phaseId} {
       allow read, write, create: if request.auth != null;
     }
+    
+    // Connection test path for app initialization
+    match /test/connection {
+      allow read: if request.auth != null;
+    }
   }
 }
