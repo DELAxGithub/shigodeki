@@ -52,7 +52,7 @@ struct FamilyDetailView: View {
             }
             
             // Members Section
-            Section("メンバー (\(familyMembers.count)人)") {
+            Section("メンバー (\(family.members.count)人)") {
                 if isLoadingMembers {
                     HStack {
                         ProgressView()
@@ -62,7 +62,7 @@ struct FamilyDetailView: View {
                             .foregroundColor(.secondary)
                     }
                     .padding(.vertical, 8)
-                } else {
+                } else if !familyMembers.isEmpty {
                     ForEach(Array(familyMembers.enumerated()), id: \.element.id) { index, member in
                         MemberRowView(
                             member: member,
@@ -71,6 +71,23 @@ struct FamilyDetailView: View {
                         ) {
                             removeMember(member)
                         }
+                    }
+                } else if !family.members.isEmpty {
+                    // Fallback: メンバーのユーザープロファイルが未作成/未取得でもIDで占位表示
+                    ForEach(Array(family.members.enumerated()), id: \.offset) { index, userId in
+                        HStack {
+                            Image(systemName: index == 0 ? "crown.fill" : "person.circle")
+                                .foregroundColor(index == 0 ? .orange : .blue)
+                            VStack(alignment: .leading) {
+                                Text("ユーザーID: \(userId)")
+                                    .font(.subheadline)
+                                Text("ユーザープロファイル未取得")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
                     }
                 }
             }

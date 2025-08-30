@@ -29,7 +29,7 @@ struct TaskListMainView: View {
                                 .font(.title2)
                                 .fontWeight(.medium)
                             
-                            Text("タスクを管理するには\nまず家族グループを作成してください")
+                            Text("タスクタブは『家族グループのタスク』を表示します。\nプロジェクト配下のタスクは『プロジェクト』タブで管理できます。")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
@@ -191,7 +191,7 @@ struct TaskListsView: View {
                             .font(.title2)
                             .fontWeight(.medium)
                         
-                        Text("新しいタスクリストを作成して\nタスク管理を始めましょう")
+                        Text("新しいタスクリストを作成して\nタスク管理を始めましょう。\n（注）プロジェクトのタスクは『プロジェクト』タブで表示されます")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -235,6 +235,17 @@ struct TaskListsView: View {
                 
             } else {
                 List {
+                    // Info banner clarifying scope
+                    Section {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.blue)
+                            Text("このタブでは家族グループ配下のタスクを表示します。プロジェクト配下のタスクは『プロジェクト』タブを開いてください。")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
                     // Quick AI Generation Section
                     Section {
                         Button(action: {
