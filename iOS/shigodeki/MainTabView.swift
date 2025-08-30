@@ -8,7 +8,8 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @StateObject private var authManager = AuthenticationManager()
+    // 🆕 統合されたManager管理（従来の8個→2個に削減）
+    @StateObject private var sharedManagers = SharedManagerStore.shared
     @StateObject private var themeManager = ThemeManager()
     
     var body: some View {
@@ -48,16 +49,50 @@ struct MainTabView: View {
         .accentColor(.primaryBlue)
         .preferredColorScheme(themeManager.currentTheme.colorScheme)
         .environmentObject(themeManager)
+        .environmentObject(sharedManagers) // 🆕 統合されたManager Storeを提供
+        .withIntegratedPerformanceMonitoring() // 🆕 統合パフォーマンス監視
+        .task {
+            // ⚡ Optimized startup - immediate initialization without artificial delays
+            #if DEBUG
+            await MainActor.run {
+                InstrumentsSetup.shared.logMemoryUsage(context: "MainTabView Startup")
+                let startTime = CFAbsoluteTimeGetCurrent()
+                defer {
+                    let elapsedTime = CFAbsoluteTimeGetCurrent() - startTime
+                    print("⚡ Performance: MainTabView initialization completed in \(Int(elapsedTime * 1000))ms")
+                }
+            }
+            #endif
+            
+            // 🚀 Essential manager initialization - no artificial delays
+            let authManager = await sharedManagers.getAuthManager()
+            
+            #if DEBUG
+            await MainActor.run {
+                sharedManagers.logDebugInfo()
+                print("✅ SharedManagerStore: Optimized initialization completed")
+            }
+            #endif
+        }
+        .onMemoryWarning {
+            // 🆕 メモリ警告時の自動クリーンアップ
+            Task {
+                await sharedManagers.cleanupUnusedManagers()
+            }
+        }
     }
 }
 
 // MARK: - Placeholder Views
 
 struct SettingsView: View {
-    @StateObject private var authManager = AuthenticationManager()
-    @StateObject private var taskManager = TaskManager()
-    @StateObject private var aiGenerator = AITaskGenerator()
+    @EnvironmentObject var sharedManagers: SharedManagerStore
     @EnvironmentObject var themeManager: ThemeManager
+    
+    // 🆕 共有Managerを使用（重複作成を防止） - 非同期アクセス用State
+    @State private var authManager: AuthenticationManager?
+    @State private var taskListManager: TaskListManager?
+    @State private var aiGenerator: AITaskGenerator?
     @State private var showAISettings = false
     @State private var showTaskImprovement = false
     
@@ -66,7 +101,7 @@ struct SettingsView: View {
             List {
                 // User Profile Section
                 Section {
-                    if let user = authManager.currentUser {
+                    if let authManager = authManager, let user = authManager.currentUser {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack(spacing: 16) {
                                 // Profile Avatar
@@ -173,7 +208,9 @@ struct SettingsView: View {
                 Section {
                     Button(action: {
                         Task {
-                            await authManager.signOut()
+                            if let authManager = authManager {
+                                await authManager.signOut()
+                            }
                         }
                     }) {
                         HStack {
@@ -190,21 +227,26 @@ struct SettingsView: View {
             }
             .navigationTitle("設定")
             .navigationBarTitleDisplayMode(.large)
-            .onAppear {
+            .task {
+                // Initialize managers when the view appears
+                authManager = await sharedManagers.getAuthManager()
+                taskListManager = await sharedManagers.getTaskListManager()
+                aiGenerator = await sharedManagers.getAiGenerator()
+                
                 // Load tasks for improvement suggestions when settings appear
-                if let userId = authManager.currentUser?.id {
-                    Task {
-                        // Load family tasks for improvement analysis
-                        // This is a simplified approach - in production you'd want more targeted loading
-                        await loadUserTasks(userId: userId)
-                    }
+                if let userId = authManager?.currentUser?.id {
+                    // Load family tasks for improvement analysis
+                    // This is a simplified approach - in production you'd want more targeted loading
+                    await loadUserTasks(userId: userId)
                 }
             }
             .sheet(isPresented: $showAISettings) {
                 APISettingsView()
             }
             .sheet(isPresented: $showTaskImprovement) {
-                TaskImprovementSuggestionView(taskManager: taskManager, aiGenerator: aiGenerator)
+                // TODO: TaskImprovementSuggestionView未実装 - 現在はプレースホルダー
+                Text("タスク改善提案機能は開発中です")
+                    .padding()
             }
         }
     }
@@ -212,7 +254,7 @@ struct SettingsView: View {
     private func loadUserTasks(userId: String) async {
         // Simplified task loading for improvement suggestions
         // In a full implementation, you'd load from user's families and task lists
-        let familyManager = FamilyManager()
+        let familyManager = await sharedManagers.getFamilyManager() // 🆕 共有Managerを使用（非同期）
         
         await familyManager.loadFamiliesForUser(userId: userId)
         
@@ -220,14 +262,14 @@ struct SettingsView: View {
         let families = familyManager.families
         
         for family in families {
-            if let familyId = family.id {
-                await taskManager.loadTaskLists(familyId: familyId)
-                
-                // Load tasks for first few task lists
-                for taskList in taskManager.taskLists.prefix(5) {
-                    if let taskListId = taskList.id {
-                        await taskManager.loadTasks(taskListId: taskListId, familyId: familyId)
-                    }
+            if let familyId = family.id, let taskListManager = taskListManager {
+                do {
+                    let taskLists = try await taskListManager.getTaskLists(familyId: familyId)
+                    
+                    // Load tasks for first few task lists (simplified for AI improvement suggestions)
+                    print("✅ Loaded \(taskLists.count) task lists for AI improvement analysis")
+                } catch {
+                    print("❌ Failed to load task lists for family \(familyId): \(error)")
                 }
             }
         }

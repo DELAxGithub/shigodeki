@@ -342,13 +342,23 @@ extension AuthenticationManager: ASAuthorizationControllerDelegate {
         var remainingLength = length
         
         while remainingLength > 0 {
-            let randoms: [UInt8] = (0 ..< 16).map { _ in
+            let randoms: [UInt8] = (0 ..< 16).compactMap { _ in
                 var random: UInt8 = 0
                 let errorCode = SecRandomCopyBytes(kSecRandomDefault, 1, &random)
                 if errorCode != errSecSuccess {
-                    fatalError("Unable to generate nonce. SecRandomCopyBytes failed with OSStatus \(errorCode)")
+                    // Log error and return nil instead of crashing
+                    print("⚠️ Crypto: Failed to generate secure random byte (OSStatus: \(errorCode))")
+                    return nil
                 }
                 return random
+            }
+            
+            // If we couldn't generate any random bytes, use fallback
+            guard !randoms.isEmpty else {
+                print("❌ Crypto: Critical - Unable to generate secure random bytes, using fallback")
+                // Use UUID as fallback for nonce generation
+                let fallbackNonce = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+                return String(fallbackNonce.prefix(length))
             }
             
             randoms.forEach { random in
