@@ -29,7 +29,7 @@ struct MainTabView: View {
             TaskListMainView()
                 .tabItem {
                     Image(systemName: "list.bullet")
-                    Text("タスク")
+                    Text("家族タスク")
                 }
             
             #if DEBUG

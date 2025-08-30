@@ -60,9 +60,21 @@ struct ProjectListView: View {
     @State private var showingCreateProject = false
     @State private var selectedProject: Project?
     
+    enum OwnerFilter: String, CaseIterable { case all = "すべて", individual = "個人", family = "家族" }
+    @State private var ownerFilter: OwnerFilter = .all
+    
     var body: some View {
         NavigationView {
-            contentContainerView
+            VStack {
+                Picker("所有者", selection: $ownerFilter) {
+                    ForEach(OwnerFilter.allCases, id: \.self) { f in
+                        Text(f.rawValue).tag(f)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding([.horizontal, .top])
+                contentContainerView
+            }
             .navigationTitle("プロジェクト")
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -204,14 +216,14 @@ struct ProjectListView: View {
     
     private var shouldShowEmptyState: Bool {
         guard let projectManager = projectManagerWrapper.projectManager else { return false }
-        return projectManagerWrapper.projects.isEmpty && !projectManager.isLoading
+        return filteredProjects.isEmpty && !projectManager.isLoading
     }
     
     @ViewBuilder
     private func projectListView(projectManager: ProjectManager) -> some View {
         ScrollView {
             LazyVStack(spacing: 12) {
-                ForEach(projectManagerWrapper.projects) { project in
+                ForEach(filteredProjects) { project in
                     NavigationLink(destination: ProjectDetailView(project: project, projectManager: projectManager)) {
                         OptimizedProjectRow(project: project)
                             .optimizedForList() // 🆕 描画最適化
@@ -230,6 +242,15 @@ struct ProjectListView: View {
             CacheManager.shared.clearAll()
             ImageCache.shared.clearCache()
             InstrumentsSetup.shared.logMemoryUsage(context: "After Memory Warning - ProjectList")
+        }
+    }
+    
+    // MARK: - Owner filter helper
+    private var filteredProjects: [Project] {
+        switch ownerFilter {
+        case .all: return projectManagerWrapper.projects
+        case .individual: return projectManagerWrapper.projects.filter { $0.ownerType == .individual }
+        case .family: return projectManagerWrapper.projects.filter { $0.ownerType == .family }
         }
     }
     

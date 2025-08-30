@@ -10,6 +10,7 @@ import SwiftUI
 struct CreateProjectView: View {
     @ObservedObject var projectManager: ProjectManager
     @StateObject private var authManager = AuthenticationManager()
+    @StateObject private var familyManager = FamilyManager()
     @Environment(\.presentationMode) var presentationMode
     
     @State private var projectName = ""
@@ -30,6 +31,10 @@ struct CreateProjectView: View {
     @State private var aiPrompt = ""
     @State private var selectedProjectType: ProjectType?
     @State private var showProjectTypePicker = false
+
+    // Owner selection
+    @State private var selectedOwnerType: ProjectOwnerType = .individual
+    @State private var selectedFamilyId: String? = nil
     
     enum CreationMethod {
         case scratch
@@ -61,6 +66,29 @@ struct CreateProjectView: View {
                 
                 // Form
                 Form {
+                    // Owner selection
+                    Section(header: Text("所有者")) {
+                        Picker("所有者タイプ", selection: $selectedOwnerType) {
+                            Text(ProjectOwnerType.individual.displayName).tag(ProjectOwnerType.individual)
+                            Text(ProjectOwnerType.family.displayName).tag(ProjectOwnerType.family)
+                        }
+                        .pickerStyle(.segmented)
+
+                        if selectedOwnerType == .family {
+                            if familyManager.families.isEmpty {
+                                Text("家族グループがありません。家族タブから作成/参加してください。")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Picker("家族グループ", selection: $selectedFamilyId) {
+                                    Text("選択してください").tag(String?.none)
+                                    ForEach(familyManager.families) { fam in
+                                        Text(fam.name).tag(Optional(fam.id))
+                                    }
+                                }
+                            }
+                        }
+                    }
                     // Creation method selection
                     Section(header: Text("作成方法")) {
                         VStack(spacing: 12) {
@@ -430,7 +458,8 @@ struct CreateProjectView: View {
                     createdProject = try await projectManager.createProject(
                         name: trimmedName,
                         description: finalDescription,
-                        ownerId: userId
+                        ownerId: (selectedOwnerType == .individual ? userId : (selectedFamilyId ?? userId)),
+                        ownerType: selectedOwnerType
                     )
                     
                 case .template, .file:
@@ -446,7 +475,7 @@ struct CreateProjectView: View {
                     createdProject = try await projectManager.createProjectFromTemplate(
                         template,
                         projectName: trimmedName,
-                        ownerId: userId,
+                        ownerId: (selectedOwnerType == .individual ? userId : (selectedFamilyId ?? userId)),
                         customizations: nil // Basic implementation - can be enhanced later
                     )
                 
@@ -461,7 +490,8 @@ struct CreateProjectView: View {
                     createdProject = try await projectManager.createProject(
                         name: trimmedName,
                         description: finalDescription,
-                        ownerId: userId
+                        ownerId: (selectedOwnerType == .individual ? userId : (selectedFamilyId ?? userId)),
+                        ownerType: selectedOwnerType
                     )
                     
                     print("🤖 Generating AI task suggestions")

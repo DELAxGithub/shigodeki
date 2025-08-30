@@ -39,14 +39,14 @@ class ProjectManager: ObservableObject {
     
     // MARK: - Project CRUD Operations
     
-    func createProject(name: String, description: String? = nil, ownerId: String) async throws -> Project {
+    func createProject(name: String, description: String? = nil, ownerId: String, ownerType: ProjectOwnerType = .individual) async throws -> Project {
         print("🚀 Starting project creation - Name: '\(name)', Owner: '\(ownerId)'")
         isLoading = true
         defer { isLoading = false }
         
         do {
             print("📝 Creating project object...")
-            let project = Project(name: name, description: description, ownerId: ownerId)
+            let project = Project(name: name, description: description, ownerId: ownerId, ownerType: ownerType)
             print("📝 Project object created: \(project)")
             
             print("✅ Validating project...")
@@ -66,11 +66,16 @@ class ProjectManager: ObservableObject {
                 projects[index] = createdProject
             }
             
-            // Create initial project member entry for the owner
-            print("👤 Creating owner member entry...")
-            let ownerMember = ProjectMember(userId: ownerId, projectId: createdProject.id ?? "", role: .owner)
-            try await createProjectMember(ownerMember, in: createdProject.id ?? "")
-            print("👤 Owner member created successfully")
+            // Create initial project member entry
+            if ownerType == .individual {
+                print("👤 Creating owner member entry (individual)...")
+                let ownerMember = ProjectMember(userId: ownerId, projectId: createdProject.id ?? "", role: .owner)
+                try await createProjectMember(ownerMember, in: createdProject.id ?? "")
+                print("👤 Owner member created successfully")
+            } else {
+                // Family-owned projects: defer full membership management to dedicated flow
+                print("👥 Family-owned project created (membership management to be handled separately)")
+            }
             
             print("✨ Project creation completed successfully!")
             return createdProject

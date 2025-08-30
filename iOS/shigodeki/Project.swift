@@ -13,6 +13,7 @@ struct Project: Identifiable, Codable, Hashable {
     var name: String
     var description: String?
     let ownerId: String
+    var ownerType: ProjectOwnerType = .individual
     var memberIds: [String]
     var createdAt: Date?
     var lastModifiedAt: Date?
@@ -22,10 +23,11 @@ struct Project: Identifiable, Codable, Hashable {
     var settings: ProjectSettings?
     var statistics: ProjectStats?
     
-    init(name: String, description: String? = nil, ownerId: String) {
+    init(name: String, description: String? = nil, ownerId: String, ownerType: ProjectOwnerType = .individual) {
         self.name = name
         self.description = description
         self.ownerId = ownerId
+        self.ownerType = ownerType
         self.memberIds = [ownerId]
         self.isArchived = false
         self.isCompleted = false
@@ -38,6 +40,18 @@ struct Project: Identifiable, Codable, Hashable {
     
     static func == (lhs: Project, rhs: Project) -> Bool {
         lhs.id == rhs.id
+    }
+}
+
+enum ProjectOwnerType: String, CaseIterable, Codable, Hashable {
+    case individual
+    case family
+    
+    var displayName: String {
+        switch self {
+        case .individual: return "個人"
+        case .family: return "家族"
+        }
     }
 }
 
