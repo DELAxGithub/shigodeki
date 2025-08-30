@@ -12,6 +12,7 @@ struct ProjectSettingsView: View {
     @ObservedObject var projectManager: ProjectManager
     @Environment(\.presentationMode) var presentationMode
     @StateObject private var authManager = AuthenticationManager()
+    @StateObject private var familyManager = FamilyManager()
     
     @State private var projectName: String
     @State private var projectDescription: String
@@ -21,12 +22,18 @@ struct ProjectSettingsView: View {
     @State private var showingError = false
     @State private var errorMessage = ""
     
+    // Owner change UI
+    @State private var selectedOwnerType: ProjectOwnerType
+    @State private var selectedFamilyId: String?
+    
     init(project: Project, projectManager: ProjectManager) {
         self.project = project
         self.projectManager = projectManager
         self._projectName = State(initialValue: project.name)
         self._projectDescription = State(initialValue: project.description ?? "")
         self._isCompleted = State(initialValue: project.isCompleted)
+        self._selectedOwnerType = State(initialValue: project.ownerType)
+        self._selectedFamilyId = State(initialValue: project.ownerType == .family ? project.ownerId : nil)
     }
     
     var body: some View {
@@ -50,6 +57,39 @@ struct ProjectSettingsView: View {
                 .background(Color(.systemGray6))
                 
                 Form {
+                    // Owner Section
+                    Section(header: Text("所有者")) {
+                        Picker("所有者タイプ", selection: $selectedOwnerType) {
+                            Text(ProjectOwnerType.individual.displayName).tag(ProjectOwnerType.individual)
+                            Text(ProjectOwnerType.family.displayName).tag(ProjectOwnerType.family)
+                        }
+                        .pickerStyle(.segmented)
+                        
+                        if selectedOwnerType == .family {
+                            if familyManager.families.isEmpty {
+                                Text("家族グループがありません。家族タブから作成/参加してください。")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Picker("家族グループ", selection: Binding(get: { selectedFamilyId ?? "" }, set: { selectedFamilyId = $0.isEmpty ? nil : $0 })) {
+                                    Text("選択してください").tag("")
+                                    ForEach(familyManager.families) { fam in
+                                        Text(fam.name).tag(fam.id ?? "")
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Button {
+                            changeOwner()
+                        } label: {
+                            HStack {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                Text("所有者を変更")
+                            }
+                        }
+                        .disabled(isUpdating || (selectedOwnerType == .family && (selectedFamilyId ?? "").isEmpty))
+                    }
                     Section(header: Text("基本情報")) {
                         TextField("プロジェクト名", text: $projectName)
                             .textInputAutocapitalization(.words)
@@ -192,6 +232,12 @@ struct ProjectSettingsView: View {
                     }
                 }
             )
+            .onAppear {
+                // Load families for selection
+                if let uid = authManager.currentUser?.id {
+                    Task { await familyManager.loadFamiliesForUser(userId: uid) }
+                }
+            }
             .confirmationDialog(
                 "プロジェクトを削除",
                 isPresented: $showingDeleteConfirmation,
@@ -208,6 +254,26 @@ struct ProjectSettingsView: View {
                 Button("OK") { }
             } message: {
                 Text(errorMessage)
+            }
+        }
+    }
+    
+    private func changeOwner() {
+        guard let projectId = project.id else { return }
+        guard let actor = authManager.currentUser?.id else { return }
+        let newOwnerId: String = (selectedOwnerType == .individual) ? actor : (selectedFamilyId ?? "")
+        guard !newOwnerId.isEmpty else { return }
+        isUpdating = true
+        Task {
+            do {
+                try await projectManager.changeOwner(projectId: projectId, to: selectedOwnerType, ownerId: newOwnerId, performedBy: actor)
+                await MainActor.run { isUpdating = false }
+            } catch {
+                await MainActor.run {
+                    isUpdating = false
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                }
             }
         }
     }

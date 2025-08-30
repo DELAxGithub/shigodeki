@@ -43,6 +43,12 @@ struct CreateProjectView: View {
         case ai
     }
     
+    init(projectManager: ProjectManager, defaultOwnerType: ProjectOwnerType? = nil, defaultFamilyId: String? = nil) {
+        self.projectManager = projectManager
+        if let t = defaultOwnerType { self._selectedOwnerType = State(initialValue: t) }
+        if let fid = defaultFamilyId { self._selectedFamilyId = State(initialValue: fid) }
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -459,7 +465,8 @@ struct CreateProjectView: View {
                         name: trimmedName,
                         description: finalDescription,
                         ownerId: (selectedOwnerType == .individual ? userId : (selectedFamilyId ?? userId)),
-                        ownerType: selectedOwnerType
+                        ownerType: selectedOwnerType,
+                        createdByUserId: userId
                     )
                     
                 case .template, .file:
@@ -476,6 +483,8 @@ struct CreateProjectView: View {
                         template,
                         projectName: trimmedName,
                         ownerId: (selectedOwnerType == .individual ? userId : (selectedFamilyId ?? userId)),
+                        ownerType: selectedOwnerType,
+                        createdByUserId: userId,
                         customizations: nil // Basic implementation - can be enhanced later
                     )
                 
@@ -491,7 +500,8 @@ struct CreateProjectView: View {
                         name: trimmedName,
                         description: finalDescription,
                         ownerId: (selectedOwnerType == .individual ? userId : (selectedFamilyId ?? userId)),
-                        ownerType: selectedOwnerType
+                        ownerType: selectedOwnerType,
+                        createdByUserId: userId
                     )
                     
                     print("🤖 Generating AI task suggestions")

@@ -22,9 +22,11 @@ class DataMigrationUtility {
         
         let projectManager = await ProjectManager()
         let createdProject = try await projectManager.createProject(
-            name: project.name, 
-            description: project.description, 
-            ownerId: project.ownerId
+            name: project.name,
+            description: project.description,
+            ownerId: project.ownerId,
+            ownerType: .individual,
+            createdByUserId: ownerId
         )
         
         // Create default phase

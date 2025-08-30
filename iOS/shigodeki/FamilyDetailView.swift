@@ -12,11 +12,14 @@ struct FamilyDetailView: View {
     let family: Family
     @StateObject private var authManager = AuthenticationManager()
     @StateObject private var familyManager = FamilyManager()
+    @StateObject private var projectManager = ProjectManager()
     @State private var showingInviteCode = false
     @State private var currentInviteCode: String = ""
     @State private var showingLeaveConfirmation = false
     @State private var familyMembers: [User] = []
     @State private var isLoadingMembers = false
+    @State private var familyProjects: [Project] = []
+    @State private var showingCreateProject = false
     
     private var isCurrentUserCreator: Bool {
         guard let userId = authManager.currentUser?.id else { return false }
@@ -92,8 +95,37 @@ struct FamilyDetailView: View {
                 }
             }
             
+            // Projects Section
+            if !familyProjects.isEmpty {
+                Section("プロジェクト") {
+                    ForEach(familyProjects) { proj in
+                        NavigationLink(destination: ProjectDetailView(project: proj, projectManager: projectManager)) {
+                            HStack {
+                                Image(systemName: "folder.fill")
+                                    .foregroundColor(.blue)
+                                Text(proj.name)
+                                Spacer()
+                                OwnerBadge(ownerType: proj.ownerType)
+                            }
+                        }
+                    }
+                }
+            }
+
             // Actions Section
             Section("アクション") {
+                Button(action: { showingCreateProject = true }) {
+                    HStack {
+                        Image(systemName: "folder.badge.plus")
+                            .foregroundColor(.blue)
+                        Text("この家族のプロジェクトを作成")
+                            .foregroundColor(.blue)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
                 Button(action: {
                     loadInviteCode()
                     showingInviteCode = true
@@ -126,9 +158,13 @@ struct FamilyDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             loadFamilyMembers()
+            loadFamilyProjects()
         }
         .sheet(isPresented: $showingInviteCode) {
             InviteCodeView(inviteCode: currentInviteCode, familyName: family.name)
+        }
+        .sheet(isPresented: $showingCreateProject) {
+            CreateProjectView(projectManager: projectManager, defaultOwnerType: .family, defaultFamilyId: family.id)
         }
         .alert("グループから退出", isPresented: $showingLeaveConfirmation) {
             Button("退出", role: .destructive) {
@@ -137,6 +173,23 @@ struct FamilyDetailView: View {
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text("本当に「\(family.name)」から退出しますか？")
+        }
+    }
+    
+    private func loadFamilyProjects() {
+        guard let fid = family.id else { return }
+        Task { @MainActor in
+            do {
+                let db = Firestore.firestore()
+                let snapshot = try await db.collection("projects").whereField("ownerId", isEqualTo: fid).getDocuments()
+                let decoder = Firestore.Decoder()
+                let projects = try snapshot.documents.compactMap { doc in
+                    try doc.data(as: Project.self, decoder: decoder)
+                }.filter { $0.ownerType == .family }
+                self.familyProjects = projects
+            } catch {
+                print("Error loading family projects: \(error)")
+            }
         }
     }
     

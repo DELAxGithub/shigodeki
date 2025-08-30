@@ -25,10 +25,13 @@ struct OptimizedProjectRow: View {
             // プロジェクト情報
             VStack(alignment: .leading, spacing: 4) {
                 // プロジェクト名
-                Text(project.name)
+                HStack(spacing: 6) {
+                    Text(project.name)
                     .font(.headline)
                     .lineLimit(1)
                     .foregroundColor(.primary)
+                    OwnerBadge(ownerType: project.ownerType)
+                }
                 
                 // 説明文（遅延表示）
                 if let description = project.description {
@@ -182,6 +185,19 @@ struct ProjectStatItem: View {
                     .foregroundColor(.secondary)
             }
         }
+    }
+}
+
+struct OwnerBadge: View {
+    let ownerType: ProjectOwnerType
+    var body: some View {
+        Text(ownerType == .family ? "家族" : "個人")
+            .font(.caption2)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(ownerType == .family ? Color.blue.opacity(0.15) : Color.gray.opacity(0.15))
+            .foregroundColor(ownerType == .family ? .blue : .secondary)
+            .cornerRadius(4)
     }
 }
 

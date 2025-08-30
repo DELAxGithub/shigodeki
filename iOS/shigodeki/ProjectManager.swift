@@ -39,7 +39,7 @@ class ProjectManager: ObservableObject {
     
     // MARK: - Project CRUD Operations
     
-    func createProject(name: String, description: String? = nil, ownerId: String, ownerType: ProjectOwnerType = .individual) async throws -> Project {
+    func createProject(name: String, description: String? = nil, ownerId: String, ownerType: ProjectOwnerType = .individual, createdByUserId: String) async throws -> Project {
         print("🚀 Starting project creation - Name: '\(name)', Owner: '\(ownerId)'")
         isLoading = true
         defer { isLoading = false }
@@ -73,8 +73,20 @@ class ProjectManager: ObservableObject {
                 try await createProjectMember(ownerMember, in: createdProject.id ?? "")
                 print("👤 Owner member created successfully")
             } else {
-                // Family-owned projects: defer full membership management to dedicated flow
-                print("👥 Family-owned project created (membership management to be handled separately)")
+                // Family-owned projects: add all family members, mark creator as owner
+                print("👥 Family-owned project: populating members from family \(ownerId)")
+                let familyDoc = try await Firestore.firestore().collection("families").document(ownerId).getDocument()
+                let familyMembers = (familyDoc.data()? ["members"] as? [String]) ?? []
+                var updated = createdProject
+                updated.memberIds = Array(Set(familyMembers))
+                _ = try await updateProject(updated)
+                // Create member docs
+                for uid in familyMembers {
+                    let role: Role = (uid == createdByUserId) ? .owner : .editor
+                    let member = ProjectMember(userId: uid, projectId: createdProject.id ?? "", role: role)
+                    try await createProjectMember(member, in: createdProject.id ?? "")
+                }
+                print("👥 Family-owned project membership populated: \(familyMembers.count) members")
             }
             
             print("✨ Project creation completed successfully!")
@@ -425,6 +437,8 @@ class ProjectManager: ObservableObject {
     func createProjectFromTemplate(_ template: ProjectTemplate, 
                                   projectName: String? = nil,
                                   ownerId: String,
+                                  ownerType: ProjectOwnerType = .individual,
+                                  createdByUserId: String,
                                   customizations: ProjectCustomizations? = nil) async throws -> Project {
         print("🎯 Creating project from template: '\(template.name)'")
         isLoading = true
@@ -444,7 +458,9 @@ class ProjectManager: ObservableObject {
             let createdProject = try await createProject(
                 name: project.name,
                 description: project.description,
-                ownerId: ownerId
+                ownerId: ownerId,
+                ownerType: ownerType,
+                createdByUserId: createdByUserId
             )
             
             // Create phases, task lists, and tasks from template
@@ -635,6 +651,62 @@ class ProjectManager: ObservableObject {
             let firebaseError = FirebaseError.from(error)
             self.error = firebaseError
             throw firebaseError
+        }
+    }
+    
+    // MARK: - Owner Change (individual ⇄ family)
+    func changeOwner(projectId: String, to ownerType: ProjectOwnerType, ownerId: String, performedBy userId: String) async throws {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            guard var project = try await projectOperations.read(id: projectId) else {
+                throw FirebaseError.documentNotFound
+            }
+            
+            project.ownerType = ownerType
+            project.ownerId = ownerId
+            project.lastModifiedAt = Date()
+            
+            switch ownerType {
+            case .individual:
+                // Reduce membership to the owner only (and performedBy if different → editor)
+                var newMembers: Set<String> = [ownerId]
+                if userId != ownerId { newMembers.insert(userId) }
+                project.memberIds = Array(newMembers)
+                _ = try await projectOperations.update(project)
+                
+                // Reset member documents
+                let existing = try await getProjectMembers(projectId: projectId)
+                for m in existing { try await deleteProjectMember(userId: m.userId, projectId: projectId) }
+                // Owner
+                try await createProjectMember(ProjectMember(userId: ownerId, projectId: projectId, role: .owner), in: projectId)
+                // If different performer, grant editor
+                if userId != ownerId {
+                    try await createProjectMember(ProjectMember(userId: userId, projectId: projectId, role: .editor), in: projectId)
+                }
+            case .family:
+                // Pull family members
+                let familyDoc = try await Firestore.firestore().collection("families").document(ownerId).getDocument()
+                let familyMembers = (familyDoc.data()? ["members"] as? [String]) ?? []
+                project.memberIds = Array(Set(familyMembers))
+                _ = try await projectOperations.update(project)
+                
+                // Reset member documents and add all
+                let existing = try await getProjectMembers(projectId: projectId)
+                for m in existing { try await deleteProjectMember(userId: m.userId, projectId: projectId) }
+                for uid in familyMembers {
+                    let role: Role = (uid == userId) ? .owner : .editor
+                    try await createProjectMember(ProjectMember(userId: uid, projectId: projectId, role: role), in: projectId)
+                }
+            }
+            
+            // Update local cache
+            if let idx = projects.firstIndex(where: { $0.id == projectId }) {
+                projects[idx] = project
+            }
+        } catch {
+            throw FirebaseError.from(error)
         }
     }
     
