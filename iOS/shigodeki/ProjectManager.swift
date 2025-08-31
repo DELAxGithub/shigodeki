@@ -29,6 +29,10 @@ class ProjectManager: ObservableObject {
     private let listenerManager = FirebaseListenerManager.shared
     private var activeListenerIds: Set<String> = []
     private var currentUserId: String?
+    // Pending create/update guard to avoid race where listener briefly reports 0 and clears UI
+    private var pendingProjectTimestamps: [String: Date] = [:]
+    private var lastLocalChangeAt: Date = .distantPast
+    private let pendingTTL: TimeInterval = 5.0
     
     deinit {
         // 🆕 中央集中化されたリスナー管理で削除
@@ -65,11 +69,14 @@ class ProjectManager: ObservableObject {
             if let index = projects.firstIndex(where: { $0.name == project.name && $0.ownerId == ownerId }) {
                 projects[index] = createdProject
             }
+            // Mark pending to protect against empty listener snapshots for a short TTL
+            if let pid = createdProject.id { pendingProjectTimestamps[pid] = Date(); lastLocalChangeAt = Date() }
             
             // Create initial project member entry
             if ownerType == .individual {
                 print("👤 Creating owner member entry (individual)...")
-                let ownerMember = ProjectMember(userId: ownerId, projectId: createdProject.id ?? "", role: .owner)
+                let displayName = AuthenticationManager().currentUser?.name
+                let ownerMember = ProjectMember(userId: ownerId, projectId: createdProject.id ?? "", role: .owner, invitedBy: createdByUserId, displayName: displayName)
                 try await createProjectMember(ownerMember, in: createdProject.id ?? "")
                 print("👤 Owner member created successfully")
             } else {
@@ -83,7 +90,8 @@ class ProjectManager: ObservableObject {
                 // Create member docs
                 for uid in familyMembers {
                     let role: Role = (uid == createdByUserId) ? .owner : .editor
-                    let member = ProjectMember(userId: uid, projectId: createdProject.id ?? "", role: role)
+                    let dn = (uid == createdByUserId) ? AuthenticationManager().currentUser?.name : nil
+                    let member = ProjectMember(userId: uid, projectId: createdProject.id ?? "", role: role, invitedBy: createdByUserId, displayName: dn)
                     try await createProjectMember(member, in: createdProject.id ?? "")
                 }
                 print("👥 Family-owned project membership populated: \(familyMembers.count) members")
@@ -215,7 +223,17 @@ class ProjectManager: ObservableObject {
     func addMember(userId: String, to projectId: String, with role: Role, invitedBy: String) async throws -> ProjectMember {
         do {
             // Create project member
-            let member = ProjectMember(userId: userId, projectId: projectId, role: role, invitedBy: invitedBy)
+            var displayName: String? = nil
+            // Try to resolve displayName from users collection (may fail due to rules)
+            do {
+                let userDoc = try await Firestore.firestore().collection("users").document(userId).getDocument()
+                if let data = userDoc.data() {
+                    displayName = data["name"] as? String
+                }
+            } catch {
+                // Silently ignore permission or network errors; keep displayName nil
+            }
+            let member = ProjectMember(userId: userId, projectId: projectId, role: role, invitedBy: invitedBy, displayName: displayName)
             try member.validate()
             
             try await createProjectMember(member, in: projectId)
@@ -224,6 +242,8 @@ class ProjectManager: ObservableObject {
             if var project = try await projectOperations.read(id: projectId) {
                 if !project.memberIds.contains(userId) {
                     project.memberIds.append(userId)
+                    // Mark pending to protect UI from transient empty snapshots
+                    pendingProjectTimestamps[projectId] = Date(); lastLocalChangeAt = Date()
                     _ = try await updateProject(project)
                 }
             }
@@ -271,6 +291,8 @@ class ProjectManager: ObservableObject {
             // Update project memberIds
             if var project = try await projectOperations.read(id: projectId) {
                 project.memberIds.removeAll { $0 == userId }
+                // Mark pending to protect UI from transient empty snapshots
+                pendingProjectTimestamps[projectId] = Date(); lastLocalChangeAt = Date()
                 _ = try await updateProject(project)
             }
         } catch {
@@ -305,39 +327,93 @@ class ProjectManager: ObservableObject {
             print("❌ ProjectManager: Invalid userId for listener")
             return
         }
-        
-        // 重複リスナーの防止
-        let listenerId = "projects_\(userId)"
-        if activeListenerIds.contains(listenerId) {
-            print("⚠️ ProjectManager: Listener already exists for user: \(userId)")
-            return
-        }
-        
         print("🎧 ProjectManager: Starting optimized listener for user: \(userId)")
         currentUserId = userId
         
-        // 🆕 統合されたリスナー管理システムを使用
-        let actualListenerId = listenerManager.createProjectListener(userId: userId) { [weak self] result in
+        // 既存のユーザー向けリスナーを一旦解除（再構成のため）
+        removeProjectListener()
+        
+        // 結果のマージ用ストレージ
+        var map: [String: Project] = [:]
+        func applyMerged() {
+            let now = Date()
+            // TTLガード: 最近ローカル変更があり、受信が空なら維持
+            let remoteList = Array(map.values)
+            if remoteList.isEmpty && !projects.isEmpty && now.timeIntervalSince(lastLocalChangeAt) < pendingTTL {
+                print("⚠️ ProjectManager: Ignoring empty merged snapshot due to TTL")
+                return
+            }
+            // 既存とのマージ（ペンディング優先）
+            var remoteMap: [String: Project] = [:]
+            for p in remoteList { if let id = p.id { remoteMap[id] = p } }
+            var merged: [Project] = []
+            var seen = Set<String>()
+            for cur in projects {
+                if let id = cur.id, var r = remoteMap[id] {
+                    // Preserve local statistics if remote hasn't populated yet
+                    if r.statistics == nil, let curStats = cur.statistics {
+                        r.statistics = curStats
+                    }
+                    merged.append(r); seen.insert(id); remoteMap.removeValue(forKey: id)
+                } else if let id = cur.id, let ts = pendingProjectTimestamps[id], now.timeIntervalSince(ts) < pendingTTL {
+                    merged.append(cur)
+                }
+            }
+            for (id, r) in remoteMap where !seen.contains(id) { merged.append(r) }
+            if merged.isEmpty { merged = remoteList }
+            projects = merged
+            print("✅ ProjectManager: Merged project list -> count=\(projects.count)")
+        }
+        
+        // 1) 自分がメンバーのプロジェクト
+        let idMember = "projects_member_\(userId)"
+        let qMember = Firestore.firestore().collection("projects").whereField("memberIds", arrayContains: userId)
+        let lidMember = listenerManager.createListener(id: idMember, query: qMember, type: .project, priority: .high) { [weak self] (result: Result<[Project], FirebaseError>) in
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
-                
                 switch result {
-                case .success(let projects):
-                    print("🔄 ProjectManager: Optimized listener received \(projects.count) projects")
-                    print("📊 ProjectManager: Before update - self.projects.count: \(self.projects.count)")
-                    self.isLoading = false // 🔧 リスナー成功時にローディング終了
-                    self.projects = projects
-                    print("✅ ProjectManager: After update - self.projects.count: \(self.projects.count)")
-                    print("📋 ProjectManager: Updated projects: \(self.projects.map { $0.name })")
-                case .failure(let error):
-                    print("❌ ProjectManager: Optimized listener error: \(error)")
-                    self.isLoading = false // 🔧 エラー時もローディング終了
-                    self.error = error
+                case .success(let list):
+                    for p in list { if let id = p.id { map[id] = p } }
+                    self.isLoading = false
+                    applyMerged()
+                case .failure(let err):
+                    print("❌ ProjectManager: member-project listener error: \(err)")
+                    self.error = err
                 }
             }
         }
+        activeListenerIds.insert(lidMember)
         
-        activeListenerIds.insert(actualListenerId)
+        // 2) 自分が所属するファミリーが所有するプロジェクト
+        // ユーザーのfamilyIdsを取得（失敗時は無視）
+        Task { @MainActor in
+            do {
+                let userDoc = try await Firestore.firestore().collection("users").document(userId).getDocument()
+                let famIds = (userDoc.data()? ["familyIds"] as? [String]) ?? []
+                for fid in famIds {
+                    let idFam = "projects_family_\(fid)"
+                    let qFam = Firestore.firestore().collection("projects").whereField("ownerId", isEqualTo: fid)
+                    let lidFam = listenerManager.createListener(id: idFam, query: qFam, type: .project, priority: .medium) { [weak self] (res: Result<[Project], FirebaseError>) in
+                        Task { @MainActor [weak self] in
+                            guard let self = self else { return }
+                            switch res {
+                            case .success(let list):
+                                // ownerTypeがfamilyのものだけ採用
+                                for p in list where p.ownerType == .family { if let id = p.id { map[id] = p } }
+                                self.isLoading = false
+                                applyMerged()
+                            case .failure(let err):
+                                print("❌ ProjectManager: family-project listener error: \(err)")
+                                self.error = err
+                            }
+                        }
+                    }
+                    self.activeListenerIds.insert(lidFam)
+                }
+            } catch {
+                print("⚠️ ProjectManager: Could not load user's familyIds (permissions?). Proceeding with member-only listener")
+            }
+        }
     }
     
     func startListeningForProject(id: String) {
@@ -455,13 +531,25 @@ class ProjectManager: ObservableObject {
             )
             
             // Create project in Firebase
-            let createdProject = try await createProject(
+            var createdProject = try await createProject(
                 name: project.name,
                 description: project.description,
                 ownerId: ownerId,
                 ownerType: ownerType,
                 createdByUserId: createdByUserId
             )
+            
+            // Pre-populate statistics immediately from template for faster UI feedback
+            let phaseCount = template.phases.count
+            let taskCount = template.phases.flatMap { $0.taskLists }.reduce(0) { acc, list in acc + list.tasks.count }
+            var statsUpdatedProject = createdProject
+            statsUpdatedProject.statistics = ProjectStats(totalTasks: taskCount, completedTasks: 0, totalPhases: phaseCount, activeMembers: 0)
+            statsUpdatedProject.lastModifiedAt = Date()
+            createdProject = try await updateProject(statsUpdatedProject)
+            // Also update local optimistic copy if present
+            if let idx = projects.firstIndex(where: { $0.id == createdProject.id }) {
+                projects[idx] = createdProject
+            }
             
             // Create phases, task lists, and tasks from template
             try await createProjectStructureFromTemplate(
@@ -490,7 +578,7 @@ class ProjectManager: ObservableObject {
         customizations: ProjectCustomizations? = nil
     ) async throws {
         let phaseManager = PhaseManager()
-        let taskListManager = TaskListManager()
+        let taskListManager = TaskListManager() // kept for export path elsewhere
         let taskManager = EnhancedTaskManager()
         let subtaskManager = SubtaskManager()
         var phaseCount = 0
@@ -511,47 +599,37 @@ class ProjectManager: ObservableObject {
             phaseCount += 1
             print("🧱 Created phase: \(createdPhase.name) [\(phaseId)]")
             
-            // Create task lists for this phase
+            // Create sections for this phase and tasks under phase-level collection
+            let sectionManager = PhaseSectionManager()
             for taskListTemplate in phaseTemplate.taskLists.sorted(by: { $0.order < $1.order }) {
-                let createdTaskList = try await taskListManager.createTaskList(
+                let sec = try await sectionManager.createSection(
                     name: taskListTemplate.name,
                     phaseId: phaseId,
                     projectId: projectId,
-                    createdBy: ownerId,
-                    color: customizations?.customPhaseColors[phaseTemplate.title] ?? taskListTemplate.color,
-                    order: taskListTemplate.order
+                    order: taskListTemplate.order,
+                    colorHex: (customizations?.customPhaseColors[phaseTemplate.title]?.swiftUIColor.description)
                 )
-                guard let taskListId = createdTaskList.id else { continue }
                 listCount += 1
-                print("📦 Created list: \(createdTaskList.name) [\(taskListId)] in phase \(phaseId)")
-                
-                // Create tasks for this task list
+                print("📁 Created section: \(sec.name) [\(sec.id ?? "")] in phase \(phaseId)")
                 for (taskIndex, taskTemplate) in taskListTemplate.tasks.enumerated() {
-                    // Skip optional tasks if customizations specify to do so
-                    if taskTemplate.isOptional && (customizations?.skipOptionalTasks == true) {
-                        continue
-                    }
-                    
-                    // Apply priority overrides if specified
+                    if taskTemplate.isOptional && (customizations?.skipOptionalTasks == true) { continue }
                     let priority = customizations?.taskPriorityOverrides[taskTemplate.title] ?? taskTemplate.priority
-                    
-                    let createdTask = try await taskManager.createTask(
+                    let createdTask = try await taskManager.createPhaseTask(
                         title: taskTemplate.title,
                         description: taskTemplate.description,
                         assignedTo: nil,
                         createdBy: ownerId,
                         dueDate: nil,
                         priority: priority,
-                        listId: taskListId,
+                        sectionId: sec.id,
+                        sectionName: sec.name,
                         phaseId: phaseId,
                         projectId: projectId,
                         order: taskIndex
                     )
                     guard let taskId = createdTask.id else { continue }
                     taskCount += 1
-                    print("✅ Created task: \(createdTask.title) [\(taskId)] in list \(taskListId)")
-                    
-                    // Create subtasks if present
+                    print("✅ Created task: \(createdTask.title) [\(taskId)] in section \(sec.id ?? "")")
                     for (subtaskIndex, subtaskTemplate) in taskTemplate.subtasks.enumerated() {
                         let createdSubtask = try await subtaskManager.createSubtask(
                             title: subtaskTemplate.title,
@@ -560,7 +638,7 @@ class ProjectManager: ObservableObject {
                             createdBy: ownerId,
                             dueDate: nil,
                             taskId: taskId,
-                            listId: taskListId,
+                            listId: "",
                             phaseId: phaseId,
                             projectId: projectId,
                             order: subtaskIndex

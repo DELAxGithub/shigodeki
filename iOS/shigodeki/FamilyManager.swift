@@ -227,6 +227,32 @@ class FamilyManager: ObservableObject {
         // Mark invitation as used (optional - could keep active for multiple uses)
         // try await db.collection("invitations").document(code).updateData(["isActive": false])
         
+        // 🔗 同期: 家族所有の全プロジェクトにプロジェクトメンバーとして追加（displayNameも保存）
+        do {
+            let projectsSnap = try await db.collection("projects").whereField("ownerId", isEqualTo: familyId).getDocuments()
+            let encoder = Firestore.Encoder()
+            var displayName: String? = nil
+            do {
+                let userDoc = try await db.collection("users").document(userId).getDocument()
+                if let data = userDoc.data() { displayName = data["name"] as? String }
+            } catch {
+                // ignore permission issues
+            }
+            for doc in projectsSnap.documents {
+                // Only family-owned projects
+                if let ownerType = doc.data()["ownerType"] as? String, ownerType == "family" {
+                    // Add to memberIds array
+                    try await doc.reference.updateData(["memberIds": FieldValue.arrayUnion([userId])])
+                    // Create/merge ProjectMember subdocument
+                    let member = ProjectMember(userId: userId, projectId: doc.documentID, role: .editor, invitedBy: userId, displayName: displayName)
+                    try await doc.reference.collection("members").document(userId).setData(try encoder.encode(member), merge: true)
+                }
+            }
+        } catch {
+            // 同期に失敗してもファミリー参加自体は成功扱いとする
+            print("Family join sync warning: \(error)")
+        }
+        
         return familyName
     }
     

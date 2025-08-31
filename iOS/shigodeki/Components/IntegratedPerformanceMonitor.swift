@@ -33,9 +33,9 @@ class IntegratedPerformanceMonitor: ObservableObject {
     private var monitoringTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private var lastOptimizationTime: Date = Date.distantPast
-    private let optimizationCooldownInterval: TimeInterval = 30.0 // 30秒クールダウン
+    private let optimizationCooldownInterval: TimeInterval = 120.0 // 2分クールダウン（頻度を下げてループ抑制）
     private var initializationTime: Date = Date()
-    private let initializationGracePeriod: TimeInterval = 15.0 // 15秒の初期化猶予期間
+    private let initializationGracePeriod: TimeInterval = 45.0 // 45秒の初期化猶予期間（起動直後の最適化を抑止）
     private var lastGraceLogTime: Date = Date.distantPast // 🆕 Grace期間ログの頻度制御
     private var manualGraceUntil: Date? = nil // 🆕 手動グレース期間（重い処理後に延長）
     
@@ -226,8 +226,8 @@ class IntegratedPerformanceMonitor: ObservableObject {
             return
         }
         
-        // 自動最適化条件（より保守的な閾値に調整: 250MB→300MB）
-        if metrics.totalMemoryUsage > 300 || metrics.overallScore < 30 {
+        // 自動最適化条件（さらに保守的に: 300MB→350MB）
+        if metrics.totalMemoryUsage > 350 || metrics.overallScore < 20 {
             #if DEBUG
             print("🔧 IntegratedPerformanceMonitor: Triggering auto-optimization (cooldown: \(optimizationCooldownInterval)s)")
             #endif
@@ -252,8 +252,8 @@ class IntegratedPerformanceMonitor: ObservableObject {
             listenerManager.optimizeListeners()
         }
         
-        // 低優先度のManagerを一時的に解放（閾値を調整: 250MB→300MB）
-        if currentMetrics.totalMemoryUsage > 300 {
+        // 低優先度のManagerを一時的に解放（さらに閾値を調整: 300MB→350MB）
+        if currentMetrics.totalMemoryUsage > 350 {
             await sharedManagers.cleanupUnusedManagers()
         }
         

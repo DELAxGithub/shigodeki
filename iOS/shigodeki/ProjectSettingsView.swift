@@ -11,8 +11,9 @@ struct ProjectSettingsView: View {
     let project: Project
     @ObservedObject var projectManager: ProjectManager
     @Environment(\.presentationMode) var presentationMode
-    @StateObject private var authManager = AuthenticationManager()
-    @StateObject private var familyManager = FamilyManager()
+    @EnvironmentObject var sharedManagers: SharedManagerStore
+    @State private var authManager: AuthenticationManager?
+    @State private var familyManager: FamilyManager?
     
     @State private var projectName: String
     @State private var projectDescription: String
@@ -21,6 +22,12 @@ struct ProjectSettingsView: View {
     @State private var showingDeleteConfirmation = false
     @State private var showingError = false
     @State private var errorMessage = ""
+    
+    // Invitations
+    @StateObject private var invitationManager = ProjectInvitationManager()
+    @State private var selectedInviteRole: Role = .editor
+    @State private var showingInviteSheet = false
+    @State private var createdInviteCode: String = ""
     
     // Owner change UI
     @State private var selectedOwnerType: ProjectOwnerType
@@ -57,6 +64,23 @@ struct ProjectSettingsView: View {
                 .background(Color(.systemGray6))
                 
                 Form {
+                    // Invitation Section
+                    Section(header: Text("招待")) {
+                        Picker("権限", selection: $selectedInviteRole) {
+                            ForEach(Role.allCases, id: \.self) { role in
+                                Text(role.displayName).tag(role)
+                            }
+                        }
+                        Button {
+                            Task { await createInvite() }
+                        } label: {
+                            HStack {
+                                Image(systemName: "person.badge.plus")
+                                Text("招待コードを作成")
+                            }
+                        }
+                        .disabled(isUpdating)
+                    }
                     // Owner Section
                     Section(header: Text("所有者")) {
                         Picker("所有者タイプ", selection: $selectedOwnerType) {
@@ -66,14 +90,14 @@ struct ProjectSettingsView: View {
                         .pickerStyle(.segmented)
                         
                         if selectedOwnerType == .family {
-                            if familyManager.families.isEmpty {
+                            if (familyManager?.families.isEmpty ?? true) {
                                 Text("家族グループがありません。家族タブから作成/参加してください。")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             } else {
                                 Picker("家族グループ", selection: Binding(get: { selectedFamilyId ?? "" }, set: { selectedFamilyId = $0.isEmpty ? nil : $0 })) {
                                     Text("選択してください").tag("")
-                                    ForEach(familyManager.families) { fam in
+                                    ForEach(familyManager?.families ?? []) { fam in
                                         Text(fam.name).tag(fam.id ?? "")
                                     }
                                 }
@@ -232,10 +256,11 @@ struct ProjectSettingsView: View {
                     }
                 }
             )
-            .onAppear {
-                // Load families for selection
-                if let uid = authManager.currentUser?.id {
-                    Task { await familyManager.loadFamiliesForUser(userId: uid) }
+            .task {
+                if authManager == nil { authManager = await sharedManagers.getAuthManager() }
+                if familyManager == nil { familyManager = await sharedManagers.getFamilyManager() }
+                if let uid = authManager?.currentUser?.id {
+                    await familyManager?.loadFamiliesForUser(userId: uid)
                 }
             }
             .confirmationDialog(
@@ -256,11 +281,39 @@ struct ProjectSettingsView: View {
                 Text(errorMessage)
             }
         }
+        .sheet(isPresented: $showingInviteSheet) {
+            VStack(spacing: 24) {
+                Image(systemName: "person.badge.plus")
+                    .font(.system(size: 48))
+                    .foregroundColor(.blue)
+                Text("招待コード")
+                    .font(.title2).bold()
+                Text(createdInviteCode)
+                    .font(.system(size: 36, weight: .bold, design: .monospaced))
+                    .padding()
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(12)
+                    .onTapGesture { UIPasteboard.general.string = createdInviteCode }
+                Text("タップしてコピー").font(.caption).foregroundColor(.secondary)
+                Button {
+                    let act = UIActivityViewController(activityItems: ["プロジェクト『\(project.name)』への招待コード: \(createdInviteCode)"], applicationActivities: nil)
+                    if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene, let win = scene.windows.first {
+                        win.rootViewController?.present(act, animated: true)
+                    }
+                } label: {
+                    Label("招待コードを共有", systemImage: "square.and.arrow.up")
+                        .padding().frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                Spacer()
+            }
+            .padding()
+        }
     }
     
     private func changeOwner() {
         guard let projectId = project.id else { return }
-        guard let actor = authManager.currentUser?.id else { return }
+        guard let actor = authManager?.currentUser?.id else { return }
         let newOwnerId: String = (selectedOwnerType == .individual) ? actor : (selectedFamilyId ?? "")
         guard !newOwnerId.isEmpty else { return }
         isUpdating = true
@@ -347,6 +400,26 @@ struct ProjectSettingsView: View {
                     errorMessage = error.localizedDescription
                     showingError = true
                 }
+            }
+        }
+    }
+    
+    private func createInvite() async {
+        guard let pid = project.id else { return }
+        guard let uid = authManager?.currentUser?.id else { return }
+        isUpdating = true
+        do {
+            let inv = try await invitationManager.createInvitation(for: project, role: selectedInviteRole, invitedByUserId: uid, invitedByName: authManager?.currentUser?.name ?? uid)
+            await MainActor.run {
+                createdInviteCode = inv.inviteCode
+                showingInviteSheet = true
+                isUpdating = false
+            }
+        } catch {
+            await MainActor.run {
+                isUpdating = false
+                errorMessage = error.localizedDescription
+                showingError = true
             }
         }
     }

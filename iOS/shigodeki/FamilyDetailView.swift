@@ -10,9 +10,10 @@ import FirebaseFirestore
 
 struct FamilyDetailView: View {
     let family: Family
-    @StateObject private var authManager = AuthenticationManager()
-    @StateObject private var familyManager = FamilyManager()
-    @StateObject private var projectManager = ProjectManager()
+    @EnvironmentObject var sharedManagers: SharedManagerStore
+    @State private var authManager: AuthenticationManager?
+    @State private var familyManager: FamilyManager?
+    @State private var projectManager: ProjectManager?
     @State private var showingInviteCode = false
     @State private var currentInviteCode: String = ""
     @State private var showingLeaveConfirmation = false
@@ -22,7 +23,7 @@ struct FamilyDetailView: View {
     @State private var showingCreateProject = false
     
     private var isCurrentUserCreator: Bool {
-        guard let userId = authManager.currentUser?.id else { return false }
+        guard let userId = authManager?.currentUser?.id else { return false }
         return family.members.first == userId
     }
     
@@ -70,7 +71,7 @@ struct FamilyDetailView: View {
                         MemberRowView(
                             member: member,
                             isCreator: index == 0,
-                            canRemove: isCurrentUserCreator && member.id != authManager.currentUser?.id
+                            canRemove: isCurrentUserCreator && member.id != authManager?.currentUser?.id
                         ) {
                             removeMember(member)
                         }
@@ -96,10 +97,10 @@ struct FamilyDetailView: View {
             }
             
             // Projects Section
-            if !familyProjects.isEmpty {
+            if !familyProjects.isEmpty, let pm = projectManager {
                 Section("プロジェクト") {
                     ForEach(familyProjects) { proj in
-                        NavigationLink(destination: ProjectDetailView(project: proj, projectManager: projectManager)) {
+                        NavigationLink(destination: ProjectDetailView(project: proj, projectManager: pm)) {
                             HStack {
                                 Image(systemName: "folder.fill")
                                     .foregroundColor(.blue)
@@ -154,17 +155,23 @@ struct FamilyDetailView: View {
                 }
             }
         }
+        .loadingOverlay(isLoadingMembers || (familyManager?.isLoading ?? false), message: "読み込み中...")
         .navigationTitle("家族詳細")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            loadFamilyMembers()
-            loadFamilyProjects()
-        }
+            .task {
+                if authManager == nil { authManager = await sharedManagers.getAuthManager() }
+                if familyManager == nil { familyManager = await sharedManagers.getFamilyManager() }
+                if projectManager == nil { projectManager = await sharedManagers.getProjectManager() }
+                loadFamilyMembers()
+                loadFamilyProjects()
+            }
         .sheet(isPresented: $showingInviteCode) {
             InviteCodeView(inviteCode: currentInviteCode, familyName: family.name)
         }
         .sheet(isPresented: $showingCreateProject) {
-            CreateProjectView(projectManager: projectManager, defaultOwnerType: .family, defaultFamilyId: family.id)
+            if let pm = projectManager {
+                CreateProjectView(projectManager: pm, defaultOwnerType: .family, defaultFamilyId: family.id)
+            }
         }
         .alert("グループから退出", isPresented: $showingLeaveConfirmation) {
             Button("退出", role: .destructive) {
@@ -197,35 +204,37 @@ struct FamilyDetailView: View {
         guard family.id != nil else { return }
         
         isLoadingMembers = true
-        
-        Task.detached {
+        Task {
             do {
                 let db = Firestore.firestore()
-                var members: [User] = []
-                
-                for memberId in family.members {
-                    let userDoc = try await db.collection("users").document(memberId).getDocument()
-                    if let userData = userDoc.data() {
-                        var user = User(
-                            name: userData["name"] as? String ?? "Unknown",
-                            email: userData["email"] as? String ?? "",
-                            familyIds: userData["familyIds"] as? [String] ?? []
-                        )
-                        user.id = memberId
-                        user.createdAt = (userData["createdAt"] as? Timestamp)?.dateValue()
-                        members.append(user)
+                let ids = family.members
+                let fetched: [User] = try await withThrowingTaskGroup(of: User?.self) { group in
+                    for memberId in ids {
+                        group.addTask {
+                            let userDoc = try? await db.collection("users").document(memberId).getDocument()
+                            guard let data = userDoc?.data() else { return nil }
+                            var user = User(
+                                name: data["name"] as? String ?? "Unknown",
+                                email: data["email"] as? String ?? "",
+                                familyIds: data["familyIds"] as? [String] ?? []
+                            )
+                            user.id = memberId
+                            user.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
+                            return user
+                        }
                     }
+                    var collected: [User] = []
+                    for try await result in group {
+                        if let u = result { collected.append(u) }
+                    }
+                    return collected
                 }
-                
                 await MainActor.run {
-                    familyMembers = members
+                    familyMembers = fetched
                     isLoadingMembers = false
                 }
-                
             } catch {
-                await MainActor.run {
-                    isLoadingMembers = false
-                }
+                await MainActor.run { isLoadingMembers = false }
                 print("Error loading family members: \(error)")
             }
         }
@@ -251,7 +260,7 @@ struct FamilyDetailView: View {
                     }
                 } else {
                     // Generate new invite code if none exists
-                    try await familyManager.generateInvitationCode(familyId: familyId, familyName: family.name)
+                    try await familyManager?.generateInvitationCode(familyId: familyId, familyName: family.name)
                     // Reload to get the new code
                     await loadInviteCode()
                 }
@@ -267,7 +276,7 @@ struct FamilyDetailView: View {
         
         Task.detached {
             do {
-                try await familyManager.removeMemberFromFamily(familyId: familyId, userId: memberId)
+                try await familyManager?.removeMemberFromFamily(familyId: familyId, userId: memberId)
                 await MainActor.run {
                     loadFamilyMembers()
                 }
@@ -278,11 +287,11 @@ struct FamilyDetailView: View {
     }
     
     private func leaveFamily() {
-        guard let familyId = family.id, let userId = authManager.currentUser?.id else { return }
+        guard let familyId = family.id, let userId = authManager?.currentUser?.id else { return }
         
         Task.detached {
             do {
-                try await familyManager.leaveFamily(familyId: familyId, userId: userId)
+                try await familyManager?.leaveFamily(familyId: familyId, userId: userId)
                 // Navigate back
                 await MainActor.run {
                     // The family list will automatically update due to listeners

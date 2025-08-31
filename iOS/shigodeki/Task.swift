@@ -11,15 +11,17 @@ import SwiftUI
 
 struct ShigodekiTask: Identifiable, Codable, Hashable {
     var id: String?
-    let title: String
-    let description: String?
+    var title: String
+    var description: String?
     var isCompleted: Bool
-    let assignedTo: String?
+    var assignedTo: String?
     var createdAt: Date?
     var completedAt: Date?
     var dueDate: Date?
     var priority: TaskPriority
     let createdBy: String
+    var linkURL: String?
+    var attachments: [String]? // base64 data URLs or remote URLs
     
     // Hierarchy fields
     var listId: String
@@ -35,6 +37,10 @@ struct ShigodekiTask: Identifiable, Codable, Hashable {
     var estimatedHours: Double?
     var actualHours: Double?
     var dependsOn: [String]
+    
+    // Phase-level sections (new model)
+    var sectionId: String? // Optional grouping within a phase
+    var sectionName: String? // Denormalized for fast rendering
     
     init(title: String, description: String? = nil, assignedTo: String? = nil, 
          createdBy: String, dueDate: Date? = nil, priority: TaskPriority = .medium,

@@ -13,11 +13,17 @@ struct TaskListMainView: View {
     @StateObject private var taskManager = TaskManager()
     @State private var selectedFamily: Family?
     @State private var showingCreateTaskList = false
+    @State private var bootstrapped = false
+    
+    @State private var navigationResetId = UUID()
     
     var body: some View {
         NavigationView {
             VStack {
-                if familyManager.families.isEmpty && !familyManager.isLoading {
+                if (!bootstrapped) || authManager.isLoading {
+                    ProgressView("読み込み中...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if familyManager.families.isEmpty && !familyManager.isLoading {
                     // No families state
                     VStack(spacing: 24) {
                         Image(systemName: "list.bullet.clipboard")
@@ -93,10 +99,15 @@ struct TaskListMainView: View {
             .onAppear {
                 if let userId = authManager.currentUser?.id {
                     familyManager.startListeningToFamilies(userId: userId)
-                    Task.detached {
-                        await familyManager.loadFamiliesForUser(userId: userId)
-                    }
+                    Task.detached { await familyManager.loadFamiliesForUser(userId: userId) }
+                    bootstrapped = true
                 }
+            }
+            .onChange(of: authManager.currentUser?.id ?? "") { _, newId in
+                guard !newId.isEmpty else { return }
+                familyManager.startListeningToFamilies(userId: newId)
+                Task.detached { await familyManager.loadFamiliesForUser(userId: newId) }
+                bootstrapped = true
             }
             .onDisappear {
                 familyManager.stopListeningToFamilies()
@@ -108,6 +119,10 @@ struct TaskListMainView: View {
                     CreateTaskListView(family: family, taskManager: taskManager, creatorUserId: userId)
                 }
             }
+        }
+        .id(navigationResetId)
+        .onReceive(NotificationCenter.default.publisher(for: .taskTabSelected)) { _ in
+            navigationResetId = UUID()
         }
     }
 }

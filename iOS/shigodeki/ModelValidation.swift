@@ -56,7 +56,8 @@ extension Project: Validatable {
             throw ValidationError.invalidRelationship("プロジェクトには少なくとも1人のメンバーが必要です")
         }
         
-        if !memberIds.contains(ownerId) {
+        // 個人所有の場合のみ、ownerId(=ユーザーID)がメンバーに含まれることを要求
+        if ownerType == .individual && !memberIds.contains(ownerId) {
             throw ValidationError.invalidRelationship("プロジェクトオーナーはメンバーに含まれている必要があります")
         }
     }
@@ -132,9 +133,8 @@ extension ShigodekiTask: Validatable {
             throw ValidationError.invalidFieldLength("タスクの説明", 0, 1000)
         }
         
-        if listId.isEmpty {
-            throw ValidationError.missingRequiredField("タスクリストID")
-        }
+        // listId は旧モデル（リスト配下タスク）で必須だったが、
+        // 新モデル（フェーズ直下タスク）では空も許容するため検証を緩和
         
         if phaseId.isEmpty {
             throw ValidationError.missingRequiredField("フェーズID")
@@ -193,9 +193,7 @@ extension Subtask: Validatable {
             throw ValidationError.missingRequiredField("親タスクID")
         }
         
-        if listId.isEmpty {
-            throw ValidationError.missingRequiredField("タスクリストID")
-        }
+        // 新モデルではサブタスクもリスト非依存のため検証を緩和
         
         if phaseId.isEmpty {
             throw ValidationError.missingRequiredField("フェーズID")

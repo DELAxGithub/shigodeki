@@ -16,6 +16,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         // Configure Firebase
         FirebaseApp.configure()
+        print("🧩 App Build: \(BuildInfo.current.buildString)")
         
         // 🔧 Ensure we're using production Firebase (not emulator)
         #if DEBUG
@@ -76,4 +77,15 @@ struct shigodekiApp: App {
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
         }
     }
+}
+
+// MARK: - Build Info
+private struct BuildInfo {
+    let buildString: String
+    static let current: BuildInfo = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ssZ"
+        let ts = formatter.string(from: Date())
+        return BuildInfo(buildString: ts)
+    }()
 }

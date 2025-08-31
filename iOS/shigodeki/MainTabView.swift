@@ -12,25 +12,39 @@ struct MainTabView: View {
     @StateObject private var sharedManagers = SharedManagerStore.shared
     @StateObject private var themeManager = ThemeManager()
     
+    @State private var selectedTab: Int = 0
+    private let projectTabIndex = 0
+    private let familyTabIndex = 1
+    private let taskTabIndex = 2
+    #if DEBUG
+    private let testTabIndex = 3
+    private let settingsTabIndex = 4
+    #else
+    private let settingsTabIndex = 3
+    #endif
+    
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             ProjectListView()
                 .tabItem {
                     Image(systemName: "folder.fill")
                     Text("プロジェクト")
                 }
+                .tag(projectTabIndex)
             
             FamilyView()
                 .tabItem {
                     Image(systemName: "person.3.fill")
                     Text("家族")
                 }
+                .tag(familyTabIndex)
             
             TaskListMainView()
                 .tabItem {
                     Image(systemName: "list.bullet")
                     Text("家族タスク")
                 }
+                .tag(taskTabIndex)
             
             #if DEBUG
             AuthTestView()
@@ -38,6 +52,7 @@ struct MainTabView: View {
                     Image(systemName: "flask")
                     Text("テスト")
                 }
+                .tag(testTabIndex)
             #endif
             
             SettingsView()
@@ -45,6 +60,7 @@ struct MainTabView: View {
                     Image(systemName: "gear")
                     Text("設定")
                 }
+                .tag(settingsTabIndex)
         }
         .accentColor(.primaryBlue)
         .preferredColorScheme(themeManager.currentTheme.colorScheme)
@@ -80,7 +96,24 @@ struct MainTabView: View {
                 await sharedManagers.cleanupUnusedManagers()
             }
         }
+        .onChange(of: selectedTab) { _, newVal in
+            if newVal == projectTabIndex { NotificationCenter.default.post(name: .projectTabSelected, object: nil) }
+            if newVal == familyTabIndex { NotificationCenter.default.post(name: .familyTabSelected, object: nil) }
+            if newVal == taskTabIndex { NotificationCenter.default.post(name: .taskTabSelected, object: nil) }
+            if newVal == settingsTabIndex { NotificationCenter.default.post(name: .settingsTabSelected, object: nil) }
+            #if DEBUG
+            if newVal == testTabIndex { NotificationCenter.default.post(name: .testTabSelected, object: nil) }
+            #endif
+        }
     }
+}
+
+extension Notification.Name {
+    static let projectTabSelected = Notification.Name("ProjectTabSelectedNotification")
+    static let familyTabSelected = Notification.Name("FamilyTabSelectedNotification")
+    static let taskTabSelected = Notification.Name("TaskTabSelectedNotification")
+    static let settingsTabSelected = Notification.Name("SettingsTabSelectedNotification")
+    static let testTabSelected = Notification.Name("TestTabSelectedNotification")
 }
 
 // MARK: - Placeholder Views
@@ -95,6 +128,8 @@ struct SettingsView: View {
     @State private var aiGenerator: AITaskGenerator?
     @State private var showAISettings = false
     @State private var showTaskImprovement = false
+    
+    @State private var navigationResetId = UUID()
     
     var body: some View {
         NavigationView {

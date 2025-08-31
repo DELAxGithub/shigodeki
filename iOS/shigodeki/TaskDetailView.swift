@@ -260,34 +260,37 @@ struct TaskDetailView: View {
     private func loadFamilyMembers() {
         isLoadingMembers = true
         
-        Task.detached {
+        Task {
             do {
                 let db = Firestore.firestore()
-                var members: [User] = []
-                
-                for memberId in family.members {
-                    let userDoc = try await db.collection("users").document(memberId).getDocument()
-                    if let userData = userDoc.data() {
-                        var user = User(
-                            name: userData["name"] as? String ?? "Unknown",
-                            email: userData["email"] as? String ?? "",
-                            familyIds: userData["familyIds"] as? [String] ?? []
-                        )
-                        user.id = memberId
-                        user.createdAt = (userData["createdAt"] as? Timestamp)?.dateValue()
-                        members.append(user)
+                let ids = family.members
+                let fetched: [User] = try await withThrowingTaskGroup(of: User?.self) { group in
+                    for memberId in ids {
+                        group.addTask {
+                            let userDoc = try? await db.collection("users").document(memberId).getDocument()
+                            guard let data = userDoc?.data() else { return nil }
+                            var user = User(
+                                name: data["name"] as? String ?? "Unknown",
+                                email: data["email"] as? String ?? "",
+                                familyIds: data["familyIds"] as? [String] ?? []
+                            )
+                            user.id = memberId
+                            user.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
+                            return user
+                        }
                     }
+                    var collected: [User] = []
+                    for try await result in group {
+                        if let u = result { collected.append(u) }
+                    }
+                    return collected
                 }
-                
                 await MainActor.run {
-                    familyMembers = members
+                    familyMembers = fetched
                     isLoadingMembers = false
                 }
-                
             } catch {
-                await MainActor.run {
-                    isLoadingMembers = false
-                }
+                await MainActor.run { isLoadingMembers = false }
                 print("Error loading family members: \(error)")
             }
         }

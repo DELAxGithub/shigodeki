@@ -10,7 +10,8 @@ import SwiftUI
 struct PhaseRowView: View {
     let phase: Phase
     @ObservedObject var phaseManager: PhaseManager
-    @State private var isPressed = false
+    let taskListCount: Int?
+    // Keep purely presentational; interaction is handled by parent (NavigationLink/Button)
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -81,12 +82,12 @@ struct PhaseRowView: View {
             
             // Metadata row
             HStack {
-                // Task list count
+                // Section count (was task list count)
                 HStack(spacing: 4) {
                     Image(systemName: "list.bullet")
                         .font(.caption)
                         .foregroundColor(.primaryBlue)
-                    Text("0個のタスクリスト") // TODO: Get actual count
+                    Text("\(taskListCount ?? 0)個のセクション")
                         .font(.caption)
                         .foregroundColor(.secondaryText)
                 }
@@ -103,20 +104,8 @@ struct PhaseRowView: View {
                     .foregroundColor(.tertiaryText)
             }
         }
-        .listCard(isSelected: isPressed)
+        .listCard()
         .contentShape(Rectangle())
-        .interactiveScale(isPressed: $isPressed)
-        .onTapGesture {
-            withAnimation(.quickEase) {
-                isPressed = true
-            }
-            HapticFeedbackManager.shared.light()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation(.quickEase) {
-                    isPressed = false
-                }
-            }
-        }
     }
     
     private func formatDate(_ date: Date?) -> String {
@@ -128,8 +117,10 @@ struct PhaseRowView: View {
     }
 }
 
+// (No local gesture handlers; parent controls interactions)
+
 #Preview {
     let samplePhase = Phase(name: "Phase 1", description: "First phase", projectId: "proj1", createdBy: "user1", order: 0)
-    PhaseRowView(phase: samplePhase, phaseManager: PhaseManager())
+    PhaseRowView(phase: samplePhase, phaseManager: PhaseManager(), taskListCount: nil)
         .padding()
 }

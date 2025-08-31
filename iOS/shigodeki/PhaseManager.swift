@@ -17,6 +17,9 @@ class PhaseManager: ObservableObject {
     @Published var error: FirebaseError?
     
     private var listeners: [ListenerRegistration] = []
+    private var pendingDeleteTimestamps: [String: Date] = [:]
+    private var pendingReorderUntil: Date? = nil
+    private let pendingTTL: TimeInterval = 5.0
     
     deinit {
         // Clean up listeners synchronously in deinit to prevent retain cycles
@@ -123,6 +126,7 @@ class PhaseManager: ObservableObject {
         defer { isLoading = false }
         
         do {
+            pendingDeleteTimestamps[id] = Date()
             // Delete all task lists in this phase first
             let taskListManager = TaskListManager()
             let taskLists = try await taskListManager.getTaskLists(phaseId: id, projectId: projectId)
@@ -162,6 +166,7 @@ class PhaseManager: ObservableObject {
         defer { isLoading = false }
         
         do {
+            pendingReorderUntil = Date()
             let batch = Firestore.firestore().batch()
             
             for (index, phase) in phases.enumerated() {
@@ -218,6 +223,8 @@ class PhaseManager: ObservableObject {
     // MARK: - Real-time Listeners
     
     func startListeningForPhases(projectId: String) {
+        // Avoid duplicate listeners for the same screen appearance
+        removeAllListeners()
         let phasesCollection = Firestore.firestore().collection("projects").document(projectId).collection("phases")
         
         let listener = phasesCollection.order(by: "order").addSnapshotListener { [weak self] snapshot, error in
@@ -227,16 +234,35 @@ class PhaseManager: ObservableObject {
                     return
                 }
                 
-                guard let documents = snapshot?.documents else {
-                    self?.phases = []
-                    return
-                }
+                guard let documents = snapshot?.documents else { return }
                 
                 do {
-                    let phases = try documents.compactMap { document in
-                        try document.data(as: Phase.self)
+                    let now = Date()
+                    let remotePairs: [(String, Phase)] = try documents.compactMap { doc in
+                        if doc.metadata.hasPendingWrites { return nil }
+                        if let ts = self?.pendingDeleteTimestamps[doc.documentID], now.timeIntervalSince(ts) < (self?.pendingTTL ?? 5.0) { return nil }
+                        let model = try doc.data(as: Phase.self)
+                        return (doc.documentID, model)
                     }
-                    self?.phases = phases
+                    var remoteMap = Dictionary(uniqueKeysWithValues: remotePairs)
+                    var merged: [Phase] = []
+                    var seen = Set<String>()
+                    for cur in self?.phases ?? [] {
+                        let cid = cur.id ?? ""
+                        if let r = remoteMap[cid] {
+                            merged.append(r); seen.insert(cid); remoteMap.removeValue(forKey: cid)
+                        } else {
+                            merged.append(cur)
+                        }
+                    }
+                    for (rid, r) in remoteMap where !seen.contains(rid) { merged.append(r) }
+                    if let ts = self?.pendingReorderUntil, now.timeIntervalSince(ts) < (self?.pendingTTL ?? 5.0) {
+                        // preserve current order
+                    } else {
+                        merged.sort { $0.order < $1.order }
+                        self?.pendingReorderUntil = nil
+                    }
+                    self?.phases = merged
                 } catch {
                     self?.error = FirebaseError.from(error)
                 }

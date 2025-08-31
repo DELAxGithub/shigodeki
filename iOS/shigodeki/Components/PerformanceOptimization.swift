@@ -322,7 +322,7 @@ extension View {
     // Performance optimization for lists
     func optimizedForList() -> some View {
         self
-            .drawingGroup() // Renders off-screen for better performance
+            .compositingGroup() // Safer than drawingGroup for hit-testing
     }
     
     // Conditional rendering based on visibility

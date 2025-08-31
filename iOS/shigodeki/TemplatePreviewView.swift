@@ -147,6 +147,12 @@ struct TemplatePreviewView: View {
                     value: "\(stats.totalPhases)",
                     color: .primaryBlue
                 )
+                StatCard(
+                    icon: "square.grid.2x2",
+                    title: "タスクリスト数",
+                    value: "\(stats.totalTaskLists)",
+                    color: .primaryBlue
+                )
                 
                 StatCard(
                     icon: "checkmark.square",

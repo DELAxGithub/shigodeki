@@ -107,8 +107,17 @@ actor FirebaseOperationBase<Model: Codable & Identifiable> {
         }
     }
     
+    private func extractStringId(from anyId: Any) -> String? {
+        if let id = anyId as? String { return id }
+        let mirror = Mirror(reflecting: anyId)
+        if mirror.displayStyle == .optional, let child = mirror.children.first {
+            return child.value as? String
+        }
+        return nil
+    }
+    
     func update(_ model: Model) async throws -> Model {
-        guard let id = model.id as? String else {
+        guard let id = extractStringId(from: model.id) else {
             throw FirebaseError.invalidData
         }
         

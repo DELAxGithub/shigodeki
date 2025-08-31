@@ -13,10 +13,16 @@ struct FamilyView: View {
     @State private var showingCreateFamily = false
     @State private var showingJoinFamily = false
     
+    @State private var navigationResetId = UUID()
+    
     var body: some View {
         NavigationView {
             VStack {
-                if familyManager.families.isEmpty && !familyManager.isLoading {
+                // Wait for auth userId to be available before deciding empty state
+                if authManager.currentUser?.id == nil && authManager.isAuthenticated {
+                    ProgressView("ユーザー情報を取得中...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if familyManager.families.isEmpty && !familyManager.isLoading {
                     // Empty state (when user has no families)
                     VStack(spacing: 24) {
                         Image(systemName: "person.3.fill")
@@ -109,10 +115,13 @@ struct FamilyView: View {
             .onAppear {
                 if let userId = authManager.currentUser?.id {
                     familyManager.startListeningToFamilies(userId: userId)
-                    Task.detached {
-                        await familyManager.loadFamiliesForUser(userId: userId)
-                    }
+                    Task.detached { await familyManager.loadFamiliesForUser(userId: userId) }
                 }
+            }
+            .onChange(of: authManager.currentUser?.id ?? "") { _, newId in
+                guard !newId.isEmpty else { return }
+                familyManager.startListeningToFamilies(userId: newId)
+                Task.detached { await familyManager.loadFamiliesForUser(userId: newId) }
             }
             .onDisappear {
                 familyManager.stopListeningToFamilies()
@@ -130,6 +139,10 @@ struct FamilyView: View {
             } message: {
                 Text(familyManager.errorMessage ?? "")
             }
+        }
+        .id(navigationResetId)
+        .onReceive(NotificationCenter.default.publisher(for: .familyTabSelected)) { _ in
+            navigationResetId = UUID()
         }
     }
 }

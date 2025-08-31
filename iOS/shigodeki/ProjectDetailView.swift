@@ -11,10 +11,12 @@ import FirebaseFirestore
 struct ProjectDetailView: View {
     let project: Project
     @ObservedObject var projectManager: ProjectManager
-    @StateObject private var phaseManager = PhaseManager()
-    @StateObject private var authManager = AuthenticationManager()
-    @StateObject private var aiGenerator = AITaskGenerator()
-    @StateObject private var familyManager = FamilyManager()
+    @EnvironmentObject var sharedManagers: SharedManagerStore
+    @StateObject private var viewModel: ProjectDetailViewModel
+    @State private var phaseManager: PhaseManager?
+    @State private var authManager: AuthenticationManager?
+    @State private var aiGenerator: AITaskGenerator?
+    @State private var familyManager: FamilyManager?
     @State private var showingCreatePhase = false
     @State private var showingProjectSettings = false
     @State private var showingAIAnalysis = false
@@ -23,21 +25,32 @@ struct ProjectDetailView: View {
     @State private var ownerFamily: Family?
     @State private var showOwnerFamily = false
     
+    
+    init(project: Project, projectManager: ProjectManager) {
+        self.project = project
+        self.projectManager = projectManager
+        _viewModel = StateObject(wrappedValue: ProjectDetailViewModel(project: project))
+    }
+    
     var body: some View {
+        let liveProject = viewModel.presentProject
         VStack(spacing: 0) {
-            NavigationLink(destination: {
-                if let fam = ownerFamily { FamilyDetailView(family: fam) }
-            }, isActive: $showOwnerFamily) { EmptyView() }
             // Project Header
-            ProjectHeaderView(project: project, projectManager: projectManager)
+            ProjectHeaderView(project: liveProject, projectManager: projectManager)
                 .padding()
                 .background(Color(.systemGray6))
             
             // Phases List
-            PhaseListView(project: project, phaseManager: phaseManager)
+            if let pm = phaseManager {
+                PhaseListView(project: liveProject, phaseManager: pm)
+            } else {
+                LoadingStateView(message: "フェーズを初期化中...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .navigationTitle(project.name)
         .navigationBarTitleDisplayMode(.large)
+        .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 if project.ownerType == .family {
@@ -55,7 +68,7 @@ struct ProjectDetailView: View {
                     }
                     
                     Button(action: {
-                        if aiGenerator.availableProviders.isEmpty {
+                        if (aiGenerator?.availableProviders.isEmpty ?? true) {
                             showingAISettings = true
                         } else {
                             showingAIAnalysis = true
@@ -74,35 +87,46 @@ struct ProjectDetailView: View {
                 }
             }
         }
-        .onAppear {
-            // PhaseListView will handle its own lifecycle
-            if project.ownerType == .family { Task { await loadOwnerFamily() } }
+        .task {
+            await viewModel.bootstrap(store: sharedManagers)
+            if phaseManager == nil { phaseManager = await sharedManagers.getPhaseManager() }
+            if authManager == nil { authManager = await sharedManagers.getAuthManager() }
+            if aiGenerator == nil { aiGenerator = await sharedManagers.getAiGenerator() }
+            if familyManager == nil { familyManager = await sharedManagers.getFamilyManager() }
+            if project.ownerType == .family { await loadOwnerFamily() }
         }
         .sheet(isPresented: $showingCreatePhase) {
-            CreatePhaseView(project: project, phaseManager: phaseManager)
+            if let pm = phaseManager {
+                CreatePhaseView(project: liveProject, phaseManager: pm)
+            }
         }
         .sheet(isPresented: $showingProjectSettings) {
-            ProjectSettingsView(project: project, projectManager: projectManager)
+            ProjectSettingsView(project: liveProject, projectManager: projectManager)
+        }
+        .sheet(isPresented: $showOwnerFamily) {
+            if let fam = ownerFamily { FamilyDetailView(family: fam) }
         }
         .sheet(isPresented: $showingAIAnalysis) {
-            ProjectAIAnalysisView(
-                project: project,
-                phaseManager: phaseManager,
-                aiGenerator: aiGenerator
-            )
+            if let pm = phaseManager, let ai = aiGenerator {
+                ProjectAIAnalysisView(
+                    project: liveProject,
+                    phaseManager: pm,
+                    aiGenerator: ai
+                )
+            }
         }
         .sheet(isPresented: $showingAISettings) {
             APISettingsView()
                 .onDisappear {
-                    aiGenerator.updateAvailableProviders()
+                    aiGenerator?.updateAvailableProviders()
                 }
         }
-        .alert("エラー", isPresented: .constant(phaseManager.error != nil)) {
+        .alert("エラー", isPresented: .constant(phaseManager?.error != nil)) {
             Button("OK") {
-                phaseManager.error = nil
+                phaseManager?.error = nil
             }
         } message: {
-            Text(phaseManager.error?.localizedDescription ?? "")
+            Text(phaseManager?.error?.localizedDescription ?? "")
         }
     }
     
@@ -144,3 +168,5 @@ private extension ProjectDetailView {
     let sampleProject = Project(name: "Sample Project", description: "A sample project for preview", ownerId: "user1")
     ProjectDetailView(project: sampleProject, projectManager: ProjectManager())
 }
+
+ 

@@ -81,7 +81,9 @@ struct CreateProjectView: View {
                         .pickerStyle(.segmented)
 
                         if selectedOwnerType == .family {
-                            if familyManager.families.isEmpty {
+                            if familyManager.isLoading {
+                                HStack { ProgressView().scaleEffect(0.8); Text("家族を読み込み中...").font(.caption).foregroundColor(.secondary) }
+                            } else if familyManager.families.isEmpty {
                                 Text("家族グループがありません。家族タブから作成/参加してください。")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
@@ -399,6 +401,14 @@ struct CreateProjectView: View {
             
             // Update available providers
             aiGenerator.updateAvailableProviders()
+            // Load families for owner selection
+            if let uid = authManager.currentUser?.id {
+                Task { await familyManager.loadFamiliesForUser(userId: uid) }
+            }
+        }
+        .onChange(of: authManager.currentUser?.id ?? "") { _, newId in
+            guard !newId.isEmpty else { return }
+            Task { await familyManager.loadFamiliesForUser(userId: newId) }
         }
         .sheet(isPresented: $showAISettings) {
             APISettingsView()

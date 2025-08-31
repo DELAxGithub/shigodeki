@@ -10,6 +10,7 @@
 		DE5F1BC92E5FD21500A91735 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = DE5F1B682E5FCB0100A91735 /* FirebaseAuth */; };
 		DE5F1BCA2E5FD21500A91735 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = DE5F1B6A2E5FCB0100A91735 /* FirebaseCore */; };
 		DE5F1BCB2E5FD21500A91735 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = DE5F1B6C2E5FCB0100A91735 /* FirebaseFirestore */; };
+		DE5F1BCC2E5FD21500A91735 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = DE5F1B6E2E5FCB0100A91735 /* FirebaseStorage */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +43,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DE5F1BCC2E5FD21500A91735 /* FirebaseStorage in Frameworks */,
 				DE5F1BCB2E5FD21500A91735 /* FirebaseFirestore in Frameworks */,
 				DE5F1BCA2E5FD21500A91735 /* FirebaseCore in Frameworks */,
 				DE5F1BC92E5FD21500A91735 /* FirebaseAuth in Frameworks */,
@@ -99,6 +101,7 @@
 				DE5F1B682E5FCB0100A91735 /* FirebaseAuth */,
 				DE5F1B6A2E5FCB0100A91735 /* FirebaseCore */,
 				DE5F1B6C2E5FCB0100A91735 /* FirebaseFirestore */,
+				DE5F1B6E2E5FCB0100A91735 /* FirebaseStorage */,
 			);
 			productName = shigodeki;
 			productReference = DE918B062E5FC87300340EB2 /* shigodeki.app */;
@@ -204,7 +207,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.hiroshikodera.shigodeki.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -239,7 +242,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.hiroshikodera.shigodeki;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -422,6 +425,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = DE5F1B662E5FCA9700A91735 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		DE5F1B6E2E5FCB0100A91735 /* FirebaseStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DE5F1B662E5FCA9700A91735 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseStorage;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

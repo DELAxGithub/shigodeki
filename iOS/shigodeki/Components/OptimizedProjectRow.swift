@@ -11,6 +11,8 @@ import SwiftUI
 /// PerformanceOptimization.swiftの機能を活用
 struct OptimizedProjectRow: View {
     let project: Project
+    @State private var fallbackPhases: Int? = nil
+    @State private var fallbackTasks: Int? = nil
     
     // パフォーマンス最適化のための状態
     @State private var isPressed = false
@@ -44,6 +46,7 @@ struct OptimizedProjectRow: View {
                 
                 // プロジェクト統計
                 ProjectStatsView(project: project)
+                    .onAppear { Task { await loadFallbackStatsIfNeeded() } }
             }
             
             Spacer()
@@ -70,21 +73,8 @@ struct OptimizedProjectRow: View {
         )
         .scaleEffect(isPressed ? 0.98 : 1.0)
         .animation(.easeInOut(duration: 0.1), value: isPressed)
-        .onTapGesture {
-            // タップ応答の最適化
-            PerformanceTestHelper.measureUIAction(action: "Project Row Tap") {
-                withAnimation(.easeInOut(duration: 0.1)) {
-                    isPressed = true
-                }
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    isPressed = false
-                }
-            }
-            
-            // アクセス時間を記録
-            lastAccessTime = Date()
-        }
+        .contentShape(Rectangle())
+        // 内部タップは持たない（NavigationLinkのタップを優先）
         .onAppear {
             // パフォーマンス監視
             InstrumentsSetup.shared.logMemoryUsage(context: "ProjectRow Appeared")
@@ -147,16 +137,10 @@ struct ProjectStatsView: View {
                     label: "タスク"
                 )
                 
-                // 完了率
+                // 完了率（フォールバックは非表示）
                 if let stats = project.statistics {
-                    let completionRate = stats.totalTasks > 0 ? 
-                        Int((Double(stats.completedTasks) / Double(stats.totalTasks)) * 100) : 0
-                    
-                    ProjectStatItem(
-                        icon: "percent",
-                        value: "\(completionRate)%",
-                        label: "完了"
-                    )
+                    let completionRate = stats.totalTasks > 0 ? Int((Double(stats.completedTasks) / Double(stats.totalTasks)) * 100) : 0
+                    ProjectStatItem(icon: "percent", value: "\(completionRate)%", label: "完了")
                 }
             }
         }
@@ -210,6 +194,27 @@ extension OptimizedProjectRow {
         self.background(
             PerformanceMonitorView(elementName: "ProjectRow")
         )
+    }
+    
+    private func loadFallbackStatsIfNeeded() async {
+        if project.statistics != nil { return }
+        guard let pid = project.id else { return }
+        let phaseManager = PhaseManager()
+        do {
+            let phases = try await phaseManager.getPhases(projectId: pid)
+            await MainActor.run { fallbackPhases = phases.count }
+            let taskManager = EnhancedTaskManager()
+            var total = 0
+            for ph in phases {
+                if let phid = ph.id {
+                    let tasks = try await taskManager.getPhaseTasks(phaseId: phid, projectId: pid)
+                    total += tasks.count
+                }
+            }
+            await MainActor.run { fallbackTasks = total }
+        } catch {
+            // ignore
+        }
     }
 }
 

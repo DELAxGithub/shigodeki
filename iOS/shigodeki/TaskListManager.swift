@@ -17,6 +17,9 @@ class TaskListManager: ObservableObject {
     @Published var error: FirebaseError?
     
     private var listeners: [ListenerRegistration] = []
+    private var pendingDeleteTimestamps: [String: Date] = [:]
+    private var pendingReorderUntil: Date? = nil
+    private let pendingTTL: TimeInterval = 5.0
     
     deinit {
         // Clean up listeners synchronously in deinit to prevent retain cycles
@@ -48,6 +51,11 @@ class TaskListManager: ObservableObject {
             
             try await documentRef.setData(try Firestore.Encoder().encode(taskList))
             print("📦 TaskListManager: Created list '" + name + "' [" + (taskList.id ?? "") + "] in phase " + phaseId)
+            // Optimistic local update
+            if !(self.taskLists.contains { $0.id == taskList.id }) {
+                self.taskLists.append(taskList)
+                self.taskLists.sort { $0.order < $1.order }
+            }
             return taskList
         } catch {
             let firebaseError = FirebaseError.from(error)
@@ -174,6 +182,7 @@ class TaskListManager: ObservableObject {
         defer { isLoading = false }
         
         do {
+            pendingDeleteTimestamps[id] = Date()
             // Delete all tasks in this task list first
             let enhancedTaskManager = EnhancedTaskManager()
             let tasks = try await enhancedTaskManager.getTasks(listId: id, phaseId: phaseId, projectId: projectId)
@@ -233,6 +242,7 @@ class TaskListManager: ObservableObject {
         defer { isLoading = false }
         
         do {
+            pendingReorderUntil = Date()
             let batch = Firestore.firestore().batch()
             
             for (index, taskList) in taskLists.enumerated() {
@@ -294,6 +304,8 @@ class TaskListManager: ObservableObject {
     // MARK: - Real-time Listeners
     
     func startListeningForTaskLists(phaseId: String, projectId: String) {
+        // Avoid duplicate listeners
+        removeAllListeners()
         let taskListsCollection = getTaskListCollection(phaseId: phaseId, projectId: projectId)
         
         let listener = taskListsCollection.order(by: "order").addSnapshotListener { [weak self] snapshot, error in
@@ -303,18 +315,38 @@ class TaskListManager: ObservableObject {
                     return
                 }
                 
-                guard let documents = snapshot?.documents else {
-                    self?.taskLists = []
-                    return
-                }
+                guard let documents = snapshot?.documents else { return }
                 
                 do {
-                    let taskLists = try documents.compactMap { document in
-                        try document.data(as: TaskList.self)
+                    // Build remote map excluding local-pending writes and pending deletes
+                    let now = Date()
+                    let remotePairs: [(String, TaskList)] = try documents.compactMap { doc in
+                        if doc.metadata.hasPendingWrites { return nil }
+                        if let ts = self?.pendingDeleteTimestamps[doc.documentID], now.timeIntervalSince(ts) < (self?.pendingTTL ?? 5.0) { return nil }
+                        let model = try doc.data(as: TaskList.self)
+                        return (doc.documentID, model)
                     }
-                    self?.taskLists = taskLists
+                    var remoteMap = Dictionary(uniqueKeysWithValues: remotePairs)
+                    var merged: [TaskList] = []
+                    var seen = Set<String>()
+                    for cur in self?.taskLists ?? [] {
+                        let cid = cur.id ?? ""
+                        if let r = remoteMap[cid] {
+                            merged.append(r); seen.insert(cid); remoteMap.removeValue(forKey: cid)
+                        } else {
+                            merged.append(cur)
+                        }
+                    }
+                    for (rid, r) in remoteMap where !seen.contains(rid) { merged.append(r) }
+                    if let ts = self?.pendingReorderUntil, now.timeIntervalSince(ts) < (self?.pendingTTL ?? 5.0) {
+                        // preserve merged order seeded by current
+                    } else {
+                        merged.sort { $0.order < $1.order }
+                        self?.pendingReorderUntil = nil
+                    }
+                    self?.taskLists = merged
                     #if DEBUG
-                    print("🔔 TaskListManager: Listener received \(taskLists.count) lists for phase \(phaseId)")
+                    print("🔔 TaskListManager: Merged lists for phase \(phaseId): \(merged.count)")
                     #endif
                 } catch {
                     self?.error = FirebaseError.from(error)
@@ -327,6 +359,8 @@ class TaskListManager: ObservableObject {
     
     // Legacy listener for backward compatibility
     func startListeningForTaskLists(familyId: String) {
+        // Avoid duplicate listeners
+        removeAllListeners()
         let taskListsCollection = Firestore.firestore().collection("families").document(familyId).collection("taskLists")
         
         let listener = taskListsCollection.addSnapshotListener { [weak self] snapshot, error in
@@ -336,10 +370,7 @@ class TaskListManager: ObservableObject {
                     return
                 }
                 
-                guard let documents = snapshot?.documents else {
-                    self?.taskLists = []
-                    return
-                }
+                guard let documents = snapshot?.documents else { return }
                 
                 do {
                     let taskLists = try documents.compactMap { document in

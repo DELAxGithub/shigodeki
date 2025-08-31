@@ -188,13 +188,20 @@ struct CreatePhaseView: View {
                 let description = phaseDescription.trimmingCharacters(in: .whitespacesAndNewlines)
                 let finalDescription = description.isEmpty ? nil : description
                 
-                _ = try await phaseManager.createPhase(
+                let created = try await phaseManager.createPhase(
                     name: trimmedName,
                     description: finalDescription,
                     projectId: projectId,
                     createdBy: userId,
                     order: nil // Let the manager assign the next order
                 )
+                // Optimistic local append so that the new phase appears immediately
+                await MainActor.run {
+                    if !(phaseManager.phases.contains { $0.id == created.id }) {
+                        phaseManager.phases.append(created)
+                        phaseManager.phases.sort { $0.order < $1.order }
+                    }
+                }
                 
                 await MainActor.run {
                     presentationMode.wrappedValue.dismiss()

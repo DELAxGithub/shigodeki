@@ -23,19 +23,6 @@ class ProjectManagerWrapper: ObservableObject {
         if let manager = manager {
             manager.$projects
                 .receive(on: DispatchQueue.main)
-                .removeDuplicates { oldProjects, newProjects in
-                    // 🔧 重複更新防止: 同じプロジェクトIDのセットなら更新スキップ
-                    guard oldProjects.count == newProjects.count else { return false }
-                    let oldIds = Set(oldProjects.compactMap { $0.id })
-                    let newIds = Set(newProjects.compactMap { $0.id })
-                    let isDuplicate = oldIds == newIds && oldIds.count == oldProjects.count
-                    
-                    if isDuplicate {
-                        print("🚫 ProjectManagerWrapper: Duplicate update detected, skipping")
-                    }
-                    
-                    return isDuplicate
-                }
                 .sink { [weak self] projects in
                     print("🔄 ProjectManagerWrapper: Projects updated to \(projects.count)")
                     print("📋 ProjectManagerWrapper: Project names: \(projects.map { $0.name })")
@@ -59,9 +46,13 @@ struct ProjectListView: View {
     
     @State private var showingCreateProject = false
     @State private var selectedProject: Project?
+    @State private var showingAcceptInvite = false
+    @State private var bootstrapped = false
     
     enum OwnerFilter: String, CaseIterable { case all = "すべて", individual = "個人", family = "家族" }
     @State private var ownerFilter: OwnerFilter = .all
+    
+    @State private var navigationResetId = UUID()
     
     var body: some View {
         NavigationView {
@@ -78,6 +69,11 @@ struct ProjectListView: View {
             .navigationTitle("プロジェクト")
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    Button {
+                        showingAcceptInvite = true
+                    } label: {
+                        Image(systemName: "person.badge.plus")
+                    }
                     Button(action: {
                         showingCreateProject = true
                     }) {
@@ -87,6 +83,10 @@ struct ProjectListView: View {
                     .accessibilityLabel("新しいプロジェクトを作成")
                 }
             }
+            .loadingOverlay(
+                (projectManagerWrapper.projectManager?.isLoading ?? false) || !bootstrapped || isWaitingForAuth,
+                message: (!bootstrapped || isWaitingForAuth) ? "初期化中..." : "プロジェクトを更新中..."
+            )
             .task {
                 // Initialize managers when the view appears
                 let manager = await sharedManagers.getProjectManager()
@@ -102,6 +102,7 @@ struct ProjectListView: View {
                 authManager = auth
                 
                 loadUserProjectsWithDebounce()
+                bootstrapped = true
             }
             .onChange(of: authManager?.isAuthenticated ?? false) { _, isAuthenticated in
                 let now = Date()
@@ -155,6 +156,9 @@ struct ProjectListView: View {
                     CreateProjectView(projectManager: projectManager)
                 }
             }
+            .sheet(isPresented: $showingAcceptInvite) {
+                AcceptProjectInviteView()
+            }
             .alert("エラー", isPresented: Binding(
                 get: { projectManagerWrapper.projectManager?.error != nil },
                 set: { _ in projectManagerWrapper.projectManager?.error = nil }
@@ -169,6 +173,11 @@ struct ProjectListView: View {
                     Text("不明なエラーが発生しました")
                 }
             }
+        }
+        .id(navigationResetId)
+        .onReceive(NotificationCenter.default.publisher(for: .projectTabSelected)) { _ in
+            // Reset navigation stack to show the root list when project tab is selected
+            navigationResetId = UUID()
         }
     }
     
@@ -202,7 +211,7 @@ struct ProjectListView: View {
     
     @ViewBuilder
     private var loadingStateView: some View {
-        if let authManager = authManager, authManager.isLoading {
+        if !bootstrapped || (authManager != nil && authManager!.isLoading) {
             LoadingStateView(message: "認証中...")
                 .padding()
         } else if isWaitingForAuth {
@@ -216,7 +225,8 @@ struct ProjectListView: View {
     
     private var shouldShowEmptyState: Bool {
         guard let projectManager = projectManagerWrapper.projectManager else { return false }
-        return filteredProjects.isEmpty && !projectManager.isLoading
+        // 空表示はブートストラップ完了かつ読み込み中でない時のみ
+        return bootstrapped && filteredProjects.isEmpty && !projectManager.isLoading && !isWaitingForAuth
     }
     
     @ViewBuilder
@@ -229,6 +239,9 @@ struct ProjectListView: View {
                             .optimizedForList() // 🆕 描画最適化
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .simultaneousGesture(TapGesture().onEnded {
+                        HapticFeedbackManager.shared.light()
+                    })
                     .id(project.id) // 🔧 明示的なID設定で重複防止
                 }
             }
@@ -337,6 +350,7 @@ struct ProjectListView: View {
             do {
                 print("🔄 ProjectListView: Starting project listener")
                 let manager = projectManagerWrapper.projectManager
+                manager?.isLoading = true
                 manager?.startListeningForUserProjects(userId: userId)
                 // 🔧 リスナーが設定されるとデータは自動的に受信されるため、getUserProjects呼び出しは不要
                 

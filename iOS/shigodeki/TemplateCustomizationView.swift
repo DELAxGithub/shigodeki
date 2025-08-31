@@ -96,6 +96,10 @@ struct TemplateCustomizationView: View {
                             icon: "list.bullet",
                             value: "\(stats.totalPhases)フェーズ"
                         )
+                        StatChip(
+                            icon: "square.grid.2x2",
+                            value: "\(stats.totalTaskLists)リスト"
+                        )
                         
                         StatChip(
                             icon: "checkmark.square",
