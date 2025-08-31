@@ -129,6 +129,11 @@ struct SettingsView: View {
     @State private var showAISettings = false
     @State private var showTaskImprovement = false
     
+    // Username editing states
+    @State private var showEditUsername = false
+    @State private var editingUsername = ""
+    @State private var isUpdatingUsername = false
+    
     @State private var navigationResetId = UUID()
     
     var body: some View {
@@ -151,10 +156,22 @@ struct SettingsView: View {
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(user.name)
-                                        .font(.title3)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.primaryText)
+                                    HStack {
+                                        Text(user.name)
+                                            .font(.title3)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.primaryText)
+                                        
+                                        Button {
+                                            editingUsername = user.name
+                                            showEditUsername = true
+                                        } label: {
+                                            Image(systemName: "pencil")
+                                                .font(.caption)
+                                                .foregroundColor(.primaryBlue)
+                                        }
+                                        .disabled(isUpdatingUsername)
+                                    }
                                     
                                     Text(user.email)
                                         .font(.subheadline)
@@ -162,6 +179,11 @@ struct SettingsView: View {
                                 }
                                 
                                 Spacer()
+                                
+                                if isUpdatingUsername {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                }
                             }
                         }
                         .primaryCard()
@@ -283,7 +305,33 @@ struct SettingsView: View {
                 Text("タスク改善提案機能は開発中です")
                     .padding()
             }
+            .alert("ユーザー名を編集", isPresented: $showEditUsername) {
+                TextField("ユーザー名", text: $editingUsername)
+                    .textInputAutocapitalization(.words)
+                
+                Button("キャンセル", role: .cancel) {
+                    editingUsername = ""
+                }
+                
+                Button("保存") {
+                    Task {
+                        await updateUsername()
+                    }
+                }
+                .disabled(editingUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            } message: {
+                Text("新しいユーザー名を入力してください")
+            }
         }
+    }
+    
+    private func updateUsername() async {
+        guard let authManager = authManager else { return }
+        
+        isUpdatingUsername = true
+        await authManager.updateUserName(editingUsername)
+        isUpdatingUsername = false
+        editingUsername = ""
     }
     
     private func loadUserTasks(userId: String) async {

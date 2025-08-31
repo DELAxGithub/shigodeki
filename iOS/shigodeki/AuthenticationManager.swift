@@ -240,6 +240,49 @@ class AuthenticationManager: NSObject, ObservableObject {
         }
     }
     
+    // MARK: - User Profile Updates
+    
+    func updateUserName(_ newName: String) async {
+        guard let uid = currentUserId, !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            errorMessage = "Invalid name or user not authenticated"
+            return
+        }
+        
+        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            // Update in Firestore
+            try await db.collection("users").document(uid).updateData([
+                "name": trimmedName
+            ])
+            
+            // Update local user object by creating new instance
+            if let user = currentUser {
+                let updatedUser = User(
+                    name: trimmedName,
+                    email: user.email,
+                    projectIds: user.projectIds,
+                    roleAssignments: user.roleAssignments
+                )
+                var newUser = updatedUser
+                newUser.id = user.id
+                newUser.createdAt = user.createdAt
+                newUser.lastActiveAt = user.lastActiveAt
+                newUser.preferences = user.preferences
+                currentUser = newUser
+            }
+            
+            print("✅ User name updated successfully to: \(trimmedName)")
+            isLoading = false
+        } catch {
+            print("❌ Failed to update user name: \(error)")
+            errorMessage = "名前の更新に失敗しました"
+            isLoading = false
+        }
+    }
+    
     // MARK: - Sign Out
     
     func signOut() async {
