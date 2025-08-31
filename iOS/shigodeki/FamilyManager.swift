@@ -38,7 +38,9 @@ class FamilyManager: ObservableObject {
         let familyData: [String: Any] = [
             "name": family.name,
             "members": family.members,
-            "createdAt": FieldValue.serverTimestamp()
+            "createdAt": FieldValue.serverTimestamp(),
+            "lastUpdatedAt": FieldValue.serverTimestamp(),
+            "devEnvironmentTest": "Created in DEV at \(Date().formatted())"
         ]
         
         do {
@@ -114,6 +116,8 @@ class FamilyManager: ObservableObject {
         )
         family.id = familyId
         family.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
+        family.lastUpdatedAt = (data["lastUpdatedAt"] as? Timestamp)?.dateValue()
+        family.devEnvironmentTest = data["devEnvironmentTest"] as? String
         
         return family
     }
@@ -156,6 +160,8 @@ class FamilyManager: ObservableObject {
                                 )
                                 family.id = document.documentID
                                 family.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
+                                family.lastUpdatedAt = (data["lastUpdatedAt"] as? Timestamp)?.dateValue()
+                                family.devEnvironmentTest = data["devEnvironmentTest"] as? String
                                 
                                 // Update families array thread-safely
                                 self.updateFamilyInArray(family)

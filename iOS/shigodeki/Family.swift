@@ -13,6 +13,8 @@ struct Family: Identifiable, Codable {
     let name: String
     let members: [String] // user IDs
     var createdAt: Date?
+    var lastUpdatedAt: Date?
+    var devEnvironmentTest: String?
     
     init(name: String, members: [String] = []) {
         self.name = name

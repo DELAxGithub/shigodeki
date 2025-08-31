@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct FamilyView: View {
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     @StateObject private var familyManager = FamilyManager()
     @State private var showingCreateFamily = false
     @State private var showingJoinFamily = false
@@ -94,7 +94,7 @@ struct FamilyView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .navigationTitle("家族")
+            .navigationTitle("チーム")
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     if !familyManager.families.isEmpty {
@@ -170,6 +170,12 @@ struct FamilyRowView: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
+                
+                if let devTest = family.devEnvironmentTest {
+                    Text(devTest)
+                        .font(.caption2)
+                        .foregroundColor(.blue)
+                }
             }
             
             Spacer()
@@ -189,7 +195,7 @@ struct CreateFamilyView: View {
     @State private var showSuccess = false
     @State private var invitationCode: String?
     
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     let familyManager: FamilyManager
     
     var body: some View {
@@ -286,7 +292,7 @@ struct JoinFamilyView: View {
     @State private var showSuccess = false
     @State private var successMessage = ""
     
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     let familyManager: FamilyManager
     
     var body: some View {
