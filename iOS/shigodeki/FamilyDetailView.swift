@@ -68,13 +68,57 @@ struct FamilyDetailView: View {
                     .padding(.vertical, 8)
                 } else if !familyMembers.isEmpty {
                     ForEach(Array(familyMembers.enumerated()), id: \.element.id) { index, member in
-                        MemberRowView(
-                            member: member,
-                            isCreator: member.id == family.members.first, // 最初のmemberIdが作成者
-                            canRemove: isCurrentUserCreator && member.id != authManager?.currentUser?.id
-                        ) {
-                            removeMember(member)
+                        HStack {
+                            // メンバー情報部分（タップで詳細画面へ）
+                            NavigationLink(destination: MemberDetailView(member: member).environmentObject(sharedManagers)) {
+                                HStack {
+                                    Image(systemName: member.id == family.members.first ? "crown.fill" : "person.circle.fill")
+                                        .font(.title3)
+                                        .foregroundColor(member.id == family.members.first ? .orange : .blue)
+                                        .frame(width: 30)
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        HStack {
+                                            Text(member.name)
+                                                .font(.headline)
+                                            
+                                            if member.id == family.members.first {
+                                                Text("作成者")
+                                                    .font(.caption)
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 2)
+                                                    .background(Color.orange.opacity(0.2))
+                                                    .foregroundColor(.orange)
+                                                    .cornerRadius(4)
+                                            }
+                                        }
+                                        
+                                        Text(member.email)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        
+                                        if let createdAt = member.createdAt {
+                                            Text("参加日: \(DateFormatter.shortDate.string(from: createdAt))")
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                    
+                                    Spacer()
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            
+                            // 削除ボタン（作成者のみ表示）
+                            if isCurrentUserCreator && member.id != authManager?.currentUser?.id {
+                                Button(action: { removeMember(member) }) {
+                                    Image(systemName: "minus.circle")
+                                        .foregroundColor(.red)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
                         }
+                        .padding(.vertical, 4)
                     }
                 } else if !family.members.isEmpty {
                     // Fallback: メンバーのユーザープロファイルが未作成/未取得でもIDで占位表示
@@ -231,6 +275,7 @@ struct FamilyDetailView: View {
             do {
                 let db = Firestore.firestore()
                 let memberIds = family.members
+                let decoder = Firestore.Decoder()
                 
                 // 順序を保証するため、順次処理でユーザー情報を取得
                 var loadedMembers: [User] = []
@@ -239,21 +284,36 @@ struct FamilyDetailView: View {
                     do {
                         let userDoc = try await db.collection("users").document(memberId).getDocument()
                         
-                        if userDoc.exists, let data = userDoc.data() {
-                            var user = User(
-                                name: data["name"] as? String ?? "Unknown User",
-                                email: data["email"] as? String ?? "",
-                                familyIds: data["familyIds"] as? [String] ?? []
-                            )
-                            user.id = memberId
-                            user.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
-                            loadedMembers.append(user)
+                        if userDoc.exists {
+                            do {
+                                // 最新のUserモデルでデコードを試行
+                                var user = try userDoc.data(as: User.self, decoder: decoder)
+                                user.id = memberId
+                                loadedMembers.append(user)
+                                print("✅ Successfully loaded user: \(user.name)")
+                            } catch {
+                                // デコードに失敗した場合、手動でフィールドを取得してフォールバック
+                                print("⚠️ Decode failed for user \(memberId), using manual parsing: \(error)")
+                                if let data = userDoc.data() {
+                                    var user = User(
+                                        name: data["name"] as? String ?? "Unknown User",
+                                        email: data["email"] as? String ?? "",
+                                        projectIds: data["projectIds"] as? [String] ?? [],
+                                        roleAssignments: [:] // 複雑なRoleデータは初期化時は空にする
+                                    )
+                                    user.id = memberId
+                                    user.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
+                                    user.lastActiveAt = (data["lastActiveAt"] as? Timestamp)?.dateValue()
+                                    loadedMembers.append(user)
+                                }
+                            }
                         } else {
                             // ユーザードキュメントが存在しない場合のフォールバック
                             var placeholderUser = User(
                                 name: "Unknown User (\(String(memberId.prefix(8))))",
                                 email: "",
-                                familyIds: []
+                                projectIds: [],
+                                roleAssignments: [:]
                             )
                             placeholderUser.id = memberId
                             loadedMembers.append(placeholderUser)
@@ -264,8 +324,9 @@ struct FamilyDetailView: View {
                         // エラーでも順序を保つため、プレースホルダーユーザーを追加
                         var errorUser = User(
                             name: "Load Error (\(String(memberId.prefix(8))))",
-                            email: "",
-                            familyIds: []
+                            email: "エラーにより読み込めませんでした",
+                            projectIds: [],
+                            roleAssignments: [:]
                         )
                         errorUser.id = memberId
                         loadedMembers.append(errorUser)

@@ -190,8 +190,29 @@
                 - メンバー数の表示
                 - メンバー情報読み込み中の表示
             </test_scenario>
-            <status>implemented</status>
-            <file_location>FamilyDetailView.swift:58-96, 203-241</file_location>
+            <status>improved</status>
+            <file_location>FamilyDetailView.swift:58-96, 226-305</file_location>
+            <improvements>
+                <improvement_date>2025-09-01</improvement_date>
+                <fixed_issues>
+                    <issue>メンバー読み込みエラーの修正</issue>
+                    <description>User モデルの新フィールドに対応、Firestore デコーダー使用、フォールバック処理強化</description>
+                    <method>loadFamilyMembers() 完全リライト</method>
+                </fixed_issues>
+                <enhanced_features>
+                    <feature>メンバー詳細画面への遷移機能</feature>
+                    <description>メンバー行タップで詳細情報表示、削除ボタンとの分離実装</description>
+                    <method>NavigationLink + HStack分離デザイン</method>
+                </enhanced_features>
+                <build_fixes>
+                    <fix_date>2025-09-01</fix_date>
+                    <issue>TaskRowView 重複定義によるビルドエラー</issue>
+                    <description>MemberDetailView.swift と TaskDetailView.swift で同名構造体が衝突</description>
+                    <solution>MemberDetailView.swift の TaskRowView → MemberTaskRowView にリネーム</solution>
+                    <method>名前変更により重複回避、PriorityBadgeのColor依存問題も解決</method>
+                    <status>resolved</status>
+                </build_fixes>
+            </improvements>
         </operation>
         
         <operation id="15" category="data" priority="medium">
@@ -299,6 +320,31 @@
                 <performance_improvement>immediate UI feedback with server background processing</performance_improvement>
                 <verified_working>2025-09-01 - Console logs confirm successful deletion</verified_working>
             </optimistic_update>
+        </operation>
+        
+        <operation id="29" category="navigation" priority="medium">
+            <name>メンバー詳細画面表示</name>
+            <description>メンバーをタップして詳細情報を表示する新機能</description>
+            <test_scenario>
+                - メンバー行タップで詳細画面に遷移
+                - プロフィール情報の表示（名前、メール、参加日、最終アクティブ）
+                - 連絡先情報とメール送信機能
+                - 参加プロジェクト一覧の表示
+                - アサイン済みタスク一覧の表示（最大10件）
+                - 統計情報の表示（プロジェクト数、完了/進行中タスク数、見積時間）
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>MemberDetailView.swift:1-395, FamilyDetailView.swift:71-122</file_location>
+            <features>
+                <feature>プロフィール表示</feature>
+                <feature>連絡先統合（メールアプリ連携）</feature>
+                <feature>参加プロジェクト一覧</feature>
+                <feature>アサイン済みタスク表示</feature>
+                <feature>統計情報ダッシュボード</feature>
+                <feature>プロジェクト・タスクへの詳細リンク</feature>
+                <feature>非同期データ読み込み</feature>
+                <feature>エラーハンドリングとフォールバック表示</feature>
+            </features>
         </operation>
     </family_detail>
     

@@ -9,7 +9,7 @@ import SwiftUI
 
 struct AcceptProjectInviteView: View {
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     @StateObject private var invitationManager = ProjectInvitationManager()
     @State private var code: String = ""
     @State private var isAccepting = false

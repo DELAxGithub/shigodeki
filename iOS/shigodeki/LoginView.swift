@@ -9,7 +9,7 @@ import SwiftUI
 import AuthenticationServices
 
 struct LoginView: View {
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     
     var body: some View {
         VStack(spacing: 32) {
@@ -38,20 +38,36 @@ struct LoginView: View {
             Spacer()
             
             VStack(spacing: 16) {
-                // Apple Sign In Button
-                SignInWithAppleButton(.signIn) { request in
-                    request.requestedScopes = [.fullName, .email]
-                } onCompletion: { result in
-                    authManager.handleSignInWithApple(result: result)
+                // Apple Sign In Button - using custom implementation for better state control
+                Button {
+                    authManager.signInWithApple()
+                } label: {
+                    HStack {
+                        if authManager.isLoading {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .foregroundColor(.white)
+                        } else {
+                            Image(systemName: "applelogo")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                        Text("Sign in with Apple")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.white)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(Color.black)
+                    .cornerRadius(8)
                 }
-                .signInWithAppleButtonStyle(.black)
-                .frame(height: 50)
                 .frame(maxWidth: 375)
-                .cornerRadius(8)
                 .disabled(authManager.isLoading)
                 .scaleEffect(authManager.isLoading ? 0.98 : 1.0)
                 .opacity(authManager.isLoading ? 0.7 : 1.0)
                 .animation(.easeInOut(duration: 0.2), value: authManager.isLoading)
+                .accessibilityLabel("Sign in with Apple")
+                .accessibilityHint("Apple IDでサインインします")
                 
                 // Demo Sign In Button (Secondary)
                 Button {

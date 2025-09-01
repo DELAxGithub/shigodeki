@@ -270,7 +270,9 @@ struct CreateFamilyView: View {
         
         Task.detached {
             do {
+                // 楽観的更新により、UI即座反映＋サーバー処理が自動実行される
                 _ = try await familyManager.createFamily(name: familyName, creatorUserId: userId)
+                
                 await MainActor.run {
                     isCreating = false
                     showSuccess = true
@@ -278,6 +280,8 @@ struct CreateFamilyView: View {
             } catch {
                 await MainActor.run {
                     isCreating = false
+                    // エラーメッセージを表示（楽観的更新は自動でロールバック済み）
+                    familyManager.errorMessage = "家族グループの作成に失敗しました: \(error.localizedDescription)"
                 }
                 print("Error creating family: \(error)")
             }

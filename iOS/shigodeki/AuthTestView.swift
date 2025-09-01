@@ -10,7 +10,7 @@ import FirebaseAuth
 import FirebaseCore
 
 struct AuthTestView: View {
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     @State private var showTestResults = false
     @State private var testResults: [TestResult] = []
     

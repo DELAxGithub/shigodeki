@@ -13,6 +13,9 @@ import CryptoKit
 
 @MainActor
 class AuthenticationManager: NSObject, ObservableObject {
+    // Singleton instance
+    static let shared = AuthenticationManager()
+    
     @Published var isAuthenticated = false
     @Published var currentUser: User?
     @Published var isLoading = false
@@ -31,11 +34,38 @@ class AuthenticationManager: NSObject, ObservableObject {
     private let auth = Auth.auth()
     private let db = Firestore.firestore()
     
-    // Unhashed nonce for Apple Sign In
-    fileprivate var currentNonce: String?
+    // State management for Apple Sign In
+    private var currentNonce: String? {
+        get {
+            // Use UserDefaults for TestFlight reliability
+            return UserDefaults.standard.string(forKey: "apple_signin_nonce")
+        }
+        set {
+            if let nonce = newValue {
+                UserDefaults.standard.set(nonce, forKey: "apple_signin_nonce")
+                print("🔐 Nonce stored: \(nonce.prefix(8))...")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "apple_signin_nonce")
+                print("🔐 Nonce cleared")
+            }
+        }
+    }
     
-    override init() {
+    private var authInProgress: Bool {
+        get {
+            return UserDefaults.standard.bool(forKey: "apple_signin_in_progress")
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "apple_signin_in_progress")
+            print("🔐 Auth in progress: \(newValue)")
+        }
+    }
+    
+    private override init() {
         super.init()
+        
+        // Clear any stale authentication state on app launch
+        clearAppleSignInState()
         
         // Listen for authentication state changes
         _ = auth.addStateDidChangeListener { [weak self] _, user in
@@ -48,18 +78,72 @@ class AuthenticationManager: NSObject, ObservableObject {
                     // Load user data asynchronously
                     await self.loadUserData(uid: user.uid)
                     print("👤 AuthManager: User data loaded, currentUserId: \(self.currentUserId ?? "nil")")
+                    // Clear Apple Sign In state after successful authentication
+                    self.clearAppleSignInState()
                 } else {
                     print("🔐 AuthManager: User signed out")
                     self.currentUser = nil
                     self.isAuthenticated = false
+                    self.clearAppleSignInState()
+                }
+            }
+        }
+        
+        // Set up app lifecycle observers for TestFlight reliability
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appDidEnterBackground),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appWillEnterForeground),
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc private func appDidEnterBackground() {
+        print("🔐 App entering background, auth in progress: \(authInProgress)")
+    }
+    
+    @objc private func appWillEnterForeground() {
+        print("🔐 App entering foreground, auth in progress: \(authInProgress)")
+        // Check for stale authentication state when returning from background
+        if authInProgress {
+            print("🔐 Recovering from background during Apple Sign In")
+            // Reset state after a delay to allow for completion
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                if self.authInProgress && !self.isLoading {
+                    print("🔐 Clearing stale authentication state")
+                    self.clearAppleSignInState()
+                    self.errorMessage = "サインインがタイムアウトしました。もう一度お試しください。"
+                    self.isLoading = false
                 }
             }
         }
     }
     
+    private func clearAppleSignInState() {
+        currentNonce = nil
+        authInProgress = false
+    }
+    
     // MARK: - Sign in with Apple
     
-    func signInWithApple() async {
+    func signInWithApple() {
+        // Prevent multiple simultaneous requests
+        guard !authInProgress else {
+            print("🔐 Apple Sign In already in progress, ignoring request")
+            return
+        }
+        
         guard let request = createAppleSignInRequest() else {
             errorMessage = "Apple Sign In request creation failed"
             return
@@ -67,28 +151,16 @@ class AuthenticationManager: NSObject, ObservableObject {
         
         isLoading = true
         errorMessage = nil
+        authInProgress = true
         
+        print("🔐 Starting Apple Sign In flow")
         let authorizationController = ASAuthorizationController(authorizationRequests: [request])
         authorizationController.delegate = self
         authorizationController.presentationContextProvider = self
         authorizationController.performRequests()
     }
     
-    func handleSignInWithApple(result: Result<ASAuthorization, Error>) {
-        isLoading = true
-        errorMessage = nil
-        
-        switch result {
-        case .success(let authorization):
-            Task {
-                await processAppleSignInAuthorization(authorization)
-            }
-        case .failure(let error):
-            print("Apple Sign In error: \(error)")
-            errorMessage = "Apple Sign In failed: \(error.localizedDescription)"
-            isLoading = false
-        }
-    }
+    // Remove the handleSignInWithApple method as we'll use the delegate pattern exclusively
     
     private func createAppleSignInRequest() -> ASAuthorizationAppleIDRequest? {
         let nonce = randomNonceString()
@@ -101,56 +173,6 @@ class AuthenticationManager: NSObject, ObservableObject {
         return request
     }
     
-    private func processAppleSignInAuthorization(_ authorization: ASAuthorization) async {
-        guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
-            errorMessage = "Invalid Apple ID credential"
-            isLoading = false
-            return
-        }
-        
-        guard let nonce = currentNonce else {
-            errorMessage = "Invalid state: A login callback was received, but no login request was sent."
-            isLoading = false
-            return
-        }
-        
-        guard let appleIDToken = appleIDCredential.identityToken else {
-            errorMessage = "Unable to fetch identity token"
-            isLoading = false
-            return
-        }
-        
-        guard let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
-            errorMessage = "Unable to serialize token string from data"
-            isLoading = false
-            return
-        }
-        
-        // Initialize Firebase Auth credential  
-        let credential = OAuthProvider.appleCredential(withIDToken: idTokenString, 
-                                                      rawNonce: nonce, 
-                                                      fullName: appleIDCredential.fullName)
-        
-        do {
-            let authResult = try await auth.signIn(with: credential)
-            let user = authResult.user
-            
-            // Extract user info
-            let displayName = appleIDCredential.fullName?.givenName ?? user.displayName ?? "User"
-            let email = appleIDCredential.email ?? user.email ?? ""
-            
-            // Save user to Firestore
-            await saveUserToFirestore(uid: user.uid, name: displayName, email: email)
-            
-            isLoading = false
-            print("Successfully signed in with Apple")
-            
-        } catch {
-            print("Error signing in with Apple: \(error)")
-            errorMessage = "Sign in failed: \(error.localizedDescription)"
-            isLoading = false
-        }
-    }
     
     // MARK: - User Data Management
     
@@ -158,14 +180,28 @@ class AuthenticationManager: NSObject, ObservableObject {
         do {
             let document = try await db.collection("users").document(uid).getDocument()
             if document.exists, let data = document.data() {
-                // Manual parsing from Firestore data
+                // Check if migration is needed and perform it
+                await migrateUserDataIfNeeded(uid: uid, data: data)
+                
+                // Manual parsing from Firestore data with new User structure
                 currentUser = User(
                     name: data["name"] as? String ?? "",
                     email: data["email"] as? String ?? "",
-                    familyIds: data["familyIds"] as? [String] ?? []
+                    projectIds: data["projectIds"] as? [String] ?? [],
+                    roleAssignments: data["roleAssignments"] as? [String: Role] ?? [:]
                 )
                 currentUser?.id = uid
                 currentUser?.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
+                print("👤 User data loaded: \(currentUser?.name ?? "nil"), projectIds: \(currentUser?.projectIds.count ?? 0)")
+            } else {
+                print("⚠️ No user document found for UID: \(uid)")
+                // Create user document for authenticated user without Firestore record
+                if let authUser = auth.currentUser {
+                    let name = authUser.displayName ?? "Unknown User"
+                    let email = authUser.email ?? ""
+                    print("🔄 Creating missing user document for: \(name)")
+                    await saveUserToFirestore(uid: uid, name: name, email: email)
+                }
             }
         } catch {
             print("Error loading user data: \(error)")
@@ -174,13 +210,15 @@ class AuthenticationManager: NSObject, ObservableObject {
     }
     
     private func saveUserToFirestore(uid: String, name: String, email: String) async {
-        var user = User(name: name, email: email)
+        var user = User(name: name, email: email, projectIds: [], roleAssignments: [:])
         user.id = uid
         user.createdAt = Date()
         
         let userData: [String: Any] = [
             "name": name,
             "email": email,
+            "projectIds": user.projectIds,
+            "roleAssignments": user.roleAssignments,
             "familyIds": user.familyIds ?? [],
             "createdAt": FieldValue.serverTimestamp()
         ]
@@ -188,10 +226,39 @@ class AuthenticationManager: NSObject, ObservableObject {
         do {
             try await db.collection("users").document(uid).setData(userData)
             currentUser = user
-            print("User saved to Firestore successfully")
+            print("✅ User saved to Firestore successfully with new structure")
+            print("👤 User details: name=\(name), email=\(email), uid=\(uid)")
         } catch {
-            print("Error saving user to Firestore: \(error)")
+            print("❌ Error saving user to Firestore: \(error)")
             errorMessage = "Failed to save user data"
+        }
+    }
+    
+    // MARK: - User Data Migration
+    
+    private func migrateUserDataIfNeeded(uid: String, data: [String: Any]) async {
+        // Check if migration is needed (missing projectIds or roleAssignments)
+        let hasProjectIds = data["projectIds"] != nil
+        let hasRoleAssignments = data["roleAssignments"] != nil
+        
+        if !hasProjectIds || !hasRoleAssignments {
+            print("🔄 Migrating user data to new structure for UID: \(uid)")
+            
+            let migratedData: [String: Any] = [
+                "name": data["name"] as? String ?? "",
+                "email": data["email"] as? String ?? "",
+                "projectIds": data["projectIds"] as? [String] ?? [],
+                "roleAssignments": data["roleAssignments"] as? [String: Any] ?? [:],
+                "familyIds": data["familyIds"] as? [String] ?? [],
+                "createdAt": data["createdAt"] ?? FieldValue.serverTimestamp()
+            ]
+            
+            do {
+                try await db.collection("users").document(uid).setData(migratedData, merge: true)
+                print("✅ User data migrated successfully")
+            } catch {
+                print("❌ User data migration failed: \(error)")
+            }
         }
     }
     
@@ -302,21 +369,47 @@ class AuthenticationManager: NSObject, ObservableObject {
 extension AuthenticationManager: ASAuthorizationControllerDelegate {
     
     func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        print("🔐 Apple Sign In authorization received")
         
         Task { @MainActor in
-            defer { isLoading = false }
+            defer { 
+                isLoading = false 
+                authInProgress = false
+            }
             
-            guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                  let nonce = currentNonce,
-                  let appleIDToken = appleIDCredential.identityToken,
-                  let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
+            guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+                print("❌ Invalid Apple ID credential")
                 errorMessage = "Apple Sign In credential processing failed"
+                clearAppleSignInState()
                 return
             }
             
-            let credential = OAuthProvider.appleCredential(withIDToken: idTokenString, 
-                                                          rawNonce: nonce, 
-                                                          fullName: appleIDCredential.fullName)
+            guard let nonce = currentNonce else {
+                print("❌ No nonce found - this is the TestFlight bug!")
+                print("📊 Debug info - Auth in progress: \(authInProgress)")
+                print("📊 Debug info - UserDefaults nonce: \(UserDefaults.standard.string(forKey: "apple_signin_nonce") ?? "nil")")
+                
+                // Enhanced error message for TestFlight
+                errorMessage = "認証エラーが発生しました。アプリを再起動してもう一度お試しください。"
+                clearAppleSignInState()
+                return
+            }
+            
+            guard let appleIDToken = appleIDCredential.identityToken,
+                  let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
+                print("❌ Failed to process Apple ID token")
+                errorMessage = "Apple ID トークンの処理に失敗しました"
+                clearAppleSignInState()
+                return
+            }
+            
+            print("🔐 Processing Apple Sign In with nonce: \(nonce.prefix(8))...")
+            
+            let credential = OAuthProvider.appleCredential(
+                withIDToken: idTokenString, 
+                rawNonce: nonce, 
+                fullName: appleIDCredential.fullName
+            )
             
             do {
                 let result = try await auth.signIn(with: credential)
@@ -331,46 +424,80 @@ extension AuthenticationManager: ASAuthorizationControllerDelegate {
                 let name = displayName.isEmpty ? user.displayName ?? "Unknown User" : displayName
                 let email = appleIDCredential.email ?? user.email ?? ""
                 
+                print("✅ Apple Sign In successful for user: \(user.uid)")
+                
                 // Save user data to Firestore
                 await saveUserToFirestore(uid: user.uid, name: name, email: email)
                 
+                // Clear Apple Sign In state will be done in the auth state listener
+                
             } catch {
-                print("Firebase authentication error: \(error)")
-                errorMessage = "Authentication failed: \(error.localizedDescription)"
+                print("❌ Firebase authentication error: \(error)")
+                if let authError = error as? AuthErrorCode {
+                    switch authError.code {
+                    case .invalidCredential:
+                        errorMessage = "認証情報が無効です。もう一度お試しください。"
+                    case .networkError:
+                        errorMessage = "ネットワークエラーです。接続を確認してください。"
+                    case .tooManyRequests:
+                        errorMessage = "リクエストが多すぎます。しばらく時間をおいてください。"
+                    default:
+                        errorMessage = "認証に失敗しました: \(error.localizedDescription)"
+                    }
+                } else {
+                    errorMessage = "認証に失敗しました: \(error.localizedDescription)"
+                }
+                clearAppleSignInState()
             }
         }
     }
     
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        print("❌ Apple Sign In error: \(error)")
+        
         Task { @MainActor in
-            isLoading = false
-            print("Apple Sign In error: \(error)")
+            defer {
+                isLoading = false
+                authInProgress = false
+                clearAppleSignInState()
+            }
             
             if let authError = error as? ASAuthorizationError {
                 switch authError.code {
                 case .canceled:
+                    print("🔐 Apple Sign In cancelled by user")
                     errorMessage = nil // User cancelled, don't show error
                 case .failed:
-                    errorMessage = "Apple Sign In failed"
+                    print("❌ Apple Sign In failed")
+                    errorMessage = "Apple Sign Inに失敗しました"
                 case .invalidResponse:
-                    errorMessage = "Invalid response from Apple"
+                    print("❌ Invalid response from Apple")
+                    errorMessage = "Appleからの応答が無効です"
                 case .notHandled:
-                    errorMessage = "Apple Sign In not handled"
+                    print("❌ Apple Sign In not handled")
+                    errorMessage = "Apple Sign Inが処理されませんでした"
                 case .unknown:
-                    errorMessage = "Unknown Apple Sign In error"
+                    print("❌ Unknown Apple Sign In error")
+                    errorMessage = "不明なエラーが発生しました"
                 case .notInteractive:
-                    errorMessage = "Apple Sign In not interactive"
+                    print("❌ Apple Sign In not interactive")
+                    errorMessage = "インタラクティブでないApple Sign Inエラー"
                 case .matchedExcludedCredential:
-                    errorMessage = "Excluded credential matched"
+                    print("❌ Excluded credential matched")
+                    errorMessage = "除外された認証情報がマッチしました"
                 case .credentialImport:
-                    errorMessage = "Credential import error"
+                    print("❌ Credential import error")
+                    errorMessage = "認証情報のインポートエラー"
                 case .credentialExport:
-                    errorMessage = "Credential export error"
+                    print("❌ Credential export error")
+                    errorMessage = "認証情報のエクスポートエラー"
                 @unknown default:
-                    errorMessage = "Apple Sign In error occurred"
+                    print("❌ Unknown Apple Sign In error case")
+                    errorMessage = "Apple Sign Inでエラーが発生しました"
                 }
             } else {
-                errorMessage = "Apple Sign In error: \(error.localizedDescription)"
+                print("❌ General Apple Sign In error: \(error.localizedDescription)")
+                errorMessage = "Apple Sign Inエラー: \(error.localizedDescription)"
             }
         }
     }

@@ -35,7 +35,7 @@ struct MainTabView: View {
             FamilyView()
                 .tabItem {
                     Image(systemName: "person.3.fill")
-                    Text("家族")
+                    Text("チーム")
                 }
                 .tag(familyTabIndex)
             

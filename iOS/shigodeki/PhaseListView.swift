@@ -13,7 +13,7 @@ struct PhaseListView: View {
     let project: Project
     @ObservedObject var phaseManager: PhaseManager
     @EnvironmentObject var sharedManagers: SharedManagerStore
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     @State private var showingCreatePhase = false
     @State private var selectedPhase: Phase?
     @State private var selectedPhaseId: String? = nil
@@ -216,7 +216,7 @@ struct PhaseTaskListView: View {
     let project: Project
     @EnvironmentObject var sharedManagers: SharedManagerStore
     @StateObject private var viewModelHolder = _VMHolder()
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     @State private var showingCreateTaskList = false
     // Feature toggle: whether to skip list layer automatically
     private let skipListLayer: Bool = false
@@ -494,7 +494,7 @@ struct TaskEditorView: View {
     @ObservedObject var enhancedTaskManager: EnhancedTaskManager
     @StateObject private var subtaskManager = SubtaskManager()
     @StateObject private var projectManager = ProjectManager()
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     @State private var subtasks: [Subtask] = []
     @State private var isSaving = false
     @State private var newSubtaskTitle: String = ""
@@ -686,7 +686,7 @@ struct TaskListDetailView: View {
     let project: Project
     @EnvironmentObject var sharedManagers: SharedManagerStore
     @StateObject private var viewModelHolder = _TaskListVMHolder()
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     @Environment(\.dismiss) private var dismiss
     var onTapProject: (() -> Void)? = nil
     var onTapPhase: (() -> Void)? = nil
@@ -932,7 +932,7 @@ struct CreatePhaseTaskListView: View {
         let name = taskListName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         
-        if let userId = AuthenticationManager().currentUserId {
+        if let userId = AuthenticationManager.shared.currentUserId {
             Task {
                 do {
                     _ = try await taskListManager.createTaskList(
@@ -981,7 +981,7 @@ struct CreatePhaseTaskView: View {
     let phase: Phase
     let project: Project
     @ObservedObject var taskManager: TaskManager
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     @Environment(\.dismiss) private var dismiss
     
     @State private var taskTitle: String = ""

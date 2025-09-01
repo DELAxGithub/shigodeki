@@ -123,7 +123,7 @@ class SharedManagerStore: ObservableObject {
         return await createManagerSafely(
             key: "AuthManager",
             existing: _authManager,
-            create: { AuthenticationManager() },
+            create: { AuthenticationManager.shared },
             assign: { self._authManager = $0 },
             logContext: "AuthManager Created"
         )

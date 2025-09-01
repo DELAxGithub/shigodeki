@@ -6,10 +6,11 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 
 struct CreateProjectView: View {
     @ObservedObject var projectManager: ProjectManager
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     @StateObject private var familyManager = FamilyManager()
     @Environment(\.presentationMode) var presentationMode
     
@@ -440,9 +441,18 @@ struct CreateProjectView: View {
         print("📝 Creation method: \(selectedCreationMethod)")
         print("📝 Input - Name: '\(projectName)', Description: '\(projectDescription)'")
         
+        // 🔍 Detailed Authentication Debug
+        print("🔍 Debug - AuthManager state:")
+        print("   isAuthenticated: \(authManager.isAuthenticated)")
+        print("   currentUser: \(authManager.currentUser?.name ?? "nil")")
+        print("   currentUser.id: \(authManager.currentUser?.id ?? "nil")")
+        print("   currentUserId: \(authManager.currentUserId ?? "nil")")
+        
         guard let userId = authManager.currentUser?.id else {
-            print("❌ No user ID found")
-            errorMessage = "ユーザー情報が見つかりません"
+            print("❌ No user ID found from authManager.currentUser?.id")
+            print("   Fallback - authManager.currentUserId: \(authManager.currentUserId ?? "nil")")
+            print("   Firebase Auth currentUser: \(Auth.auth().currentUser?.uid ?? "nil")")
+            errorMessage = "ユーザー情報が見つかりません。再度サインインしてください。"
             showingError = true
             return
         }
@@ -544,6 +554,17 @@ struct CreateProjectView: View {
                 print("❌ Project creation failed in view: \(error)")
                 print("❌ Error type: \(type(of: error))")
                 print("❌ Error details: \(error.localizedDescription)")
+                
+                // Enhanced error logging for TestFlight debugging
+                if let nsError = error as NSError? {
+                    print("❌ NSError domain: \(nsError.domain)")
+                    print("❌ NSError code: \(nsError.code)")
+                    print("❌ NSError userInfo: \(nsError.userInfo)")
+                }
+                
+                if let firestoreError = error as? FirebaseError {
+                    print("❌ Firebase error type: \(firestoreError)")
+                }
                 
                 await MainActor.run {
                     isCreating = false

@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct TaskListMainView: View {
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     @StateObject private var familyManager = FamilyManager()
     @StateObject private var taskManager = TaskManager()
     @State private var selectedFamily: Family?
@@ -189,7 +189,7 @@ struct TaskListsView: View {
     @State private var showingCreateTaskList = false
     @State private var showingQuickAIGeneration = false
     @State private var showingAISettings = false
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     @StateObject private var aiGenerator = AITaskGenerator()
     
     var body: some View {

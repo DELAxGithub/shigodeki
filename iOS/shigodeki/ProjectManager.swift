@@ -7,6 +7,7 @@
 
 import Foundation
 import FirebaseFirestore
+import FirebaseAuth
 import Combine
 
 @MainActor
@@ -61,6 +62,29 @@ class ProjectManager: ObservableObject {
             print("⚡ Adding project optimistically to UI")
             projects.append(project)
             
+            // 🔍 Debug Firebase Auth state before Firestore operation
+            print("🔍 Firebase Auth Debug before Firestore create:")
+            if let currentUser = Auth.auth().currentUser {
+                print("   Firebase Auth UID: \(currentUser.uid)")
+                print("   Firebase Auth isAnonymous: \(currentUser.isAnonymous)")
+                print("   Firebase Auth providerData count: \(currentUser.providerData.count)")
+                
+                // Get auth token to verify it's valid
+                do {
+                    let token = try await currentUser.getIDToken()
+                    print("   Auth token obtained: \(token.prefix(20))...")
+                    
+                    // Force refresh token for TestFlight reliability
+                    let freshToken = try await currentUser.getIDToken(forcingRefresh: true)
+                    print("   Fresh auth token obtained: \(freshToken.prefix(20))...")
+                } catch {
+                    print("❌ Failed to get auth token: \(error)")
+                    throw FirebaseError.operationFailed("認証トークンの取得に失敗しました。再度サインインしてください。")
+                }
+            } else {
+                print("❌ No Firebase Auth currentUser found")
+            }
+            
             print("🔄 Creating project in Firestore...")
             let createdProject = try await projectOperations.create(project)
             print("🎉 Project created successfully with ID: \(createdProject.id ?? "NO_ID")")
@@ -75,7 +99,7 @@ class ProjectManager: ObservableObject {
             // Create initial project member entry
             if ownerType == .individual {
                 print("👤 Creating owner member entry (individual)...")
-                let displayName = AuthenticationManager().currentUser?.name
+                let displayName = AuthenticationManager.shared.currentUser?.name
                 let ownerMember = ProjectMember(userId: ownerId, projectId: createdProject.id ?? "", role: .owner, invitedBy: createdByUserId, displayName: displayName)
                 try await createProjectMember(ownerMember, in: createdProject.id ?? "")
                 print("👤 Owner member created successfully")
@@ -90,7 +114,7 @@ class ProjectManager: ObservableObject {
                 // Create member docs
                 for uid in familyMembers {
                     let role: Role = (uid == createdByUserId) ? .owner : .editor
-                    let dn = (uid == createdByUserId) ? AuthenticationManager().currentUser?.name : nil
+                    let dn = (uid == createdByUserId) ? AuthenticationManager.shared.currentUser?.name : nil
                     let member = ProjectMember(userId: uid, projectId: createdProject.id ?? "", role: role, invitedBy: createdByUserId, displayName: dn)
                     try await createProjectMember(member, in: createdProject.id ?? "")
                 }

@@ -10,7 +10,7 @@ import SwiftUI
 struct CreatePhaseView: View {
     let project: Project
     @ObservedObject var phaseManager: PhaseManager
-    @StateObject private var authManager = AuthenticationManager()
+    @ObservedObject private var authManager = AuthenticationManager.shared
     @Environment(\.presentationMode) var presentationMode
     
     @State private var phaseName = ""

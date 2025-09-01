@@ -12,7 +12,7 @@ This project uses dual Firebase environments for safe development and production
 
 ### Production Environment
 - **Project ID**: `shigodeki-prod` 
-- **Bundle ID**: `com.hiroshiokdera.shigodeki`
+- **Bundle ID**: `com.hiroshikodera.shigodeki`
 - **Config File**: `Firebase/Config/GoogleService-Info-Prod.plist`
 
 ## Xcode Integration
