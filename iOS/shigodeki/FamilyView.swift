@@ -2,150 +2,181 @@
 //  FamilyView.swift
 //  shigodeki
 //
-//  Created by Claude on 2025-08-27.
+//  [Pattern Propagation] Pure Presentation Layer - Business Logic delegated to FamilyViewModel
+//  Created by Claude on 2025-09-01.
 //
 
 import SwiftUI
 
 struct FamilyView: View {
-    @ObservedObject private var authManager = AuthenticationManager.shared
-    @StateObject private var familyManager = FamilyManager()
+    // [Pattern Propagation] Pure Presentation Layer
+    @EnvironmentObject var sharedManagers: SharedManagerStore
+    @State private var viewModel: FamilyViewModel?
+    
+    // UI State - Only presentation concerns
     @State private var showingCreateFamily = false
     @State private var showingJoinFamily = false
-    
     @State private var navigationResetId = UUID()
-    
+
     var body: some View {
         NavigationView {
             VStack {
-                // Wait for auth userId to be available before deciding empty state
-                if authManager.currentUser?.id == nil && authManager.isAuthenticated {
-                    ProgressView("ユーザー情報を取得中...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if familyManager.families.isEmpty && !familyManager.isLoading {
-                    // Empty state (when user has no families)
-                    VStack(spacing: 24) {
-                        Image(systemName: "person.3.fill")
-                            .font(.system(size: 60))
-                            .foregroundColor(.gray)
-                        
-                        VStack(spacing: 8) {
-                            Text("家族グループがありません")
-                                .font(.title2)
-                                .fontWeight(.medium)
-                            
-                            Text("新しい家族グループを作成するか\n招待コードで参加しましょう")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        
-                        VStack(spacing: 12) {
-                            Button(action: {
-                                showingCreateFamily = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "plus")
-                                    Text("家族グループを作成")
-                                }
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
-                                .cornerRadius(12)
-                            }
-                            
-                            Button(action: {
-                                showingJoinFamily = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "person.badge.plus")
-                                    Text("招待コードで参加")
-                                }
-                                .font(.subheadline)
-                                .foregroundColor(.blue)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(12)
-                            }
-                        }
-                    }
-                    .padding()
+                if let vm = viewModel {
+                    contentView(viewModel: vm)
                 } else {
-                    // Family list view (when user has families)
-                    List {
-                        ForEach(familyManager.families) { family in
-                            NavigationLink(destination: FamilyDetailView(family: family)) {
-                                FamilyRowView(family: family)
-                            }
-                        }
-                    }
-                    .refreshable {
-                        if let userId = authManager.currentUser?.id {
-                            await familyManager.loadFamiliesForUser(userId: userId)
-                        }
-                    }
-                }
-                
-                if familyManager.isLoading {
-                    ProgressView("読み込み中...")
+                    ProgressView("初期化中...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .navigationTitle("チーム")
+            .navigationTitle("家族")
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    if !familyManager.families.isEmpty {
-                        Button(action: {
-                            showingJoinFamily = true
-                        }) {
-                            Image(systemName: "person.badge.plus")
-                        }
-                        
-                        Button(action: {
-                            showingCreateFamily = true
-                        }) {
-                            Image(systemName: "plus")
-                        }
+                    Button {
+                        showingJoinFamily = true
+                    } label: {
+                        Image(systemName: "person.badge.plus")
                     }
+                    Button(action: {
+                        showingCreateFamily = true
+                    }) {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityIdentifier("create_family_button")
+                    .accessibilityLabel("新しい家族グループを作成")
                 }
             }
-            .onAppear {
-                if let userId = authManager.currentUser?.id {
-                    familyManager.startListeningToFamilies(userId: userId)
-                    Task.detached { await familyManager.loadFamiliesForUser(userId: userId) }
-                }
-            }
-            .onChange(of: authManager.currentUser?.id ?? "") { _, newId in
-                guard !newId.isEmpty else { return }
-                familyManager.startListeningToFamilies(userId: newId)
-                Task.detached { await familyManager.loadFamiliesForUser(userId: newId) }
+            .task {
+                await initializeViewModel()
             }
             .onDisappear {
-                familyManager.stopListeningToFamilies()
+                viewModel?.onDisappear()
             }
             .sheet(isPresented: $showingCreateFamily) {
-                CreateFamilyView(familyManager: familyManager)
+                CreateFamilyView(viewModel: viewModel)
             }
             .sheet(isPresented: $showingJoinFamily) {
-                JoinFamilyView(familyManager: familyManager)
+                JoinFamilyView(viewModel: viewModel)
             }
-            .alert("エラー", isPresented: .constant(familyManager.errorMessage != nil)) {
+            .alert("エラー", isPresented: Binding(
+                get: { viewModel?.error != nil },
+                set: { _ in viewModel?.clearError() }
+            )) {
                 Button("OK") {
-                    familyManager.errorMessage = nil
+                    viewModel?.clearError()
                 }
             } message: {
-                Text(familyManager.errorMessage ?? "")
+                if let error = viewModel?.error {
+                    Text(error.localizedDescription)
+                } else {
+                    Text("不明なエラーが発生しました")
+                }
             }
         }
         .id(navigationResetId)
         .onReceive(NotificationCenter.default.publisher(for: .familyTabSelected)) { _ in
+            // Reset navigation stack to show the root list when family tab is selected
             navigationResetId = UUID()
         }
     }
+    
+    // MARK: - View Components
+    
+    @ViewBuilder
+    private func contentView(viewModel: FamilyViewModel) -> some View {
+        // Wait for auth userId to be available before deciding empty state
+        if viewModel.authManagerForViews.currentUser?.id == nil && viewModel.authManagerForViews.isAuthenticated {
+            ProgressView("ユーザー情報を取得中...")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if viewModel.shouldShowEmptyState {
+            familyEmptyStateView()
+        } else if viewModel.isLoading {
+            ProgressView("家族グループを読み込み中...")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            familyListView(viewModel: viewModel)
+        }
+    }
+    
+    @ViewBuilder
+    private func familyEmptyStateView() -> some View {
+        VStack(spacing: 24) {
+            Image(systemName: "person.3.fill")
+                .font(.system(size: 60))
+                .foregroundColor(.gray)
+            
+            VStack(spacing: 8) {
+                Text("家族グループがありません")
+                    .font(.title2)
+                    .fontWeight(.medium)
+                
+                Text("新しい家族グループを作成するか\n招待コードで参加しましょう")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            
+            VStack(spacing: 12) {
+                Button(action: {
+                    showingCreateFamily = true
+                }) {
+                    HStack {
+                        Image(systemName: "plus")
+                        Text("家族グループを作成")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("create_family_from_empty")
+                
+                Button(action: {
+                    showingJoinFamily = true
+                }) {
+                    HStack {
+                        Image(systemName: "person.badge.plus")
+                        Text("招待コードで参加")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("join_family_from_empty")
+            }
+            .padding(.horizontal, 48)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(UIColor.systemGroupedBackground))
+    }
+    
+    @ViewBuilder
+    private func familyListView(viewModel: FamilyViewModel) -> some View {
+        List(viewModel.families) { family in
+            NavigationLink(destination: FamilyDetailView(family: family)) {
+                FamilyRowView(family: family)
+            }
+            .accessibilityIdentifier("family_\(family.name)")
+        }
+        .listStyle(PlainListStyle())
+    }
+    
+    // MARK: - Private Methods
+    
+    private func initializeViewModel() async {
+        let familyManager = await sharedManagers.getFamilyManager()
+        let authManager = await sharedManagers.getAuthManager()
+        
+        #if DEBUG
+        print("📱 FamilyView: task triggered")
+        print("🔧 FamilyView: Creating ViewModel with FamilyManager and AuthManager")
+        #endif
+        
+        // ViewModelを初期化
+        viewModel = FamilyViewModel(familyManager: familyManager, authManager: authManager)
+        
+        // ViewModelのonAppearメソッドを呼び出し
+        await viewModel?.onAppear()
+    }
 }
+
+// MARK: - Supporting Views (Temporary - Should be moved to separate files)
 
 struct FamilyRowView: View {
     let family: Family
@@ -170,12 +201,6 @@ struct FamilyRowView: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
-                
-                if let devTest = family.devEnvironmentTest {
-                    Text(devTest)
-                        .font(.caption2)
-                        .foregroundColor(.blue)
-                }
             }
             
             Spacer()
@@ -189,14 +214,10 @@ struct FamilyRowView: View {
 }
 
 struct CreateFamilyView: View {
+    let viewModel: FamilyViewModel?
     @Environment(\.dismiss) private var dismiss
-    @State private var familyName: String = ""
-    @State private var isCreating = false
-    @State private var showSuccess = false
-    @State private var invitationCode: String?
     
-    @ObservedObject private var authManager = AuthenticationManager.shared
-    let familyManager: FamilyManager
+    @State private var familyName: String = ""
     
     var body: some View {
         NavigationView {
@@ -205,99 +226,63 @@ struct CreateFamilyView: View {
                     Text("家族グループ名")
                         .font(.headline)
                     
-                    TextField("例: 田中家", text: $familyName)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.body)
+                    TextField("例：田中家", text: $familyName)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .accessibilityIdentifier("family_name_input")
                 }
-                .padding(.horizontal)
-                .padding(.top, 32)
                 
                 Spacer()
-                
-                VStack(spacing: 16) {
-                    Button(action: createFamily) {
-                        HStack {
-                            if isCreating {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                    .padding(.trailing, 4)
-                            }
-                            Text(isCreating ? "作成中..." : "家族グループを作成")
-                        }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(familyName.isEmpty ? Color.gray : Color.blue)
-                        .cornerRadius(12)
-                    }
-                    .disabled(familyName.isEmpty || isCreating)
-                    
-                    Button("キャンセル") {
-                        dismiss()
-                    }
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 32)
             }
+            .padding()
             .navigationTitle("家族グループ作成")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("閉じる") {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("キャンセル") {
                         dismiss()
                     }
                 }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("作成") {
+                        createFamily()
+                    }
+                    .disabled(familyName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || 
+                             (viewModel?.isCreatingFamily ?? false))
+                    .accessibilityIdentifier("create_family_confirm")
+                }
             }
-            .alert("家族グループ作成完了", isPresented: $showSuccess) {
+            .alert("家族グループが作成されました", isPresented: Binding(
+                get: { viewModel?.showCreateSuccess ?? false },
+                set: { _ in viewModel?.resetSuccessStates() }
+            )) {
                 Button("OK") {
+                    viewModel?.resetSuccessStates()
                     dismiss()
                 }
             } message: {
-                Text("家族グループ「\(familyName)」が作成されました。")
+                if let invitationCode = viewModel?.newFamilyInvitationCode {
+                    Text("招待コード: \(invitationCode)\n\nこのコードを家族に共有して参加してもらいましょう。")
+                }
             }
         }
     }
     
     private func createFamily() {
-        guard let userId = authManager.currentUser?.id else {
-            return
-        }
+        let trimmedName = familyName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
         
-        isCreating = true
-        
-        Task.detached {
-            do {
-                // 楽観的更新により、UI即座反映＋サーバー処理が自動実行される
-                _ = try await familyManager.createFamily(name: familyName, creatorUserId: userId)
-                
-                await MainActor.run {
-                    isCreating = false
-                    showSuccess = true
-                }
-            } catch {
-                await MainActor.run {
-                    isCreating = false
-                    // エラーメッセージを表示（楽観的更新は自動でロールバック済み）
-                    familyManager.errorMessage = "家族グループの作成に失敗しました: \(error.localizedDescription)"
-                }
-                print("Error creating family: \(error)")
-            }
+        Task {
+            await viewModel?.createFamily(name: trimmedName)
         }
     }
 }
 
 struct JoinFamilyView: View {
+    let viewModel: FamilyViewModel?
     @Environment(\.dismiss) private var dismiss
-    @State private var invitationCode: String = ""
-    @State private var isJoining = false
-    @State private var showSuccess = false
-    @State private var successMessage = ""
     
-    @ObservedObject private var authManager = AuthenticationManager.shared
-    let familyManager: FamilyManager
+    @State private var invitationCode: String = ""
     
     var body: some View {
         NavigationView {
@@ -306,109 +291,52 @@ struct JoinFamilyView: View {
                     Text("招待コード")
                         .font(.headline)
                     
-                    TextField("6桁のコードを入力", text: $invitationCode)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.body)
-                        .keyboardType(.numberPad)
-                        .onChange(of: invitationCode) { _, newValue in
-                            if newValue.count > 6 {
-                                invitationCode = String(newValue.prefix(6))
-                            }
-                        }
-                    
-                    Text("家族から共有された6桁の招待コードを入力してください")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    TextField("招待コードを入力", text: $invitationCode)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .accessibilityIdentifier("invitation_code_input")
                 }
-                .padding(.horizontal)
-                .padding(.top, 32)
                 
                 Spacer()
-                
-                VStack(spacing: 16) {
-                    Button(action: joinFamily) {
-                        HStack {
-                            if isJoining {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                    .padding(.trailing, 4)
-                            }
-                            Text(isJoining ? "参加中..." : "家族グループに参加")
-                        }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(invitationCode.count == 6 ? Color.blue : Color.gray)
-                        .cornerRadius(12)
-                    }
-                    .disabled(invitationCode.count != 6 || isJoining)
-                    
-                    Button("キャンセル") {
-                        dismiss()
-                    }
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 32)
             }
+            .padding()
             .navigationTitle("家族グループに参加")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("閉じる") {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("キャンセル") {
                         dismiss()
                     }
                 }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("参加") {
+                        joinFamily()
+                    }
+                    .disabled(invitationCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || 
+                             (viewModel?.isJoiningFamily ?? false))
+                    .accessibilityIdentifier("join_family_confirm")
+                }
             }
-            .alert("参加完了", isPresented: $showSuccess) {
+            .alert("参加完了", isPresented: Binding(
+                get: { viewModel?.showJoinSuccess ?? false },
+                set: { _ in viewModel?.resetSuccessStates() }
+            )) {
                 Button("OK") {
+                    viewModel?.resetSuccessStates()
                     dismiss()
                 }
             } message: {
-                Text(successMessage)
+                Text(viewModel?.joinSuccessMessage ?? "家族グループに参加しました！")
             }
         }
     }
     
     private func joinFamily() {
-        guard let userId = authManager.currentUser?.id else {
-            return
-        }
+        let trimmedCode = invitationCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCode.isEmpty else { return }
         
-        isJoining = true
-        
-        Task.detached {
-            do {
-                let familyName = try await familyManager.joinFamilyWithCode(invitationCode, userId: userId)
-                await MainActor.run {
-                    isJoining = false
-                    successMessage = "家族グループ「\(familyName)」に参加しました！"
-                    showSuccess = true
-                }
-            } catch {
-                await MainActor.run {
-                    isJoining = false
-                }
-                print("Error joining family: \(error)")
-            }
+        Task {
+            await viewModel?.joinFamily(invitationCode: trimmedCode)
         }
     }
-}
-
-// MARK: - Extensions
-
-extension DateFormatter {
-    static let shortDate: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .none
-        formatter.locale = Locale(identifier: "ja_JP")
-        return formatter
-    }()
-}
-
-#Preview {
-    FamilyView()
 }

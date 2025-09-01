@@ -200,8 +200,8 @@ struct MemberDetailView: View {
                             value: "\(assignedTasks.filter { !$0.isCompleted }.count)"
                         )
                         
-                        if let totalEstimatedHours = assignedTasks.compactMap({ $0.estimatedHours }).reduce(0, +),
-                           totalEstimatedHours > 0 {
+                        let totalEstimatedHours = assignedTasks.compactMap({ $0.estimatedHours }).reduce(0, +)
+                        if totalEstimatedHours > 0 {
                             StatRowView(
                                 icon: "hourglass.fill",
                                 title: "見積時間",
