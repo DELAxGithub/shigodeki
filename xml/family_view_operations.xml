@@ -1,0 +1,432 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<family_operations>
+    <!-- 家族ビューで行う処理の一覧 -->
+    
+    <!-- メイン画面の操作 -->
+    <main_screen>
+        <operation id="1" category="navigation" priority="high">
+            <name>家族一覧表示</name>
+            <description>ユーザーが所属する家族グループの一覧を表示</description>
+            <test_scenario>
+                - ユーザーが複数の家族に所属している場合の表示確認
+                - 家族がない場合の空状態表示確認
+                - 家族データの読み込み中状態の表示確認
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyView.swift:76-90</file_location>
+        </operation>
+        
+        <operation id="2" category="ui" priority="high">
+            <name>空状態の表示</name>
+            <description>家族グループがない場合のUIと案内表示</description>
+            <test_scenario>
+                - 新規ユーザーで家族がない場合の表示
+                - 説明テキストの適切性
+                - 作成・参加ボタンの表示と動作
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyView.swift:25-76</file_location>
+        </operation>
+        
+        <operation id="3" category="action" priority="high">
+            <name>家族グループ作成ボタン</name>
+            <description>新しい家族グループを作成するためのボタンとモーダル表示</description>
+            <test_scenario>
+                - ボタンタップでCreateFamilyViewが表示される
+                - 空状態とツールバーの両方のボタンが機能する
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyView.swift:44-57, 107-112</file_location>
+        </operation>
+        
+        <operation id="4" category="action" priority="high">
+            <name>招待コードで参加ボタン</name>
+            <description>既存の家族グループに招待コードで参加するボタン</description>
+            <test_scenario>
+                - ボタンタップでJoinFamilyViewが表示される
+                - 空状態とツールバーの両方のボタンが機能する
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyView.swift:59-73, 101-106</file_location>
+        </operation>
+        
+        <operation id="5" category="navigation" priority="medium">
+            <name>家族詳細へのナビゲーション</name>
+            <description>家族行をタップして詳細画面へ遷移</description>
+            <test_scenario>
+                - 家族行タップで詳細画面に遷移
+                - NavigationLinkの動作確認
+                - 戻り時のデータ更新確認
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyView.swift:80-83</file_location>
+        </operation>
+        
+        <operation id="6" category="data" priority="high">
+            <name>プルトゥリフレッシュ</name>
+            <description>引っ張って更新でデータを再読み込み</description>
+            <test_scenario>
+                - プルダウンでリフレッシュが動作
+                - 新しいデータが取得される
+                - ローディング状態の表示
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyView.swift:85-89</file_location>
+        </operation>
+    </main_screen>
+    
+    <!-- 家族作成の操作 -->
+    <create_family>
+        <operation id="7" category="form" priority="high">
+            <name>家族名入力フォーム</name>
+            <description>新しい家族グループの名前を入力するフォーム</description>
+            <test_scenario>
+                - テキストフィールドへの入力
+                - 空文字列時のボタン無効化
+                - フォームバリデーション
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyView.swift:204-212</file_location>
+        </operation>
+        
+        <operation id="8" category="action" priority="high">
+            <name>家族作成処理</name>
+            <description>入力された名前で家族グループを作成する処理</description>
+            <test_scenario>
+                - 正常な作成処理
+                - エラー時のハンドリング
+                - 作成中のローディング表示
+                - 作成完了後のモーダル閉じる動作
+            </test_scenario>
+            <status>implemented_optimistic</status>
+            <file_location>FamilyView.swift:264-285, FamilyManager.swift:71-109</file_location>
+            <optimistic_update>
+                <implementation>楽観的更新実装済み</implementation>
+                <flow>UI即座更新 → サーバー処理 → 成功時ID確定/失敗時ロールバック</flow>
+                <method>createFamilyOptimistic()</method>
+                <rollback>rollbackCreateFamily()</rollback>
+            </optimistic_update>
+        </operation>
+        
+        <operation id="9" category="ui" priority="medium">
+            <name>作成完了アラート</name>
+            <description>家族作成完了時の成功メッセージ表示</description>
+            <test_scenario>
+                - 成功アラートの表示
+                - アラート閉じる時のモーダル閉じる動作
+                - メッセージ内容の確認
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyView.swift:254-260</file_location>
+        </operation>
+    </create_family>
+    
+    <!-- 家族参加の操作 -->
+    <join_family>
+        <operation id="10" category="form" priority="high">
+            <name>招待コード入力フォーム</name>
+            <description>6桁の招待コードを入力するフォーム</description>
+            <test_scenario>
+                - 数字キーパッドの表示
+                - 6桁制限の動作
+                - 入力途中でのボタン状態変化
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyView.swift:305-318</file_location>
+        </operation>
+        
+        <operation id="11" category="action" priority="high">
+            <name>家族参加処理</name>
+            <description>招待コードを使って家族グループに参加する処理</description>
+            <test_scenario>
+                - 有効なコードでの参加処理
+                - 無効なコードでのエラーハンドリング
+                - 参加中のローディング表示
+                - 参加完了後のモーダル閉じる動作
+            </test_scenario>
+            <status>implemented_optimistic</status>
+            <file_location>FamilyView.swift:371-393, FamilyManager.swift:295-395</file_location>
+            <optimistic_update>
+                <implementation>楽観的更新実装済み</implementation>
+                <flow>招待コード検証 → UI即座更新 → サーバー処理 → 失敗時ロールバック</flow>
+                <method>joinFamilyWithCodeOptimistic()</method>
+                <rollback>rollbackJoinFamily()</rollback>
+            </optimistic_update>
+        </operation>
+        
+        <operation id="12" category="ui" priority="medium">
+            <name>参加完了アラート</name>
+            <description>家族参加完了時の成功メッセージ表示</description>
+            <test_scenario>
+                - 成功アラートの表示とメッセージ内容
+                - 家族名が正しく表示される
+                - アラート閉じる時のモーダル閉じる動作
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyView.swift:361-367</file_location>
+        </operation>
+    </join_family>
+    
+    <!-- 家族詳細画面の操作 -->
+    <family_detail>
+        <operation id="13" category="data" priority="high">
+            <name>家族情報表示</name>
+            <description>選択された家族の基本情報を表示</description>
+            <test_scenario>
+                - 家族名の表示
+                - 作成日の表示
+                - 家族アイコンの表示
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyDetailView.swift:32-56</file_location>
+        </operation>
+        
+        <operation id="14" category="data" priority="high">
+            <name>メンバー一覧表示</name>
+            <description>家族に所属するメンバーの一覧を表示</description>
+            <test_scenario>
+                - メンバー名とメールアドレスの表示
+                - 作成者の王冠アイコン表示
+                - メンバー数の表示
+                - メンバー情報読み込み中の表示
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyDetailView.swift:58-96, 203-241</file_location>
+        </operation>
+        
+        <operation id="15" category="data" priority="medium">
+            <name>家族プロジェクト表示</name>
+            <description>この家族が所有するプロジェクトの一覧表示</description>
+            <test_scenario>
+                - 家族プロジェクトの一覧表示
+                - プロジェクト詳細へのナビゲーション
+                - プロジェクトがない場合の非表示
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyDetailView.swift:107-121, 193-208</file_location>
+            <optimistic_update>
+                <status>implemented</status>
+                <implementation_details>
+                    <method>onChange monitoring + sheet dismissal trigger</method>
+                    <trigger_conditions>
+                        - ProjectManager.projects array changes
+                        - CreateProjectView sheet dismissal
+                    </trigger_conditions>
+                    <update_mechanism>loadFamilyProjects()</update_mechanism>
+                    <rollback_function>automatic via server data reload</rollback_function>
+                </implementation_details>
+                <file_location>FamilyDetailView.swift:176-188</file_location>
+                <performance_improvement>immediate UI reflection after project creation</performance_improvement>
+            </optimistic_update>
+        </operation>
+        
+        <operation id="16" category="action" priority="medium">
+            <name>プロジェクト作成ボタン</name>
+            <description>この家族でプロジェクトを作成するボタン</description>
+            <test_scenario>
+                - ボタンタップでプロジェクト作成画面表示
+                - 家族IDがデフォルト設定されている
+                - オーナータイプがfamilyに設定されている
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyDetailView.swift:118-129, 171-175</file_location>
+        </operation>
+        
+        <operation id="17" category="action" priority="high">
+            <name>メンバー招待機能</name>
+            <description>新しいメンバーを家族に招待する機能</description>
+            <test_scenario>
+                - 招待ボタンをタップ
+                - 招待コード生成・取得
+                - 招待コード表示画面の表示
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyDetailView.swift:130-144, 243-272</file_location>
+        </operation>
+        
+        <operation id="18" category="action" priority="medium">
+            <name>メンバー削除機能</name>
+            <description>作成者が他のメンバーを家族から削除する機能</description>
+            <test_scenario>
+                - 作成者のみに削除ボタン表示
+                - 削除処理の実行
+                - 削除後のメンバー一覧更新
+            </test_scenario>
+            <status>implemented_optimistic</status>
+            <file_location>FamilyDetailView.swift:74-77, 274-287, FamilyManager.swift:400-438</file_location>
+            <optimistic_update>
+                <implementation>楽観的更新実装済み</implementation>
+                <flow>メンバーリストから即座削除 → サーバー処理 → 失敗時復元</flow>
+                <method>removeMemberFromFamilyOptimistic()</method>
+                <rollback>rollbackRemoveMember()</rollback>
+            </optimistic_update>
+        </operation>
+        
+        <operation id="19" category="action" priority="medium">
+            <name>家族グループ退出機能</name>
+            <description>現在のユーザーが家族グループから退出する機能</description>
+            <test_scenario>
+                - 退出ボタンをタップ
+                - 確認アラートの表示
+                - 退出処理の実行と楽観的UI更新
+                - サーバー処理の完了
+                - 失敗時のロールバック
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyDetailView.swift:336-360, FamilyManager.swift:462-525</file_location>
+            <optimistic_update>
+                <status>implemented</status>
+                <implementation_details>
+                    <method>leaveFamilyOptimistic with server coordination</method>
+                    <trigger_conditions>
+                        - Exit button tap with confirmation
+                        - FamilyManager data loading for empty arrays
+                    </trigger_conditions>
+                    <update_mechanism>
+                        - Immediate family removal from families array
+                        - Last member detection for family deletion
+                        - User familyIds update
+                        - Server family document deletion
+                    </update_mechanism>
+                    <rollback_function>rollbackLeaveFamily with family restoration</rollback_function>
+                    <special_handling>
+                        - Last member exit: Complete family document deletion
+                        - Regular member exit: Member array removal only
+                        - Debug logging for troubleshooting
+                    </special_handling>
+                </implementation_details>
+                <file_location>FamilyManager.swift:462-525, FamilyDetailView.swift:336-360</file_location>
+                <performance_improvement>immediate UI feedback with server background processing</performance_improvement>
+                <verified_working>2025-09-01 - Console logs confirm successful deletion</verified_working>
+            </optimistic_update>
+        </operation>
+    </family_detail>
+    
+    <!-- 招待コード画面の操作 -->
+    <invite_code>
+        <operation id="20" category="ui" priority="medium">
+            <name>招待コード表示</name>
+            <description>生成された招待コードを大きく表示</description>
+            <test_scenario>
+                - 6桁コードの見やすい表示
+                - モノスペースフォントでの表示
+                - 背景色での強調表示
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyDetailView.swift:382-391</file_location>
+        </operation>
+        
+        <operation id="21" category="action" priority="high">
+            <name>コードコピー機能</name>
+            <description>招待コードをタップしてクリップボードにコピー</description>
+            <test_scenario>
+                - コードタップでクリップボードにコピー
+                - コピー完了の視覚的フィードバック（タップヒント表示）
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyDetailView.swift:388-390</file_location>
+        </operation>
+        
+        <operation id="22" category="action" priority="high">
+            <name>招待コード共有機能</name>
+            <description>招待コードを他のアプリで共有する機能</description>
+            <test_scenario>
+                - 共有ボタンタップでシステム共有画面表示
+                - メッセージアプリ、メール等での共有
+                - 共有メッセージの内容確認
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyDetailView.swift:396-418</file_location>
+        </operation>
+        
+        <operation id="23" category="ui" priority="low">
+            <name>招待コード説明表示</name>
+            <description>招待コードの有効期限や使用方法の説明表示</description>
+            <test_scenario>
+                - 有効期限（7日間）の表示
+                - 使用方法の説明文表示
+                - 説明文の読みやすさ
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyDetailView.swift:423-433</file_location>
+        </operation>
+    </invite_code>
+    
+    <!-- データ管理の操作 -->
+    <data_management>
+        <operation id="24" category="data" priority="high">
+            <name>リアルタイムデータ更新</name>
+            <description>Firestoreリスナーによる家族データのリアルタイム更新</description>
+            <test_scenario>
+                - 他のデバイスから家族に変更があった場合の自動更新
+                - メンバー追加・削除の即座反映
+                - リスナーの開始・停止タイミング
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyView.swift:117-127</file_location>
+        </operation>
+        
+        <operation id="28" category="infrastructure" priority="high">
+            <name>楽観的更新インフラ</name>
+            <description>楽観的更新のためのペンディング操作管理システム</description>
+            <test_scenario>
+                - ペンディング操作の記録・追跡
+                - タイムアウト処理（30秒）
+                - 期限切れ操作の自動クリーンアップ
+                - リトライ機能（最大3回）
+                - データモデルの可変性対応
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyManager.swift:22-66, Family.swift:14</file_location>
+            <infrastructure>
+                <pending_operations>ペンディング操作管理システム</pending_operations>
+                <timeout>30秒タイムアウト</timeout>
+                <cleanup>期限切れ操作自動クリーンアップ</cleanup>
+                <retry>最大3回リトライ</retry>
+                <data_model>Family.members: let → var変更</data_model>
+            </infrastructure>
+        </operation>
+        
+        <operation id="25" category="error" priority="high">
+            <name>エラーハンドリング</name>
+            <description>各種操作でのエラー表示と適切な処理</description>
+            <test_scenario>
+                - ネットワークエラー時の表示
+                - Firebase エラー時の表示
+                - エラーアラートの表示
+                - エラー後の状態復旧
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyView.swift:135-141</file_location>
+        </operation>
+        
+        <operation id="26" category="performance" priority="medium">
+            <name>ローディング状態管理</name>
+            <description>各種処理中のローディング表示と状態管理</description>
+            <test_scenario>
+                - 家族データ読み込み中の表示
+                - メンバー情報読み込み中の表示
+                - 作成・参加処理中の表示
+                - 重複処理の防止
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyView.swift:22-24, 92-95</file_location>
+        </operation>
+    </data_management>
+
+    <!-- タブ連携の操作 -->
+    <tab_integration>
+        <operation id="27" category="navigation" priority="low">
+            <name>タブ選択時のナビゲーションリセット</name>
+            <description>家族タブ選択時に詳細画面から一覧に戻る機能</description>
+            <test_scenario>
+                - 詳細画面表示中にタブを切り替えて戻る
+                - ナビゲーションスタックがリセットされる
+                - 一覧画面に戻っている
+            </test_scenario>
+            <status>implemented</status>
+            <file_location>FamilyView.swift:143-146</file_location>
+        </operation>
+    </tab_integration>
+
+</family_operations>

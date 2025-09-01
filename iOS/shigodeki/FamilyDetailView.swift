@@ -70,7 +70,7 @@ struct FamilyDetailView: View {
                     ForEach(Array(familyMembers.enumerated()), id: \.element.id) { index, member in
                         MemberRowView(
                             member: member,
-                            isCreator: index == 0,
+                            isCreator: member.id == family.members.first, // 最初のmemberIdが作成者
                             canRemove: isCurrentUserCreator && member.id != authManager?.currentUser?.id
                         ) {
                             removeMember(member)
@@ -80,12 +80,12 @@ struct FamilyDetailView: View {
                     // Fallback: メンバーのユーザープロファイルが未作成/未取得でもIDで占位表示
                     ForEach(Array(family.members.enumerated()), id: \.offset) { index, userId in
                         HStack {
-                            Image(systemName: index == 0 ? "crown.fill" : "person.circle")
-                                .foregroundColor(index == 0 ? .orange : .blue)
+                            Image(systemName: userId == family.members.first ? "crown.fill" : "person.circle")
+                                .foregroundColor(userId == family.members.first ? .orange : .blue)
                             VStack(alignment: .leading) {
-                                Text("ユーザーID: \(userId)")
+                                Text("ユーザーID: \(String(userId.prefix(8)))...")
                                     .font(.subheadline)
-                                Text("ユーザープロファイル未取得")
+                                Text("ユーザープロファイル読み込み中...")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -93,6 +93,13 @@ struct FamilyDetailView: View {
                         }
                         .padding(.vertical, 4)
                     }
+                    
+                    // データが読み込めない場合の再試行ボタン
+                    Button("メンバー情報を再読み込み") {
+                        loadFamilyMembers()
+                    }
+                    .foregroundColor(.blue)
+                    .padding(.top, 8)
                 }
             }
             
@@ -160,9 +167,19 @@ struct FamilyDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
             .task {
                 if authManager == nil { authManager = await sharedManagers.getAuthManager() }
-                if familyManager == nil { familyManager = await sharedManagers.getFamilyManager() }
+                if familyManager == nil { 
+                    familyManager = await sharedManagers.getFamilyManager()
+                    // FamilyManager の家族リストが空の場合はロードを実行
+                    if let fm = familyManager, await fm.families.isEmpty, let userId = authManager?.currentUser?.id {
+                        await fm.loadFamiliesForUser(userId: userId)
+                    }
+                }
                 if projectManager == nil { projectManager = await sharedManagers.getProjectManager() }
                 loadFamilyMembers()
+                loadFamilyProjects()
+            }
+            .onChange(of: projectManager?.projects) { _ in
+                // ProjectManager のプロジェクト一覧が変更された時に家族プロジェクトを更新
                 loadFamilyProjects()
             }
         .sheet(isPresented: $showingInviteCode) {
@@ -171,6 +188,12 @@ struct FamilyDetailView: View {
         .sheet(isPresented: $showingCreateProject) {
             if let pm = projectManager {
                 CreateProjectView(projectManager: pm, defaultOwnerType: .family, defaultFamilyId: family.id)
+            }
+        }
+        .onChange(of: showingCreateProject) { isShowing in
+            // プロジェクト作成画面が閉じられた時にプロジェクト一覧を再読み込み
+            if !isShowing {
+                loadFamilyProjects()
             }
         }
         .alert("グループから退出", isPresented: $showingLeaveConfirmation) {
@@ -207,35 +230,59 @@ struct FamilyDetailView: View {
         Task {
             do {
                 let db = Firestore.firestore()
-                let ids = family.members
-                let fetched: [User] = try await withThrowingTaskGroup(of: User?.self) { group in
-                    for memberId in ids {
-                        group.addTask {
-                            let userDoc = try? await db.collection("users").document(memberId).getDocument()
-                            guard let data = userDoc?.data() else { return nil }
+                let memberIds = family.members
+                
+                // 順序を保証するため、順次処理でユーザー情報を取得
+                var loadedMembers: [User] = []
+                
+                for memberId in memberIds {
+                    do {
+                        let userDoc = try await db.collection("users").document(memberId).getDocument()
+                        
+                        if userDoc.exists, let data = userDoc.data() {
                             var user = User(
-                                name: data["name"] as? String ?? "Unknown",
+                                name: data["name"] as? String ?? "Unknown User",
                                 email: data["email"] as? String ?? "",
                                 familyIds: data["familyIds"] as? [String] ?? []
                             )
                             user.id = memberId
                             user.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
-                            return user
+                            loadedMembers.append(user)
+                        } else {
+                            // ユーザードキュメントが存在しない場合のフォールバック
+                            var placeholderUser = User(
+                                name: "Unknown User (\(String(memberId.prefix(8))))",
+                                email: "",
+                                familyIds: []
+                            )
+                            placeholderUser.id = memberId
+                            loadedMembers.append(placeholderUser)
+                            print("⚠️ User document not found for ID: \(memberId)")
                         }
+                    } catch {
+                        print("❌ Error loading user \(memberId): \(error)")
+                        // エラーでも順序を保つため、プレースホルダーユーザーを追加
+                        var errorUser = User(
+                            name: "Load Error (\(String(memberId.prefix(8))))",
+                            email: "",
+                            familyIds: []
+                        )
+                        errorUser.id = memberId
+                        loadedMembers.append(errorUser)
                     }
-                    var collected: [User] = []
-                    for try await result in group {
-                        if let u = result { collected.append(u) }
-                    }
-                    return collected
                 }
+                
                 await MainActor.run {
-                    familyMembers = fetched
+                    familyMembers = loadedMembers
                     isLoadingMembers = false
+                    print("✅ Successfully loaded \(loadedMembers.count) members")
                 }
+                
             } catch {
-                await MainActor.run { isLoadingMembers = false }
-                print("Error loading family members: \(error)")
+                await MainActor.run { 
+                    isLoadingMembers = false 
+                    print("❌ Critical error in loadFamilyMembers: \(error)")
+                }
             }
         }
     }
@@ -291,13 +338,23 @@ struct FamilyDetailView: View {
         
         Task.detached {
             do {
-                try await familyManager?.leaveFamily(familyId: familyId, userId: userId)
-                // Navigate back
+                // FamilyManager が家族リストを持っていない場合は先にロード
+                if let fm = familyManager, await fm.families.isEmpty {
+                    print("🔄 Loading families before exit attempt")
+                    await fm.loadFamiliesForUser(userId: userId)
+                }
+                
+                // 楽観的更新を使用して即座にUIから退出させる
+                try await familyManager?.leaveFamilyOptimistic(familyId: familyId, userId: userId)
+                
                 await MainActor.run {
-                    // The family list will automatically update due to listeners
+                    // 退出成功時は画面を閉じる（管理者・一般メンバー共通）
+                    // SwiftUIのナビゲーション管理はFamilyManagerの楽観更新とFamilyViewのリスナーで処理
+                    print("✅ Family exit successful - UI will update via listeners")
                 }
             } catch {
                 print("Error leaving family: \(error)")
+                // エラー時はUIをロールバック（既にleaveFamilyOptimisticでハンドリング）
             }
         }
     }

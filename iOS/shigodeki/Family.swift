@@ -11,7 +11,7 @@ import FirebaseFirestore
 struct Family: Identifiable, Codable {
     var id: String?
     let name: String
-    let members: [String] // user IDs
+    var members: [String] // user IDs - var for optimistic updates
     var createdAt: Date?
     var lastUpdatedAt: Date?
     var devEnvironmentTest: String?

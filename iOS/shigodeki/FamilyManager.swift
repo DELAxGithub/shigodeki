@@ -19,25 +19,100 @@ class FamilyManager: ObservableObject {
     private var familyListeners: [ListenerRegistration] = []
     private let listenerQueue = DispatchQueue(label: "com.shigodeki.familyManager.listeners", qos: .userInteractive)
     
+    // MARK: - Optimistic Updates Support
+    private var pendingOperations: [String: PendingOperation] = [:]
+    
+    private struct PendingOperation {
+        let type: OperationType
+        let originalData: Any?
+        let timestamp: Date
+        let retryCount: Int
+        
+        enum OperationType {
+            case createFamily(tempId: String)
+            case deleteFamily(familyId: String)
+            case removeMember(familyId: String, userId: String)
+            case joinFamily(familyId: String, userId: String)
+        }
+    }
+    
+    // ペンディング操作のタイムアウト時間（秒）
+    private let pendingOperationTimeout: TimeInterval = 30.0
+    private let maxRetryCount: Int = 3
+    
+    // ペンディング操作の管理
+    private func cleanupExpiredOperations() {
+        let now = Date()
+        let expiredKeys = pendingOperations.keys.filter { key in
+            guard let operation = pendingOperations[key] else { return true }
+            return now.timeIntervalSince(operation.timestamp) > pendingOperationTimeout
+        }
+        
+        for key in expiredKeys {
+            if let operation = pendingOperations[key] {
+                print("⚠️ Expired pending operation: \(operation.type)")
+            }
+            pendingOperations.removeValue(forKey: key)
+        }
+    }
+    
+    private func createPendingOperation(type: PendingOperation.OperationType, originalData: Any? = nil) -> PendingOperation {
+        return PendingOperation(
+            type: type,
+            originalData: originalData,
+            timestamp: Date(),
+            retryCount: 0
+        )
+    }
+    
     // MARK: - Family Creation
     
-    func createFamily(name: String, creatorUserId: String) async throws -> String {
-        isLoading = true
-        errorMessage = nil
-        
-        defer { isLoading = false }
-        
-        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+    /// 楽観的更新版の家族作成メソッド
+    func createFamilyOptimistic(name: String, creatorUserId: String) async throws -> String {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
             throw FamilyError.invalidName
         }
         
-        // Create family document
-        var family = Family(name: name.trimmingCharacters(in: .whitespacesAndNewlines), members: [creatorUserId])
-        family.createdAt = Date()
+        // 1. 楽観的更新: UI に即座に反映
+        let tempId = "temp_\(UUID().uuidString)"
+        var optimisticFamily = Family(name: trimmedName, members: [creatorUserId])
+        optimisticFamily.id = tempId
+        optimisticFamily.createdAt = Date()
         
+        // UI即座更新
+        families.append(optimisticFamily)
+        
+        // ペンディング操作を記録
+        cleanupExpiredOperations() // 期限切れ操作をクリーンアップ
+        pendingOperations[tempId] = createPendingOperation(
+            type: .createFamily(tempId: tempId),
+            originalData: nil // 新規作成なので元データなし
+        )
+        
+        do {
+            // 2. サーバー処理実行
+            let realFamilyId = try await createFamilyOnServer(name: trimmedName, creatorUserId: creatorUserId)
+            
+            // 3. 成功時: 一時IDを実際のIDに置き換え
+            if let index = families.firstIndex(where: { $0.id == tempId }) {
+                families[index].id = realFamilyId
+                pendingOperations.removeValue(forKey: tempId)
+            }
+            
+            return realFamilyId
+            
+        } catch {
+            // 4. 失敗時: ロールバック
+            rollbackCreateFamily(tempId: tempId)
+            throw error
+        }
+    }
+    
+    private func createFamilyOnServer(name: String, creatorUserId: String) async throws -> String {
         let familyData: [String: Any] = [
-            "name": family.name,
-            "members": family.members,
+            "name": name,
+            "members": [creatorUserId],
             "createdAt": FieldValue.serverTimestamp(),
             "lastUpdatedAt": FieldValue.serverTimestamp(),
             "devEnvironmentTest": "Created in DEV at \(Date().formatted())"
@@ -51,7 +126,7 @@ class FamilyManager: ObservableObject {
             try await updateUserFamilyIds(userId: creatorUserId, familyId: familyId, action: .add)
             
             // Create invitation code for this family
-            try await generateInvitationCode(familyId: familyId, familyName: family.name)
+            try await generateInvitationCode(familyId: familyId, familyName: name)
             
             print("Family created successfully with ID: \(familyId)")
             return familyId
@@ -61,6 +136,21 @@ class FamilyManager: ObservableObject {
             errorMessage = "家族グループの作成に失敗しました"
             throw FamilyError.creationFailed(error.localizedDescription)
         }
+    }
+    
+    private func rollbackCreateFamily(tempId: String) {
+        // ペンディング操作をクリア
+        pendingOperations.removeValue(forKey: tempId)
+        
+        // UIから一時的に追加した家族を削除
+        families.removeAll { $0.id == tempId }
+        
+        print("Rolled back optimistic family creation: \(tempId)")
+    }
+    
+    /// 後方互換性のため既存のメソッドを楽観的更新版にリダイレクト
+    func createFamily(name: String, creatorUserId: String) async throws -> String {
+        return try await createFamilyOptimistic(name: name, creatorUserId: creatorUserId)
     }
     
     // MARK: - Family Data Loading
@@ -201,12 +291,9 @@ class FamilyManager: ObservableObject {
         print("Invitation code generated: \(invitationCode)")
     }
     
-    func joinFamilyWithCode(_ code: String, userId: String) async throws -> String {
-        isLoading = true
-        errorMessage = nil
-        
-        defer { isLoading = false }
-        
+    /// 楽観的更新版の家族参加メソッド  
+    func joinFamilyWithCodeOptimistic(_ code: String, userId: String) async throws -> String {
+        // まずは招待コードの検証のみ実行（楽観的更新前の必要な検証）
         let codeDoc = try await db.collection("invitations").document(code).getDocument()
         
         guard codeDoc.exists, let data = codeDoc.data(),
@@ -222,6 +309,38 @@ class FamilyManager: ObservableObject {
             throw FamilyError.expiredInvitationCode
         }
         
+        // 1. 楽観的更新: 新しい家族をUIに追加
+        let optimisticFamily = Family(name: familyName, members: [userId])  
+        let tempId = "joining_\(familyId)"
+        var newFamily = optimisticFamily
+        newFamily.id = familyId
+        newFamily.createdAt = Date()
+        
+        families.append(newFamily)
+        
+        // ペンディング操作を記録
+        cleanupExpiredOperations()
+        pendingOperations[tempId] = createPendingOperation(
+            type: .joinFamily(familyId: familyId, userId: userId),
+            originalData: nil
+        )
+        
+        do {
+            // 2. サーバー処理実行
+            try await joinFamilyWithCodeOnServer(code: code, familyId: familyId, familyName: familyName, userId: userId)
+            
+            // 3. 成功時: ペンディング操作をクリア
+            pendingOperations.removeValue(forKey: tempId)
+            return familyName
+            
+        } catch {
+            // 4. 失敗時: ロールバック
+            rollbackJoinFamily(familyId: familyId)
+            throw error
+        }
+    }
+    
+    private func joinFamilyWithCodeOnServer(code: String, familyId: String, familyName: String, userId: String) async throws {
         // Add user to family members
         try await db.collection("families").document(familyId).updateData([
             "members": FieldValue.arrayUnion([userId])
@@ -230,10 +349,7 @@ class FamilyManager: ObservableObject {
         // Update user's familyIds
         try await updateUserFamilyIds(userId: userId, familyId: familyId, action: .add)
         
-        // Mark invitation as used (optional - could keep active for multiple uses)
-        // try await db.collection("invitations").document(code).updateData(["isActive": false])
-        
-        // 🔗 同期: 家族所有の全プロジェクトにプロジェクトメンバーとして追加（displayNameも保存）
+        // 🔗 同期: 家族所有の全プロジェクトにプロジェクトメンバーとして追加
         do {
             let projectsSnap = try await db.collection("projects").whereField("ownerId", isEqualTo: familyId).getDocuments()
             let encoder = Firestore.Encoder()
@@ -258,9 +374,22 @@ class FamilyManager: ObservableObject {
             // 同期に失敗してもファミリー参加自体は成功扱いとする
             print("Family join sync warning: \(error)")
         }
-        
-        return familyName
     }
+    
+    private func rollbackJoinFamily(familyId: String) {
+        let tempId = "joining_\(familyId)"
+        pendingOperations.removeValue(forKey: tempId)
+        
+        // UIから追加した家族を削除
+        families.removeAll { $0.id == familyId }
+        
+        print("Rolled back optimistic family join: \(familyId)")
+    }
+    
+    func joinFamilyWithCode(_ code: String, userId: String) async throws -> String {
+        return try await joinFamilyWithCodeOptimistic(code, userId: userId)
+    }
+    
     
     private func generateRandomCode() -> String {
         let characters = "0123456789"
@@ -269,12 +398,41 @@ class FamilyManager: ObservableObject {
     
     // MARK: - Member Management
     
-    func removeMemberFromFamily(familyId: String, userId: String) async throws {
-        isLoading = true
-        errorMessage = nil
+    /// 楽観的更新版のメンバー削除メソッド
+    func removeMemberFromFamilyOptimistic(familyId: String, userId: String) async throws {
+        // 1. 楽観的更新: UI から即座にメンバーを削除
+        guard let familyIndex = families.firstIndex(where: { $0.id == familyId }) else {
+            throw FamilyError.notFound
+        }
         
-        defer { isLoading = false }
+        let originalMembers = families[familyIndex].members
+        let operationId = "\(familyId)_\(userId)"
         
+        // UI即座更新
+        families[familyIndex].members.removeAll { $0 == userId }
+        
+        // ペンディング操作を記録
+        cleanupExpiredOperations()
+        pendingOperations[operationId] = createPendingOperation(
+            type: .removeMember(familyId: familyId, userId: userId),
+            originalData: originalMembers
+        )
+        
+        do {
+            // 2. サーバー処理実行
+            try await removeMemberFromFamilyOnServer(familyId: familyId, userId: userId)
+            
+            // 3. 成功時: ペンディング操作をクリア
+            pendingOperations.removeValue(forKey: operationId)
+            
+        } catch {
+            // 4. 失敗時: ロールバック
+            rollbackRemoveMember(familyId: familyId, userId: userId, originalMembers: originalMembers)
+            throw error
+        }
+    }
+    
+    private func removeMemberFromFamilyOnServer(familyId: String, userId: String) async throws {
         // Remove user from family members
         try await db.collection("families").document(familyId).updateData([
             "members": FieldValue.arrayRemove([userId])
@@ -284,8 +442,92 @@ class FamilyManager: ObservableObject {
         try await updateUserFamilyIds(userId: userId, familyId: familyId, action: .remove)
     }
     
+    private func deleteFamilyFromServer(familyId: String) async throws {
+        // 最後のメンバーが退出時は家族自体を削除
+        try await db.collection("families").document(familyId).delete()
+        print("🗑️ Family deleted from server: \(familyId)")
+    }
+    
+    private func rollbackRemoveMember(familyId: String, userId: String, originalMembers: [String]) {
+        let operationId = "\(familyId)_\(userId)"
+        pendingOperations.removeValue(forKey: operationId)
+        
+        // UIを元の状態に戻す
+        if let familyIndex = families.firstIndex(where: { $0.id == familyId }) {
+            families[familyIndex].members = originalMembers
+        }
+        
+        print("Rolled back optimistic member removal: \(userId) from family \(familyId)")
+    }
+    
+    func removeMemberFromFamily(familyId: String, userId: String) async throws {
+        return try await removeMemberFromFamilyOptimistic(familyId: familyId, userId: userId)
+    }
+    
+    /// 楽観的更新版の家族退出メソッド
+    func leaveFamilyOptimistic(familyId: String, userId: String) async throws {
+        // デバッグ情報追加
+        print("🔍 Leave family attempt - familyId: \(familyId), userId: \(userId)")
+        print("🔍 Current families count: \(families.count)")
+        print("🔍 Current family IDs: \(families.compactMap { $0.id })")
+        
+        // 退出時は家族をfamilies配列からも削除する
+        guard let familyIndex = families.firstIndex(where: { $0.id == familyId }) else {
+            print("❌ Family not found in array - familyId: \(familyId)")
+            throw FamilyError.notFound
+        }
+        
+        let originalFamily = families[familyIndex]
+        let operationId = "leave_\(familyId)_\(userId)"
+        
+        // UI即座更新: 家族をリストから削除
+        families.remove(at: familyIndex)
+        
+        // ペンディング操作を記録
+        cleanupExpiredOperations()
+        pendingOperations[operationId] = createPendingOperation(
+            type: .removeMember(familyId: familyId, userId: userId),
+            originalData: originalFamily
+        )
+        
+        do {
+            // 最後のメンバー（創設者）の場合は家族自体を削除
+            if originalFamily.members.count == 1 && originalFamily.members.first == userId {
+                print("🗑️ Deleting family (last member leaving): \(familyId)")
+                // ユーザーのfamilyIdsからも削除
+                try await updateUserFamilyIds(userId: userId, familyId: familyId, action: .remove)
+                // 家族ドキュメントを削除
+                try await deleteFamilyFromServer(familyId: familyId)
+            } else {
+                // 通常の退出処理
+                print("👋 Removing member from family: \(userId)")
+                try await removeMemberFromFamilyOnServer(familyId: familyId, userId: userId)
+            }
+            
+            // 成功時: ペンディング操作をクリア
+            pendingOperations.removeValue(forKey: operationId)
+            print("✅ Family exit completed successfully")
+            
+        } catch {
+            print("❌ Family exit failed: \(error)")
+            // 失敗時: ロールバック
+            rollbackLeaveFamily(familyId: familyId, userId: userId, originalFamily: originalFamily)
+            throw error
+        }
+    }
+    
+    private func rollbackLeaveFamily(familyId: String, userId: String, originalFamily: Family) {
+        let operationId = "leave_\(familyId)_\(userId)"
+        pendingOperations.removeValue(forKey: operationId)
+        
+        // UIを元の状態に戻す: 家族をリストに再追加
+        families.append(originalFamily)
+        
+        print("Rolled back optimistic family leave: \(userId) from family \(familyId)")
+    }
+    
     func leaveFamily(familyId: String, userId: String) async throws {
-        try await removeMemberFromFamily(familyId: familyId, userId: userId)
+        try await leaveFamilyOptimistic(familyId: familyId, userId: userId)
     }
     
     // MARK: - Helper Methods
