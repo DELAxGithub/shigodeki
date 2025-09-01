@@ -602,7 +602,7 @@ class ProjectManager: ObservableObject {
         customizations: ProjectCustomizations? = nil
     ) async throws {
         let phaseManager = PhaseManager()
-        let taskListManager = TaskListManager() // kept for export path elsewhere
+        _ = TaskListManager() // kept for export path elsewhere
         let taskManager = EnhancedTaskManager()
         let subtaskManager = SubtaskManager()
         var phaseCount = 0
@@ -719,8 +719,13 @@ class ProjectManager: ObservableObject {
                 
                 for taskList in phaseLists {
                     guard let taskListId = taskList.id else { continue }
-                    // Load tasks for this task list (assuming this is for export, we may need to adjust)
-                    let listTasks: [ShigodekiTask] = [] // TODO: Implement proper task loading for export
+                    // Load tasks for this task list
+                    let enhancedTaskManager = EnhancedTaskManager()
+                    let listTasks = try await enhancedTaskManager.getTasks(
+                        listId: taskListId, 
+                        phaseId: phaseId, 
+                        projectId: projectId
+                    )
                     tasks[taskListId] = listTasks
                     
                     for task in listTasks {

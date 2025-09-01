@@ -70,23 +70,21 @@ struct MainTabView: View {
         .task {
             // ⚡ Optimized startup - immediate initialization without artificial delays
             #if DEBUG
+            let startTime = CFAbsoluteTimeGetCurrent()
             await MainActor.run {
                 InstrumentsSetup.shared.logMemoryUsage(context: "MainTabView Startup")
-                let startTime = CFAbsoluteTimeGetCurrent()
-                defer {
-                    let elapsedTime = CFAbsoluteTimeGetCurrent() - startTime
-                    print("⚡ Performance: MainTabView initialization completed in \(Int(elapsedTime * 1000))ms")
-                }
             }
             #endif
             
             // 🚀 Essential manager initialization - no artificial delays
-            let authManager = await sharedManagers.getAuthManager()
+            _ = await sharedManagers.getAuthManager()
             
             #if DEBUG
             await MainActor.run {
                 sharedManagers.logDebugInfo()
                 print("✅ SharedManagerStore: Optimized initialization completed")
+                let elapsedTime = CFAbsoluteTimeGetCurrent() - startTime
+                print("⚡ Performance: MainTabView initialization completed in \(Int(elapsedTime * 1000))ms")
             }
             #endif
         }
@@ -301,9 +299,8 @@ struct SettingsView: View {
                 APISettingsView()
             }
             .sheet(isPresented: $showTaskImprovement) {
-                // TODO: TaskImprovementSuggestionView未実装 - 現在はプレースホルダー
-                Text("タスク改善提案機能は開発中です")
-                    .padding()
+                TaskImprovementSuggestionView(userId: authManager.currentUserId ?? "")
+                    .environmentObject(sharedManagers)
             }
             .alert("ユーザー名を編集", isPresented: $showEditUsername) {
                 TextField("ユーザー名", text: $editingUsername)

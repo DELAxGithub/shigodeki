@@ -534,10 +534,9 @@ struct CreateProjectView: View {
                         print("✨ AI generated \(suggestions.tasks.count) task suggestions")
                         let aiTasks = aiGenerator.convertSuggestionsToTasks(suggestions, for: createdProject)
                         
-                        // Note: Task creation would need proper implementation
-                        // with proper list and phase management
-                        print("✨ Generated \(aiTasks.count) tasks for future implementation")
-                        // TODO: Implement proper task creation with list/phase setup
+                        // Implement proper task creation with phase and list setup
+                        print("✨ Generated \(aiTasks.count) tasks - implementing proper creation")
+                        await createInitialTasksFromAI(aiTasks, for: createdProject)
                     } else if let error = aiGenerator.error {
                         print("⚠️ AI generation failed: \(error.localizedDescription)")
                         // Continue with basic project - don't fail the entire creation
@@ -581,6 +580,77 @@ struct CreateProjectView: View {
         formatter.dateStyle = .full
         formatter.locale = Locale(identifier: "ja_JP")
         return formatter.string(from: date)
+    }
+    
+    // MARK: - AI Task Creation Implementation
+    
+    private func createInitialTasksFromAI(_ aiTasks: [ShigodekiTask], for project: Project) async {
+        guard let projectId = project.id, let userId = authManager.currentUser?.id else {
+            print("⚠️ Cannot create AI tasks: missing project ID or user ID")
+            return
+        }
+        
+        do {
+            // Create a default phase for AI-generated tasks
+            let phaseManager = PhaseManager()
+            let defaultPhase = try await phaseManager.createPhase(
+                name: "初期タスク",
+                description: "AI生成によるプロジェクトの初期タスク群",
+                projectId: projectId,
+                createdBy: userId,
+                order: 0
+            )
+            
+            guard let phaseId = defaultPhase.id else {
+                print("⚠️ Failed to create default phase for AI tasks")
+                return
+            }
+            
+            // Create a default task list within the phase
+            let taskListManager = TaskListManager()
+            let defaultTaskList = try await taskListManager.createTaskList(
+                name: "AI生成タスク",
+                phaseId: phaseId,
+                projectId: projectId,
+                createdBy: userId,
+                color: .blue,
+                order: 0
+            )
+            
+            guard let taskListId = defaultTaskList.id else {
+                print("⚠️ Failed to create default task list for AI tasks")
+                return
+            }
+            
+            // Create each AI-generated task in the task list
+            let enhancedTaskManager = EnhancedTaskManager()
+            var createdCount = 0
+            
+            for (index, aiTask) in aiTasks.enumerated() {
+                do {
+                    _ = try await enhancedTaskManager.createTask(
+                        title: aiTask.title,
+                        description: aiTask.description,
+                        assignedTo: nil, // No initial assignment
+                        createdBy: userId,
+                        dueDate: aiTask.dueDate,
+                        priority: aiTask.priority,
+                        listId: taskListId,
+                        phaseId: phaseId,
+                        projectId: projectId,
+                        order: index
+                    )
+                    createdCount += 1
+                } catch {
+                    print("⚠️ Failed to create AI task '\(aiTask.title)': \(error)")
+                }
+            }
+            
+            print("✅ Successfully created \(createdCount)/\(aiTasks.count) AI-generated tasks")
+            
+        } catch {
+            print("❌ Failed to set up AI task infrastructure: \(error)")
+        }
     }
 }
 
