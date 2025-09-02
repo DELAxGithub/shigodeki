@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
 
 struct ProjectSettingsView: View {
     let project: Project
@@ -32,6 +33,9 @@ struct ProjectSettingsView: View {
     // Owner change UI
     @State private var selectedOwnerType: ProjectOwnerType
     @State private var selectedFamilyId: String?
+    
+    // Creator display name
+    @State private var creatorDisplayName: String = ""
     
     init(project: Project, projectManager: ProjectManager) {
         self.project = project
@@ -160,7 +164,7 @@ struct ProjectSettingsView: View {
                                 Text("作成者")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                Text("ID: \(project.ownerId)")
+                                Text(creatorDisplayName)
                                     .font(.subheadline)
                             }
                         }
@@ -262,6 +266,7 @@ struct ProjectSettingsView: View {
                 if let uid = authManager?.currentUser?.id {
                     await familyManager?.loadFamiliesForUser(userId: uid)
                 }
+                await loadCreatorDisplayName()
             }
             .confirmationDialog(
                 "プロジェクトを削除",
@@ -405,7 +410,7 @@ struct ProjectSettingsView: View {
     }
     
     private func createInvite() async {
-        guard let pid = project.id else { return }
+        guard project.id != nil else { return }
         guard let uid = authManager?.currentUser?.id else { return }
         isUpdating = true
         do {
@@ -420,6 +425,40 @@ struct ProjectSettingsView: View {
                 isUpdating = false
                 errorMessage = error.localizedDescription
                 showingError = true
+            }
+        }
+    }
+    
+    private func loadCreatorDisplayName() async {
+        do {
+            // ユーザー情報をFirestoreから取得
+            if let authMgr = authManager {
+                // Firestoreからユーザー情報を取得 - project.createdByを使用
+                let db = Firestore.firestore()
+                let creatorId = project.createdBy ?? project.ownerId
+                let userDoc = try await db.collection("users").document(creatorId).getDocument()
+                
+                if userDoc.exists, let userData = userDoc.data() {
+                    let displayName = userData["displayName"] as? String
+                    let email = userData["email"] as? String
+                    
+                    await MainActor.run {
+                        creatorDisplayName = displayName ?? email ?? "不明なユーザー"
+                    }
+                } else {
+                    await MainActor.run {
+                        creatorDisplayName = "不明なユーザー"
+                    }
+                }
+            } else {
+                await MainActor.run {
+                    creatorDisplayName = "不明なユーザー"
+                }
+            }
+        } catch {
+            print("Error loading creator display name: \(error)")
+            await MainActor.run {
+                creatorDisplayName = "読み込みエラー"
             }
         }
     }
