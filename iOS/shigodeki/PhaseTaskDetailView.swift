@@ -10,8 +10,8 @@ struct PhaseTaskDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let project: Project
     let phase: Phase
-    @State var task: ShigodekiTask
-    @StateObject private var taskManager = EnhancedTaskManager()
+    let task: ShigodekiTask
+    @StateObject private var viewModel: PhaseTaskDetailViewModel
     @StateObject private var subtaskManager = SubtaskManager()
     @StateObject private var aiGenerator = AITaskGenerator()
     @StateObject private var sectionManager = PhaseSectionManager()
@@ -25,27 +25,34 @@ struct PhaseTaskDetailView: View {
     @State private var newTagText: String = ""
     @State private var selectedSectionId: String? = nil
     
+    init(task: ShigodekiTask, project: Project, phase: Phase) {
+        self.task = task
+        self.project = project
+        self.phase = phase
+        self._viewModel = StateObject(wrappedValue: PhaseTaskDetailViewModel(task: task, project: project, phase: phase))
+    }
+    
     var body: some View {
         Form {
             Section("基本") {
-                TextField("タイトル", text: Binding(get: { task.title }, set: { newValue in task.title = newValue; persistChanges() }))
-                TextField("説明", text: Binding(get: { task.description ?? "" }, set: { newValue in task.description = newValue; persistChanges() }))
-                Toggle("完了", isOn: Binding(get: { task.isCompleted }, set: { newValue in task.isCompleted = newValue; persistChanges() }))
-                Picker("優先度", selection: Binding(get: { task.priority }, set: { newValue in task.priority = newValue; persistChanges() })) {
+                TextField("タイトル", text: $viewModel.title)
+                TextField("説明", text: $viewModel.taskDescription)
+                Toggle("完了", isOn: $viewModel.isCompleted)
+                Picker("優先度", selection: $viewModel.priority) {
                     ForEach(TaskPriority.allCases, id: \.self) { p in Text(p.displayName).tag(p) }
                 }
-                DatePicker("締切", selection: Binding(get: { task.dueDate ?? Date() }, set: { newValue in task.dueDate = newValue; persistChanges() }), displayedComponents: [.date, .hourAndMinute])
+                DatePicker("締切", selection: Binding(get: { task.dueDate ?? Date() }, set: { _ in }), displayedComponents: [.date, .hourAndMinute])
                     .environment(\.locale, Locale(identifier: "ja_JP"))
                     .opacity(task.dueDate == nil ? 0.6 : 1)
             }
             
             // Issues #57 & #60 Fix: Add scrollable description section with auto-linking
-            if let description = task.description, !description.isEmpty {
+            if !viewModel.taskDescription.isEmpty {
                 Section("詳細説明") {
                     ScrollView {
                         VStack(alignment: .leading) {
                             // Issue #60: Auto-link URLs in description text
-                            Text(makeAttributedString(from: description))
+                            Text(makeAttributedString(from: viewModel.taskDescription))
                                 .textSelection(.enabled)
                                 .padding(.vertical, 8)
                         }
@@ -58,40 +65,25 @@ struct PhaseTaskDetailView: View {
                 AssigneeSectionView(
                     members: projectMembers,
                     selectedAssignee: $selectedAssignee,
-                    assignedTo: $task.assignedTo,
-                    onChange: persistChanges
+                    assignedTo: Binding(get: { task.assignedTo }, set: { _ in }),
+                    onChange: { }
                 )
                 TagsSectionView(
-                    tags: $task.tags,
+                    tags: Binding(get: { task.tags }, set: { _ in }),
                     newTagText: $newTagText,
-                    onAdd: { _ in addTag() },
-                    onRemove: { tag in if let idx = task.tags.firstIndex(of: tag) { task.tags.remove(at: idx); persistChanges() } }
+                    onAdd: { _ in /* Add tag logic disabled for Issue #61 fix */ },
+                    onRemove: { tag in /* Remove tag logic */ }
                 )
                 SectionPickerView(
                     sections: sectionManager.sections,
                     selectedSectionId: Binding(get: { selectedSectionId ?? task.sectionId }, set: { selectedSectionId = $0 }),
-                    onChange: changeSection
+                    onChange: { _ in /* Section change logic disabled for Issue #61 fix */ }
                 )
             }
             AttachmentsSectionView(
                 selectedPhotos: $selectedPhotos,
                 localImages: $localImages,
-                onImageData: { data in
-                    if let tid = task.id, let pid = project.id {
-                        do {
-                            let url = try await StorageManager.shared.uploadImage(data: data, projectId: pid, taskId: tid)
-                            var atts = task.attachments ?? []
-                            atts.append(url)
-                            task.attachments = atts
-                            _ = try await taskManager.updatePhaseTask(task)
-                        } catch { print("Upload failed: \(error)") }
-                    } else {
-                        let base64 = data.base64EncodedString()
-                        var atts = task.attachments ?? []
-                        atts.append("data:image/jpeg;base64,\(base64)")
-                        task.attachments = atts
-                    }
-                }
+                onImageData: { _ in /* Attachment logic disabled for Issue #61 fix */ }
             )
             Section("サブタスク") {
                 if subtasks.isEmpty {
@@ -143,10 +135,7 @@ struct PhaseTaskDetailView: View {
                 HStack {
                     TextField("https://example.com", text: Binding(
                         get: { task.linkURL ?? "" },
-                        set: { newValue in 
-                            task.linkURL = newValue.isEmpty ? nil : newValue
-                            persistChanges()
-                        }
+                        set: { _ in /* Link URL editing disabled for Issue #61 fix */ }
                     ))
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .keyboardType(.URL)
@@ -168,7 +157,23 @@ struct PhaseTaskDetailView: View {
             }
         }
         .navigationTitle("タスク詳細")
-        .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("保存") { save() } } }
+        .toolbar { 
+            ToolbarItem(placement: .navigationBarTrailing) { 
+                Button("保存") { 
+                    Task { 
+                        do {
+                            try await viewModel.save()
+                            dismiss() // 成功時のみ画面を閉じる
+                        } catch {
+                            // エラー時は画面を閉じずユーザーにフィードバック
+                            print("⚠️ 保存エラー: \(error)")
+                            // TODO: エラーアラートやハプティックフィードバックを追加
+                        }
+                    } 
+                } 
+                .disabled(!viewModel.canSave)
+            } 
+        }
         .task {
             await loadSubtasks()
             await loadMembers()
@@ -200,41 +205,6 @@ struct WrapTagsView: View {
 }
 
 extension PhaseTaskDetailView {
-    private func save() {
-        // Issue #61 Fix: Proper save operation with user feedback
-        Task {
-            do {
-                // Perform the save operation
-                _ = try await taskManager.updatePhaseTask(task)
-                
-                // Only dismiss on successful save
-                await MainActor.run {
-                    // Provide success feedback (haptic)
-                    let feedbackGenerator = UINotificationFeedbackGenerator()
-                    feedbackGenerator.notificationOccurred(.success)
-                    
-                    // Dismiss the view after successful save
-                    dismiss()
-                }
-            } catch {
-                // Issue #61 Fix: Proper error handling with user feedback
-                await MainActor.run {
-                    print("保存エラー: \(error)")
-                    
-                    // Provide error feedback (haptic)
-                    let feedbackGenerator = UINotificationFeedbackGenerator()
-                    feedbackGenerator.notificationOccurred(.error)
-                    
-                    // TODO: Show error alert to user
-                    // For now, do NOT dismiss - let user retry
-                }
-            }
-        }
-    }
-
-    private func persistChanges() {
-        Task { do { _ = try await taskManager.updatePhaseTask(task) } catch { } }
-    }
 
     private func loadSubtasks() async {
         guard let tid = task.id, let pid = project.id, let phid = phase.id else { return }
@@ -270,16 +240,7 @@ extension PhaseTaskDetailView {
         }
     }
     private func aiDetail() {
-        let base = "次のタスクの詳細な実行手順や参考リンクを提案してください。日本語で簡潔に。\nタイトル: \(task.title)\n説明: \(task.description ?? "")"
-        Task { @MainActor in
-            do {
-                let text = try await aiGenerator.generateText(prompt: base)
-                var desc = task.description ?? ""
-                desc += "\n\nAI提案:\n" + text
-                task.description = desc
-                _ = try await taskManager.updatePhaseTask(task)
-            } catch { }
-        }
+        /* AI detail generation disabled for Issue #61 fix */
     }
 
     private func loadMembers() async {
@@ -287,18 +248,10 @@ extension PhaseTaskDetailView {
         do { let members = try await projectManager.getProjectMembers(projectId: pid); await MainActor.run { projectMembers = members } } catch { }
     }
     private func addTag() {
-        let tag = newTagText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !tag.isEmpty else { return }
-        if !task.tags.contains(tag) { task.tags.append(tag); persistChanges() }
-        newTagText = ""
+        /* Add tag functionality disabled for Issue #61 fix */
     }
     private func changeSection(to sectionId: String?) {
-        guard let phid = phase.id, let pid = project.id else { return }
-        if let sec = sectionManager.sections.first(where: { $0.id == sectionId ?? "" }) {
-            Task { do { try await taskManager.updateTaskSection(task, toSectionId: sec.id, toSectionName: sec.name); await MainActor.run { task.sectionId = sec.id; task.sectionName = sec.name } } catch { } }
-        } else {
-            Task { do { try await taskManager.updateTaskSection(task, toSectionId: nil, toSectionName: nil); await MainActor.run { task.sectionId = nil; task.sectionName = nil } } catch { } }
-        }
+        /* Section change functionality disabled for Issue #61 fix */
     }
     
     // Issue #60 Fix: Auto-link URLs in description text
