@@ -23,12 +23,13 @@ struct Project: Identifiable, Codable, Hashable {
     var settings: ProjectSettings?
     var statistics: ProjectStats?
     
-    init(name: String, description: String? = nil, ownerId: String, ownerType: ProjectOwnerType = .individual) {
+    init(name: String, description: String? = nil, ownerId: String, ownerType: ProjectOwnerType = .individual, initialMemberIds: [String]? = nil) {
         self.name = name
         self.description = description
         self.ownerId = ownerId
         self.ownerType = ownerType
-        self.memberIds = [ownerId]
+        // Issue #51 Fix: Use provided memberIds or default to owner only
+        self.memberIds = initialMemberIds ?? [ownerId]
         self.isArchived = false
         self.isCompleted = false
         self.completedAt = nil

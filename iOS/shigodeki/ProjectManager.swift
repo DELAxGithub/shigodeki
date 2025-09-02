@@ -51,8 +51,29 @@ class ProjectManager: ObservableObject {
         
         do {
             print("📝 Creating project object...")
-            let project = Project(name: name, description: description, ownerId: ownerId, ownerType: ownerType)
-            print("📝 Project object created: \(project)")
+            
+            // Issue #51 Fix: For family projects, fetch family members first to populate memberIds correctly
+            var initialMemberIds: [String] = [ownerId]
+            
+            if ownerType == .family {
+                print("👥 Issue #51 Fix: Fetching family members before project creation")
+                do {
+                    let familyDoc = try await Firestore.firestore().collection("families").document(ownerId).getDocument()
+                    if let familyMembers = familyDoc.data()?["members"] as? [String] {
+                        initialMemberIds = Array(Set(familyMembers)) // Remove duplicates
+                        print("👥 Issue #51 Fix: Found \(familyMembers.count) family members: \(familyMembers)")
+                    } else {
+                        print("⚠️ Issue #51 Fix: No family members found, using owner only")
+                    }
+                } catch {
+                    print("⚠️ Issue #51 Fix: Failed to fetch family members: \(error). Using owner only.")
+                    // Fallback to owner only - existing behavior
+                }
+            }
+            
+            // Create project with correct memberIds from the start
+            let project = Project(name: name, description: description, ownerId: ownerId, ownerType: ownerType, initialMemberIds: initialMemberIds)
+            print("📝 Project object created with \(project.memberIds.count) members: \(project)")
             
             print("✅ Validating project...")
             try project.validate()
@@ -104,21 +125,17 @@ class ProjectManager: ObservableObject {
                 try await createProjectMember(ownerMember, in: createdProject.id ?? "")
                 print("👤 Owner member created successfully")
             } else {
-                // Family-owned projects: add all family members, mark creator as owner
-                print("👥 Family-owned project: populating members from family \(ownerId)")
-                let familyDoc = try await Firestore.firestore().collection("families").document(ownerId).getDocument()
-                let familyMembers = (familyDoc.data()? ["members"] as? [String]) ?? []
-                var updated = createdProject
-                updated.memberIds = Array(Set(familyMembers))
-                _ = try await updateProject(updated)
-                // Create member docs
-                for uid in familyMembers {
+                // Family-owned projects: create member entries for all family members
+                print("👥 Family-owned project: creating member entries for \(createdProject.memberIds.count) members")
+                
+                // Issue #51 Fix: memberIds already populated, just create ProjectMember entries
+                for uid in createdProject.memberIds {
                     let role: Role = (uid == createdByUserId) ? .owner : .editor
                     let dn = (uid == createdByUserId) ? AuthenticationManager.shared.currentUser?.name : nil
                     let member = ProjectMember(userId: uid, projectId: createdProject.id ?? "", role: role, invitedBy: createdByUserId, displayName: dn)
                     try await createProjectMember(member, in: createdProject.id ?? "")
                 }
-                print("👥 Family-owned project membership populated: \(familyMembers.count) members")
+                print("👥 Family-owned project member entries created: \(createdProject.memberIds.count) members")
             }
             
             print("✨ Project creation completed successfully!")
