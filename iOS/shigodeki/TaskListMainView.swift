@@ -154,11 +154,24 @@ struct TaskListMainView: View {
             LazyVStack(spacing: 12) {
                 ForEach(viewModel.families) { family in
                     Button(action: {
-                        viewModel.selectFamily(family)
+                        print("📱 [USER ACTION] Family selected: \(family.name)")
+                        
+                        // Issue #55 Fix: Improve tap responsiveness
+                        Task { @MainActor in
+                            // Execute selection first for immediate UI feedback
+                            viewModel.selectFamily(family)
+                            
+                            // Provide haptic feedback after successful selection
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                                impactFeedback.impactOccurred()
+                            }
+                        }
                     }) {
                         FamilySelectionRowView(family: family)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
+                    .contentShape(Rectangle())
                 }
             }
             .padding(.horizontal)
