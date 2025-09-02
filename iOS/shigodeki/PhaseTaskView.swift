@@ -16,6 +16,7 @@ struct PhaseTaskView: View {
     @StateObject private var taskVM = _PhaseTaskVM()
     @StateObject private var sectionManager = PhaseSectionManager()
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.editMode) private var editMode
     // Section CRUD state
     @State private var showingCreateSection = false
     @State private var newSectionName = ""
@@ -161,7 +162,10 @@ struct PhaseTaskView: View {
                             .padding(.vertical, 4)
                             .contentShape(Rectangle())
                             .onTapGesture { selectedTaskId = task.id }
-                            .onDrag { NSItemProvider(object: NSString(string: task.id ?? "")) }
+                            .onDrag { 
+                                // Enable drag both in edit mode and normal mode for cross-section movement
+                                NSItemProvider(object: NSString(string: task.id ?? ""))
+                            }
                             .contextMenu {
                                 Menu("セクションへ移動") {
                                     ForEach(groupedSections, id: \.id) { target in

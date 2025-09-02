@@ -123,7 +123,7 @@ struct ProjectSettingsView: View {
                         TextField("プロジェクト名", text: $projectName)
                             .textInputAutocapitalization(.words)
                             .disableAutocorrection(false)
-                            .onChange(of: projectName) { _ in updateHasChanges() }
+                            .onChange(of: projectName) { _, _ in updateHasChanges() }
                         
                         ZStack(alignment: .topLeading) {
                             if projectDescription.isEmpty {
@@ -141,13 +141,13 @@ struct ProjectSettingsView: View {
                             
                             TextEditor(text: $projectDescription)
                                 .frame(minHeight: 80)
-                                .onChange(of: projectDescription) { _ in updateHasChanges() }
+                                .onChange(of: projectDescription) { _, _ in updateHasChanges() }
                         }
                     }
                     
                     Section(header: Text("ステータス")) {
                         Toggle("完了済み", isOn: $isCompleted)
-                            .onChange(of: isCompleted) { _ in updateHasChanges() }
+                            .onChange(of: isCompleted) { _, _ in updateHasChanges() }
                         
                         if isCompleted {
                             HStack {
@@ -441,7 +441,7 @@ struct ProjectSettingsView: View {
             if let authMgr = authManager {
                 // Firestoreからユーザー情報を取得 - project.createdByを使用
                 let db = Firestore.firestore()
-                let creatorId = project.createdBy ?? project.ownerId
+                let creatorId = project.ownerId
                 let userDoc = try await db.collection("users").document(creatorId).getDocument()
                 
                 if userDoc.exists, let userData = userDoc.data() {
