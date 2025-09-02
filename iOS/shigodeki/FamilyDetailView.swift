@@ -100,7 +100,9 @@ struct FamilyDetailView: View {
                                             .foregroundColor(.secondary)
                                         
                                         if let createdAt = member.createdAt {
-                                            Text("参加日: \(DateFormatter.shortDate.string(from: createdAt))")
+                                            // Issue #48 Fix: Show appropriate date label based on member role
+                                            let dateLabel = member.id == family.members.first ? "作成日" : "参加日"
+                                            Text("\(dateLabel): \(DateFormatter.shortDate.string(from: createdAt))")
                                                 .font(.caption2)
                                                 .foregroundColor(.secondary)
                                         }
@@ -458,7 +460,9 @@ struct MemberRowView: View {
                     .foregroundColor(.secondary)
                 
                 if let createdAt = member.createdAt {
-                    Text("参加日: \(DateFormatter.shortDate.string(from: createdAt))")
+                    // Issue #48 Fix: Show appropriate date label based on member role
+                    let dateLabel = isCreator ? "作成日" : "参加日"
+                    Text("\(dateLabel): \(DateFormatter.shortDate.string(from: createdAt))")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
