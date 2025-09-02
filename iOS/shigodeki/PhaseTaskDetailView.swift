@@ -34,6 +34,7 @@ struct PhaseTaskDetailView: View {
                 Picker("優先度", selection: Binding(get: { task.priority }, set: { newValue in task.priority = newValue; persistChanges() })) {
                     ForEach(TaskPriority.allCases, id: \.self) { p in Text(p.displayName).tag(p) }
                 }
+                .pickerStyle(.menu)
                 DatePicker("締切", selection: Binding(get: { task.dueDate ?? Date() }, set: { newValue in task.dueDate = newValue; persistChanges() }), displayedComponents: [.date, .hourAndMinute])
                     .environment(\.locale, Locale(identifier: "ja_JP"))
                     .opacity(task.dueDate == nil ? 0.6 : 1)
