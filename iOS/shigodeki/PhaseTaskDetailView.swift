@@ -28,16 +28,32 @@ struct PhaseTaskDetailView: View {
     var body: some View {
         Form {
             Section("基本") {
-                TextField("タイトル", text: Binding(get: { task.title }, set: { task.title = $0 }))
-                TextField("説明", text: Binding(get: { task.description ?? "" }, set: { task.description = $0 }))
-                Toggle("完了", isOn: Binding(get: { task.isCompleted }, set: { task.isCompleted = $0 }))
-                Picker("優先度", selection: Binding(get: { task.priority }, set: { task.priority = $0 })) {
+                TextField("タイトル", text: Binding(get: { task.title }, set: { newValue in task.title = newValue; persistChanges() }))
+                TextField("説明", text: Binding(get: { task.description ?? "" }, set: { newValue in task.description = newValue; persistChanges() }))
+                Toggle("完了", isOn: Binding(get: { task.isCompleted }, set: { newValue in task.isCompleted = newValue; persistChanges() }))
+                Picker("優先度", selection: Binding(get: { task.priority }, set: { newValue in task.priority = newValue; persistChanges() })) {
                     ForEach(TaskPriority.allCases, id: \.self) { p in Text(p.displayName).tag(p) }
                 }
-                DatePicker("締切", selection: Binding(get: { task.dueDate ?? Date() }, set: { task.dueDate = $0 }), displayedComponents: [.date, .hourAndMinute])
+                DatePicker("締切", selection: Binding(get: { task.dueDate ?? Date() }, set: { newValue in task.dueDate = newValue; persistChanges() }), displayedComponents: [.date, .hourAndMinute])
                     .environment(\.locale, Locale(identifier: "ja_JP"))
                     .opacity(task.dueDate == nil ? 0.6 : 1)
             }
+            
+            // Issues #57 & #60 Fix: Add scrollable description section with auto-linking
+            if let description = task.description, !description.isEmpty {
+                Section("詳細説明") {
+                    ScrollView {
+                        VStack(alignment: .leading) {
+                            // Issue #60: Auto-link URLs in description text
+                            Text(makeAttributedString(from: description))
+                                .textSelection(.enabled)
+                                .padding(.vertical, 8)
+                        }
+                    }
+                    .frame(maxHeight: 150) // Issue #57: Scrollable with max height
+                }
+            }
+            
             Section("担当・タグ・セクション") {
                 AssigneeSectionView(
                     members: projectMembers,
@@ -101,6 +117,44 @@ struct PhaseTaskDetailView: View {
                         .disabled(newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
+            // Issue #59 Fix: Add URL link section
+            Section("関連リンク") {
+                if let linkURL = task.linkURL, !linkURL.isEmpty {
+                    Link(destination: URL(string: linkURL) ?? URL(string: "https://example.com")!) {
+                        HStack {
+                            Image(systemName: "link")
+                                .foregroundColor(.blue)
+                            Text(linkURL)
+                                .foregroundColor(.blue)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                        }
+                    }
+                } else {
+                    Text("関連リンクがありません")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    TextField("https://example.com", text: Binding(
+                        get: { task.linkURL ?? "" },
+                        set: { newValue in 
+                            task.linkURL = newValue.isEmpty ? nil : newValue
+                            persistChanges()
+                        }
+                    ))
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .keyboardType(.URL)
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                }
+            }
+            
             Section("AI支援") {
                 Button {
                     aiSplit()
@@ -147,7 +201,35 @@ struct WrapTagsView: View {
 
 extension PhaseTaskDetailView {
     private func save() {
-        Task { do { _ = try await taskManager.updatePhaseTask(task); await MainActor.run { dismiss() } } catch { } }
+        // Issue #61 Fix: Proper save operation with user feedback
+        Task {
+            do {
+                // Perform the save operation
+                _ = try await taskManager.updatePhaseTask(task)
+                
+                // Only dismiss on successful save
+                await MainActor.run {
+                    // Provide success feedback (haptic)
+                    let feedbackGenerator = UINotificationFeedbackGenerator()
+                    feedbackGenerator.notificationOccurred(.success)
+                    
+                    // Dismiss the view after successful save
+                    dismiss()
+                }
+            } catch {
+                // Issue #61 Fix: Proper error handling with user feedback
+                await MainActor.run {
+                    print("保存エラー: \(error)")
+                    
+                    // Provide error feedback (haptic)
+                    let feedbackGenerator = UINotificationFeedbackGenerator()
+                    feedbackGenerator.notificationOccurred(.error)
+                    
+                    // TODO: Show error alert to user
+                    // For now, do NOT dismiss - let user retry
+                }
+            }
+        }
     }
 
     private func persistChanges() {
@@ -218,4 +300,32 @@ extension PhaseTaskDetailView {
             Task { do { try await taskManager.updateTaskSection(task, toSectionId: nil, toSectionName: nil); await MainActor.run { task.sectionId = nil; task.sectionName = nil } } catch { } }
         }
     }
+    
+    // Issue #60 Fix: Auto-link URLs in description text
+    private func makeAttributedString(from text: String) -> AttributedString {
+        var attributedString = AttributedString(text)
+        
+        // Simple URL detection using NSDataDetector
+        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        let range = NSRange(location: 0, length: text.utf16.count)
+        
+        detector?.enumerateMatches(in: text, options: [], range: range) { (match, _, _) in
+            guard let match = match, let urlRange = Range(match.range, in: text) else { return }
+            
+            if let url = match.url {
+                // Convert to AttributedString range
+                let startIndex = attributedString.index(attributedString.startIndex, offsetByCharacters: match.range.location)
+                let endIndex = attributedString.index(startIndex, offsetByCharacters: match.range.length)
+                let attributedRange = startIndex..<endIndex
+                
+                // Apply link styling
+                attributedString[attributedRange].foregroundColor = .blue
+                attributedString[attributedRange].underlineStyle = .single
+                attributedString[attributedRange].link = url
+            }
+        }
+        
+        return attributedString
+    }
+    
 }
