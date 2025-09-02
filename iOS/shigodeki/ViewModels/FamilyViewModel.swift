@@ -21,7 +21,7 @@ class FamilyViewModel: ObservableObject {
     // Family creation state
     @Published var isCreatingFamily = false
     @Published var isJoiningFamily = false
-    @Published var showCreateSuccess = false
+    @Published var shouldDismissCreateSheet = false
     @Published var showJoinSuccess = false
     @Published var joinSuccessMessage = ""
     @Published var newFamilyInvitationCode: String?
@@ -127,11 +127,8 @@ class FamilyViewModel: ObservableObject {
                 print("✅ [Issue #42] FamilyViewModel: Family created with optimistic update - ID: \(familyId)")
                 print("📋 [Issue #42] Families array count: \(familyManager.families.count)")
                 
-                // Small delay to let user see the optimistic family in list before success dialog
-                Task {
-                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second
-                    showCreateSuccess = true
-                }
+                // Immediately trigger sheet dismiss
+                shouldDismissCreateSheet = true
             }
             
             return true
@@ -176,7 +173,7 @@ class FamilyViewModel: ObservableObject {
     }
     
     func resetSuccessStates() {
-        showCreateSuccess = false
+        shouldDismissCreateSheet = false
         showJoinSuccess = false
         joinSuccessMessage = ""
         newFamilyInvitationCode = nil
