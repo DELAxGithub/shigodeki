@@ -70,7 +70,7 @@ struct MainTabView: View {
         .environmentObject(sharedManagers) // 🆕 統合されたManager Storeを提供
         .withIntegratedPerformanceMonitoring() // 🆕 統合パフォーマンス監視
         .task {
-            // ⚡ Optimized startup - immediate initialization without artificial delays
+            // Issue #50 Fix: Centralized manager preload to prevent tab-switching data load issues
             #if DEBUG
             let startTime = CFAbsoluteTimeGetCurrent()
             await MainActor.run {
@@ -78,13 +78,13 @@ struct MainTabView: View {
             }
             #endif
             
-            // 🚀 Essential manager initialization - no artificial delays
-            _ = await sharedManagers.getAuthManager()
+            // 🎯 Issue #50 Fix: Preload all managers before tab views initialize their ViewModels
+            await sharedManagers.preloadAllManagers()
             
             #if DEBUG
             await MainActor.run {
                 sharedManagers.logDebugInfo()
-                print("✅ SharedManagerStore: Optimized initialization completed")
+                print("✅ SharedManagerStore: Centralized preload completed for stable tab switching")
                 let elapsedTime = CFAbsoluteTimeGetCurrent() - startTime
                 print("⚡ Performance: MainTabView initialization completed in \(Int(elapsedTime * 1000))ms")
             }
@@ -97,13 +97,22 @@ struct MainTabView: View {
             }
         }
         .onChange(of: selectedTab) { oldVal, newVal in
-            print("🔄 Issue #50 Debug: Tab changed from \(oldVal) to \(newVal)")
+            let timestamp = Date()
+            print("🔄 Issue #50 Debug: Tab changed from \(oldVal) to \(newVal) at \(timestamp)")
+            print("📊 Issue #50 Debug: SharedManagerStore preload status: \(sharedManagers.isPreloaded)")
+            print("🔊 Issue #50 Debug: Active Firebase listeners: \(FirebaseListenerManager.shared.listenerStats.totalActive)")
             
             // Issue #50 Fix: Cancel previous debounce task to prevent overlapping operations
-            tabSwitchDebounceTask?.cancel()
+            if tabSwitchDebounceTask != nil {
+                print("⏹️ Issue #50 Debug: Cancelling previous tab switch task")
+                tabSwitchDebounceTask?.cancel()
+            }
             
             // Issue #50 Fix: Debounce tab notifications to prevent rapid-fire data loading
             tabSwitchDebounceTask = Task {
+                let debounceStart = Date()
+                print("⏳ Issue #50 Debug: Starting 150ms debounce at \(debounceStart)")
+                
                 // Small delay to debounce rapid tab switches
                 try? await Task.sleep(nanoseconds: 150_000_000) // 150ms delay
                 
@@ -112,6 +121,9 @@ struct MainTabView: View {
                     print("🔄 Issue #50 Debug: Tab notification cancelled due to new tab switch")
                     return
                 }
+                
+                let debounceEnd = Date()
+                print("✅ Issue #50 Debug: Debounce completed at \(debounceEnd), elapsed: \(Int((debounceEnd.timeIntervalSince(debounceStart)) * 1000))ms")
                 
                 await MainActor.run {
                     // Issue #46 Fix: Only reset navigation when re-selecting same tab (iOS standard)

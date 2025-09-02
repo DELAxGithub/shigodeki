@@ -160,12 +160,23 @@ struct FamilyView: View {
     // MARK: - Private Methods
     
     private func initializeViewModel() async {
+        // Issue #50 Fix: Wait for centralized preload before initializing ViewModel
+        #if DEBUG
+        print("📱 FamilyView: Waiting for SharedManagerStore preload completion...")
+        #endif
+        
+        // Wait for SharedManagerStore preload to complete to prevent initialization conflicts
+        while !sharedManagers.isPreloaded {
+            try? await Task.sleep(nanoseconds: 10_000_000) // 10ms intervals
+        }
+        
         let familyManager = await sharedManagers.getFamilyManager()
         let authManager = await sharedManagers.getAuthManager()
         
         #if DEBUG
         print("📱 FamilyView: task triggered")
-        print("🔧 FamilyView: Creating ViewModel with FamilyManager and AuthManager")
+        print("🔧 FamilyView: Creating ViewModel with pre-loaded FamilyManager and AuthManager")
+        print("🎯 Issue #50: ViewModel initialization after centralized preload completed")
         #endif
         
         // ViewModelを初期化

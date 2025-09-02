@@ -172,12 +172,23 @@ struct ProjectListView: View {
     // MARK: - Private Methods
     
     private func initializeViewModel() async {
+        // Issue #50 Fix: Wait for centralized preload before initializing ViewModel
+        #if DEBUG
+        print("📱 ProjectListView: Waiting for SharedManagerStore preload completion...")
+        #endif
+        
+        // Wait for SharedManagerStore preload to complete to prevent initialization conflicts
+        while !sharedManagers.isPreloaded {
+            try? await Task.sleep(nanoseconds: 10_000_000) // 10ms intervals
+        }
+        
         let manager = await sharedManagers.getProjectManager()
         let auth = await sharedManagers.getAuthManager()
         
         #if DEBUG
         print("📱 ProjectListView: task triggered")
-        print("🔧 ProjectListView: Creating ViewModel with ProjectManager and AuthManager")
+        print("🔧 ProjectListView: Creating ViewModel with pre-loaded ProjectManager and AuthManager")
+        print("🎯 Issue #50: ViewModel initialization after centralized preload completed")
         #endif
         
         // ViewModelを初期化

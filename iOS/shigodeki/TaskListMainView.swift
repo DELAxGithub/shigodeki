@@ -180,12 +180,23 @@ struct TaskListMainView: View {
     // MARK: - Private Methods
     
     private func initializeViewModel() async {
+        // Issue #50 Fix: Wait for centralized preload before initializing ViewModel
+        #if DEBUG
+        print("📱 TaskListMainView: Waiting for SharedManagerStore preload completion...")
+        #endif
+        
+        // Wait for SharedManagerStore preload to complete to prevent initialization conflicts
+        while !sharedManagers.isPreloaded {
+            try? await Task.sleep(nanoseconds: 10_000_000) // 10ms intervals
+        }
+        
         let familyManager = await sharedManagers.getFamilyManager()
         let authManager = await sharedManagers.getAuthManager()
         
         #if DEBUG
         print("📱 TaskListMainView: task triggered")
-        print("🔧 TaskListMainView: Creating ViewModel with FamilyManager and AuthManager")
+        print("🔧 TaskListMainView: Creating ViewModel with pre-loaded FamilyManager and AuthManager")
+        print("🎯 Issue #50: ViewModel initialization after centralized preload completed")
         #endif
         
         // ViewModelを初期化
