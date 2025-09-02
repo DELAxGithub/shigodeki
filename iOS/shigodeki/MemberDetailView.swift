@@ -252,20 +252,115 @@ struct MemberDetailView: View {
             let db = Firestore.firestore()
             let decoder = Firestore.Decoder()
             
-            // ユーザーが参加しているプロジェクトを取得
+            // Issue #45: Enhanced logging and diagnostics
+            print("🔍 [Issue #45] Loading projects for user: \(userId)")
+            print("🔍 [Issue #45] Query: projects.whereField('memberIds', arrayContains: '\(userId)')")
+            
+            // PRIMARY QUERY: Standard memberIds query (existing logic)
             let projectSnapshot = try await db.collection("projects")
                 .whereField("memberIds", arrayContains: userId)
                 .getDocuments()
             
-            let projects = try projectSnapshot.documents.compactMap { doc -> Project? in
-                try doc.data(as: Project.self, decoder: decoder)
+            print("📊 [Issue #45] Primary query returned \(projectSnapshot.documents.count) documents")
+            
+            var projects = try projectSnapshot.documents.compactMap { doc -> Project? in
+                let project = try doc.data(as: Project.self, decoder: decoder)
+                print("📄 [Issue #45] Found project: '\(project.name)' (ID: \(project.id ?? "NO_ID"))")
+                return project
             }
             
-            userProjects = projects.sorted { ($0.lastModifiedAt ?? Date.distantPast) > ($1.lastModifiedAt ?? Date.distantPast) }
+            // Issue #45: Fallback query if primary returns empty results
+            if projects.isEmpty {
+                print("⚠️ [Issue #45] Primary query returned no projects, attempting diagnostic and fallback...")
+                await diagnoseMissingProjects(userId: userId, db: db)
+                
+                // FALLBACK QUERY: Try User.projectIds approach
+                print("🔄 [Issue #45] Attempting fallback query via User.projectIds...")
+                do {
+                    let userDoc = try await db.collection("users").document(userId).getDocument()
+                    if let userData = userDoc.data(),
+                       let projectIds = userData["projectIds"] as? [String],
+                       !projectIds.isEmpty {
+                        
+                        print("🔄 [Issue #45] User.projectIds contains: \(projectIds)")
+                        for projectId in projectIds {
+                            do {
+                                let projectDoc = try await db.collection("projects").document(projectId).getDocument()
+                                if let project = try? projectDoc.data(as: Project.self, decoder: decoder) {
+                                    projects.append(project)
+                                    print("✅ [Issue #45] Fallback found project: '\(project.name)'")
+                                }
+                            } catch {
+                                print("⚠️ [Issue #45] Fallback failed for project \(projectId): \(error)")
+                            }
+                        }
+                    } else {
+                        print("👤 [Issue #45] User document has no projectIds or user not found")
+                    }
+                } catch {
+                    print("❌ [Issue #45] Fallback query error: \(error)")
+                }
+            }
+            
+            let finalProjects = projects.sorted { ($0.lastModifiedAt ?? Date.distantPast) > ($1.lastModifiedAt ?? Date.distantPast) }
+            userProjects = finalProjects
+            
+            print("✅ [Issue #45] Final result: \(finalProjects.count) projects loaded for user")
+            for (index, project) in finalProjects.enumerated() {
+                print("  \(index + 1). '\(project.name)' (Owner: \(project.ownerId))")
+            }
             
         } catch {
-            print("Error loading user projects: \(error)")
+            print("❌ [Issue #45] Error loading user projects: \(error)")
             userProjects = []
+        }
+    }
+    
+    // Issue #45: Diagnostic function to identify data inconsistencies
+    private func diagnoseMissingProjects(userId: String, db: Firestore) async {
+        do {
+            print("🔬 [Issue #45] Running diagnostic for missing projects...")
+            
+            // Check if user document exists and has projectIds
+            let userDoc = try await db.collection("users").document(userId).getDocument()
+            if let userData = userDoc.data() {
+                let projectIds = userData["projectIds"] as? [String] ?? []
+                let userEmail = userData["email"] as? String ?? "Unknown"
+                let userName = userData["name"] as? String ?? "Unknown"
+                
+                print("👤 [Issue #45] User '\(userName)' (\(userEmail)) has projectIds: \(projectIds)")
+                
+                if projectIds.isEmpty {
+                    print("💡 [Issue #45] User has no projects in projectIds - this may be expected for new users")
+                } else {
+                    // Check each project the user claims to be in
+                    for projectId in projectIds {
+                        let projectDoc = try await db.collection("projects").document(projectId).getDocument()
+                        if projectDoc.exists, let projectData = projectDoc.data() {
+                            let name = projectData["name"] as? String ?? "Unknown"
+                            let memberIds = projectData["memberIds"] as? [String] ?? []
+                            let ownerId = projectData["ownerId"] as? String ?? "Unknown"
+                            
+                            print("📄 [Issue #45] Project '\(name)' (Owner: \(ownerId)):")
+                            print("   memberIds: \(memberIds)")
+                            print("   user in memberIds: \(memberIds.contains(userId))")
+                            
+                            if !memberIds.contains(userId) {
+                                print("❌ [Issue #45] DATA INCONSISTENCY FOUND:")
+                                print("   User '\(userName)' is in User.projectIds but NOT in Project.memberIds")
+                                print("   This explains why the primary query didn't find this project")
+                            }
+                        } else {
+                            print("⚠️ [Issue #45] Project '\(projectId)' in user's projectIds but project document not found")
+                        }
+                    }
+                }
+            } else {
+                print("❌ [Issue #45] User document not found for userId: \(userId)")
+            }
+            
+        } catch {
+            print("❌ [Issue #45] Diagnostic error: \(error)")
         }
     }
     
