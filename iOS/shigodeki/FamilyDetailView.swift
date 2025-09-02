@@ -11,6 +11,8 @@ import FirebaseFirestore
 struct FamilyDetailView: View {
     let family: Family
     @EnvironmentObject var sharedManagers: SharedManagerStore
+    // Issue #49 Fix: Add dismiss environment for screen navigation after family leave
+    @Environment(\.dismiss) private var dismiss
     @State private var authManager: AuthenticationManager?
     @State private var familyManager: FamilyManager?
     @State private var projectManager: ProjectManager?
@@ -410,8 +412,9 @@ struct FamilyDetailView: View {
                 
                 await MainActor.run {
                     // 退出成功時は画面を閉じる（管理者・一般メンバー共通）
-                    // SwiftUIのナビゲーション管理はFamilyManagerの楽観更新とFamilyViewのリスナーで処理
-                    print("✅ Family exit successful - UI will update via listeners")
+                    print("✅ Family exit successful - dismissing screen")
+                    // Issue #49 Fix: Automatically dismiss FamilyDetailView after successful leave
+                    dismiss()
                 }
             } catch {
                 print("Error leaving family: \(error)")
