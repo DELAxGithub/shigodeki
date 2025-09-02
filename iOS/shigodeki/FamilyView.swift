@@ -262,7 +262,7 @@ struct CreateFamilyView: View {
                 }
             } message: {
                 if let invitationCode = viewModel?.newFamilyInvitationCode {
-                    Text("招待コード: \(invitationCode)\n\nこのコードを家族に共有して参加してもらいましょう。")
+                    Text("作成した家族は上記のリストに表示されています。\n\n招待コード: \(invitationCode)\n\nこのコードを家族に共有して参加してもらいましょう。")
                 }
             }
         }

@@ -124,8 +124,14 @@ class FamilyViewModel: ObservableObject {
             
             await MainActor.run {
                 newFamilyInvitationCode = invitationCode
-                showCreateSuccess = true
-                print("✅ FamilyViewModel: Family created successfully with invitation code: \(invitationCode)")
+                print("✅ [Issue #42] FamilyViewModel: Family created with optimistic update - ID: \(familyId)")
+                print("📋 [Issue #42] Families array count: \(familyManager.families.count)")
+                
+                // Small delay to let user see the optimistic family in list before success dialog
+                Task {
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second
+                    showCreateSuccess = true
+                }
             }
             
             return true
