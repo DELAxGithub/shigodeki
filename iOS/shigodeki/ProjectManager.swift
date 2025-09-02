@@ -361,11 +361,22 @@ class ProjectManager: ObservableObject {
         var map: [String: Project] = [:]
         func applyMerged() {
             let now = Date()
-            // TTLガード: 最近ローカル変更があり、受信が空なら維持
             let remoteList = Array(map.values)
-            if remoteList.isEmpty && !projects.isEmpty && now.timeIntervalSince(lastLocalChangeAt) < pendingTTL {
-                print("⚠️ ProjectManager: Ignoring empty merged snapshot due to TTL")
+            
+            // Issue #53 Fix: Improved TTL guard logic
+            // Only ignore empty snapshots if we have pending operations AND it's within TTL
+            let hasPendingOperations = !pendingProjectTimestamps.isEmpty
+            let withinTTL = now.timeIntervalSince(lastLocalChangeAt) < pendingTTL
+            
+            if remoteList.isEmpty && !projects.isEmpty && hasPendingOperations && withinTTL {
+                print("⚠️ ProjectManager: Ignoring empty merged snapshot due to pending operations (TTL protection)")
+                print("   Pending operations: \(pendingProjectTimestamps.keys.count)")
+                print("   Time since last change: \(String(format: "%.2f", now.timeIntervalSince(lastLocalChangeAt)))s")
                 return
+            } else if remoteList.isEmpty && !projects.isEmpty {
+                print("💥 ProjectManager: Applying empty snapshot - clearing local cache")
+                print("   Reason: No pending operations or TTL expired")
+                print("   Previous projects: \(projects.count)")
             }
             // 既存とのマージ（ペンディング優先）
             var remoteMap: [String: Project] = [:]
@@ -495,6 +506,46 @@ class ProjectManager: ObservableObject {
         
         // デバッグ情報の出力
         listenerManager.logDebugInfo()
+    }
+    
+    // MARK: - Issue #53 Fix: Cache Management
+    
+    /// Clear local cache when all data is deleted (e.g., test environment cleanup)
+    /// This fixes Issue #53 where deleted data reappears after navigation
+    func clearLocalCache(reason: String = "manual") {
+        print("🗑️ ProjectManager: Clearing local cache - Reason: \(reason)")
+        print("   Before clear: \(projects.count) projects, currentProject: \(currentProject?.name ?? "none")")
+        
+        // Clear all local project data
+        projects.removeAll()
+        currentProject = nil
+        
+        // Clear pending timestamps to prevent TTL protection
+        pendingProjectTimestamps.removeAll()
+        lastLocalChangeAt = .distantPast
+        
+        // Clear any error state
+        error = nil
+        
+        print("✅ ProjectManager: Local cache cleared successfully")
+        print("   After clear: \(projects.count) projects, currentProject: \(currentProject?.name ?? "none")")
+    }
+    
+    /// Invalidate cache and force refresh from remote
+    /// This ensures data consistency after external data changes
+    func invalidateCacheAndRefresh(userId: String, reason: String = "cache_invalidation") {
+        print("💥 ProjectManager: Invalidating cache and refreshing - Reason: \(reason)")
+        
+        // Clear local cache first
+        clearLocalCache(reason: reason)
+        
+        // Restart listeners to get fresh data from Firestore
+        if !userId.isEmpty {
+            removeAllListeners() 
+            startListeningForUserProjects(userId: userId)
+        }
+        
+        print("🔄 ProjectManager: Cache invalidation and refresh completed")
     }
     
     // 🆕 特定のリスナーのみ削除

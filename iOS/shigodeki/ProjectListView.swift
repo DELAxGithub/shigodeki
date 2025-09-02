@@ -98,6 +98,9 @@ struct ProjectListView: View {
         .onReceive(NotificationCenter.default.publisher(for: .projectTabSelected)) { _ in
             // Reset navigation stack to show the root list when project tab is selected
             navigationResetId = UUID()
+            
+            // Issue #53 Fix: Validate cache consistency when tab is selected
+            viewModel?.onTabSelected()
         }
         .onChange(of: viewModel?.filteredProjects.count ?? 0) { _, newCount in
             #if DEBUG
