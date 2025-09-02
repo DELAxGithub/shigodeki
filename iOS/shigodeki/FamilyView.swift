@@ -321,17 +321,6 @@ struct JoinFamilyView: View {
                     .accessibilityIdentifier("join_family_confirm")
                 }
             }
-            .alert("参加完了", isPresented: Binding(
-                get: { viewModel?.showJoinSuccess ?? false },
-                set: { _ in viewModel?.resetSuccessStates() }
-            )) {
-                Button("OK") {
-                    viewModel?.resetSuccessStates()
-                    dismiss()
-                }
-            } message: {
-                Text(viewModel?.joinSuccessMessage ?? "家族グループに参加しました！")
-            }
             .alert("エラー", isPresented: Binding(
                 get: { viewModel?.error != nil },
                 set: { _ in viewModel?.clearError() }
@@ -354,7 +343,12 @@ struct JoinFamilyView: View {
         guard !trimmedCode.isEmpty else { return }
         
         Task {
-            await viewModel?.joinFamily(invitationCode: trimmedCode)
+            let success = await viewModel?.joinFamily(invitationCode: trimmedCode) ?? false
+            if success {
+                // 成功時は即座に画面を閉じる（楽観的更新で一覧に反映済み）
+                dismiss()
+            }
+            // エラー時はエラーアラートが表示される（画面は開いたまま）
         }
     }
 }
