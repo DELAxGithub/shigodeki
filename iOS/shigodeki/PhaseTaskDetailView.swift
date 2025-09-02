@@ -30,7 +30,14 @@ struct PhaseTaskDetailView: View {
             Section("基本") {
                 TextField("タイトル", text: Binding(get: { task.title }, set: { newValue in task.title = newValue; persistChanges() }))
                 TextField("説明", text: Binding(get: { task.description ?? "" }, set: { newValue in task.description = newValue; persistChanges() }))
-                Toggle("完了", isOn: Binding(get: { task.isCompleted }, set: { newValue in task.isCompleted = newValue; persistChanges() }))
+                Toggle("完了", isOn: Binding(
+                    get: { task.isCompleted },
+                    set: { newValue in 
+                        task.isCompleted = newValue
+                        task.completedAt = newValue ? Date() : nil
+                        persistChanges()
+                    }
+                ))
                 Picker("優先度", selection: Binding(get: { task.priority }, set: { newValue in task.priority = newValue; persistChanges() })) {
                     ForEach(TaskPriority.allCases, id: \.self) { p in Text(p.displayName).tag(p) }
                 }
