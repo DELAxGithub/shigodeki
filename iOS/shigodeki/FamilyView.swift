@@ -252,17 +252,10 @@ struct CreateFamilyView: View {
                     .accessibilityIdentifier("create_family_confirm")
                 }
             }
-            .alert("家族グループが作成されました", isPresented: Binding(
-                get: { viewModel?.showCreateSuccess ?? false },
-                set: { _ in viewModel?.resetSuccessStates() }
-            )) {
-                Button("OK") {
-                    viewModel?.resetSuccessStates()
+            .onChange(of: viewModel?.shouldDismissCreateSheet) { shouldDismiss in
+                if shouldDismiss == true {
                     dismiss()
-                }
-            } message: {
-                if let invitationCode = viewModel?.newFamilyInvitationCode {
-                    Text("招待コード: \(invitationCode)\n\nこのコードを家族に共有して参加してもらいましょう。")
+                    viewModel?.resetSuccessStates()
                 }
             }
         }

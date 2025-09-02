@@ -21,7 +21,7 @@ class FamilyViewModel: ObservableObject {
     // Family creation state
     @Published var isCreatingFamily = false
     @Published var isJoiningFamily = false
-    @Published var showCreateSuccess = false
+    @Published var shouldDismissCreateSheet = false
     @Published var showJoinSuccess = false
     @Published var joinSuccessMessage = ""
     @Published var newFamilyInvitationCode: String?
@@ -124,8 +124,11 @@ class FamilyViewModel: ObservableObject {
             
             await MainActor.run {
                 newFamilyInvitationCode = invitationCode
-                showCreateSuccess = true
-                print("✅ FamilyViewModel: Family created successfully with invitation code: \(invitationCode)")
+                print("✅ [Issue #42] FamilyViewModel: Family created with optimistic update - ID: \(familyId)")
+                print("📋 [Issue #42] Families array count: \(familyManager.families.count)")
+                
+                // Immediately trigger sheet dismiss
+                shouldDismissCreateSheet = true
             }
             
             return true
@@ -149,12 +152,13 @@ class FamilyViewModel: ObservableObject {
         defer { isJoiningFamily = false }
         
         do {
-            let familyName = try await familyManager.joinFamilyWithCode(invitationCode, userId: userId)
+            // Issue #43: Use optimistic updates for immediate family list reflection
+            let familyName = try await familyManager.joinFamilyWithCodeOptimistic(invitationCode, userId: userId)
             
             await MainActor.run {
                 joinSuccessMessage = "「\(familyName)」に参加しました！"
                 showJoinSuccess = true
-                print("✅ FamilyViewModel: Successfully joined family: \(familyName)")
+                print("✅ [Issue #43] FamilyViewModel: Successfully joined family: \(familyName) (optimistic)")
             }
             
             return true
@@ -169,7 +173,7 @@ class FamilyViewModel: ObservableObject {
     }
     
     func resetSuccessStates() {
-        showCreateSuccess = false
+        shouldDismissCreateSheet = false
         showJoinSuccess = false
         joinSuccessMessage = ""
         newFamilyInvitationCode = nil

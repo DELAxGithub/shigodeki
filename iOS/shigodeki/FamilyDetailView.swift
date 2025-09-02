@@ -11,6 +11,8 @@ import FirebaseFirestore
 struct FamilyDetailView: View {
     let family: Family
     @EnvironmentObject var sharedManagers: SharedManagerStore
+    // Issue #49 Fix: Add dismiss environment for screen navigation after family leave
+    @Environment(\.dismiss) private var dismiss
     @State private var authManager: AuthenticationManager?
     @State private var familyManager: FamilyManager?
     @State private var projectManager: ProjectManager?
@@ -21,6 +23,8 @@ struct FamilyDetailView: View {
     @State private var isLoadingMembers = false
     @State private var familyProjects: [Project] = []
     @State private var showingCreateProject = false
+    // Issue #44: Add retry mechanism for failed member loads
+    @State private var retryingMembers: Set<String> = []
     
     private var isCurrentUserCreator: Bool {
         guard let userId = authManager?.currentUser?.id else { return false }
@@ -69,48 +73,91 @@ struct FamilyDetailView: View {
                 } else if !familyMembers.isEmpty {
                     ForEach(Array(familyMembers.enumerated()), id: \.element.id) { index, member in
                         HStack {
-                            // メンバー情報部分（タップで詳細画面へ）
-                            NavigationLink(destination: MemberDetailView(member: member).environmentObject(sharedManagers)) {
+                            // Issue #44: Check if this is an error member and show retry option
+                            if member.name.contains("エラー") || member.name.contains("Load Error") {
+                                // Error member with retry functionality
                                 HStack {
-                                    Image(systemName: member.id == family.members.first ? "crown.fill" : "person.circle.fill")
+                                    Image(systemName: "exclamationmark.triangle.fill")
                                         .font(.title3)
-                                        .foregroundColor(member.id == family.members.first ? .orange : .blue)
+                                        .foregroundColor(.red)
                                         .frame(width: 30)
                                     
                                     VStack(alignment: .leading, spacing: 2) {
-                                        HStack {
-                                            Text(member.name)
-                                                .font(.headline)
-                                            
-                                            if member.id == family.members.first {
-                                                Text("作成者")
-                                                    .font(.caption)
-                                                    .padding(.horizontal, 6)
-                                                    .padding(.vertical, 2)
-                                                    .background(Color.orange.opacity(0.2))
-                                                    .foregroundColor(.orange)
-                                                    .cornerRadius(4)
-                                            }
-                                        }
+                                        Text(member.name)
+                                            .font(.headline)
+                                            .foregroundColor(.primary)
                                         
-                                        Text(member.email)
+                                        Text("タップして再試行")
                                             .font(.caption)
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(.blue)
                                         
-                                        if let createdAt = member.createdAt {
-                                            Text("参加日: \(DateFormatter.shortDate.string(from: createdAt))")
+                                        if !member.email.isEmpty && !member.email.contains("エラー") {
+                                            Text(member.email)
                                                 .font(.caption2)
                                                 .foregroundColor(.secondary)
                                         }
                                     }
                                     
                                     Spacer()
+                                    
+                                    if retryingMembers.contains(member.id ?? "") {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                    } else {
+                                        Image(systemName: "arrow.clockwise")
+                                            .foregroundColor(.blue)
+                                    }
                                 }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    retryMemberLoad(memberId: member.id ?? "")
+                                }
+                            } else {
+                                // Normal member - show navigation link
+                                NavigationLink(destination: MemberDetailView(member: member).environmentObject(sharedManagers)) {
+                                    HStack {
+                                        Image(systemName: member.id == family.members.first ? "crown.fill" : "person.circle.fill")
+                                            .font(.title3)
+                                            .foregroundColor(member.id == family.members.first ? .orange : .blue)
+                                            .frame(width: 30)
+                                        
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            HStack {
+                                                Text(member.name)
+                                                    .font(.headline)
+                                                
+                                                if member.id == family.members.first {
+                                                    Text("作成者")
+                                                        .font(.caption)
+                                                        .padding(.horizontal, 6)
+                                                        .padding(.vertical, 2)
+                                                        .background(Color.orange.opacity(0.2))
+                                                        .foregroundColor(.orange)
+                                                        .cornerRadius(4)
+                                                }
+                                            }
+                                            
+                                            Text(member.email)
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            
+                                            if let createdAt = member.createdAt {
+                                                // Issue #48 Fix: Show appropriate date label based on member role
+                                                let dateLabel = member.id == family.members.first ? "作成日" : "参加日"
+                                                Text("\(dateLabel): \(DateFormatter.shortDate.string(from: createdAt))")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        }
+                                        
+                                        Spacer()
+                                    }
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
-                            .buttonStyle(PlainButtonStyle())
                             
-                            // 削除ボタン（作成者のみ表示）
-                            if isCurrentUserCreator && member.id != authManager?.currentUser?.id {
+                            // 削除ボタン（作成者のみ表示、エラーメンバー以外）
+                            if isCurrentUserCreator && member.id != authManager?.currentUser?.id && !member.name.contains("エラー") && !member.name.contains("Load Error") {
                                 Button(action: { removeMember(member) }) {
                                     Image(systemName: "minus.circle")
                                         .foregroundColor(.red)
@@ -272,77 +319,215 @@ struct FamilyDetailView: View {
         
         isLoadingMembers = true
         Task {
-            do {
-                let db = Firestore.firestore()
-                let memberIds = family.members
-                let decoder = Firestore.Decoder()
-                
-                // 順序を保証するため、順次処理でユーザー情報を取得
-                var loadedMembers: [User] = []
-                
-                for memberId in memberIds {
-                    do {
-                        let userDoc = try await db.collection("users").document(memberId).getDocument()
-                        
-                        if userDoc.exists {
-                            do {
-                                // 最新のUserモデルでデコードを試行
-                                var user = try userDoc.data(as: User.self, decoder: decoder)
+            await loadMembersInternal(memberIds: family.members)
+        }
+    }
+    
+    // Issue #44: Extracted member loading logic for reuse in retry functionality
+    private func loadMembersInternal(memberIds: [String]) async {
+        do {
+            let db = Firestore.firestore()
+            let decoder = Firestore.Decoder()
+            
+            print("🔍 [Issue #44] Loading \(memberIds.count) family members")
+            
+            // 順序を保証するため、順次処理でユーザー情報を取得
+            var loadedMembers: [User] = []
+            
+            for memberId in memberIds {
+                print("🔍 [Issue #44] Loading member: \(memberId)")
+                do {
+                    let userDoc = try await db.collection("users").document(memberId).getDocument()
+                    
+                    if userDoc.exists {
+                        do {
+                            // 最新のUserモデルでデコードを試行
+                            var user = try userDoc.data(as: User.self, decoder: decoder)
+                            user.id = memberId
+                            loadedMembers.append(user)
+                            print("✅ [Issue #44] Successfully loaded user: \(user.name)")
+                        } catch {
+                            // デコードに失敗した場合、手動でフィールドを取得してフォールバック
+                            print("⚠️ [Issue #44] Decode failed for user \(memberId), using manual parsing: \(error)")
+                            if let data = userDoc.data() {
+                                var user = User(
+                                    name: data["name"] as? String ?? "Unknown User",
+                                    email: data["email"] as? String ?? "",
+                                    projectIds: data["projectIds"] as? [String] ?? [],
+                                    roleAssignments: [:] // 複雑なRoleデータは初期化時は空にする
+                                )
                                 user.id = memberId
+                                user.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
+                                user.lastActiveAt = (data["lastActiveAt"] as? Timestamp)?.dateValue()
                                 loadedMembers.append(user)
-                                print("✅ Successfully loaded user: \(user.name)")
-                            } catch {
-                                // デコードに失敗した場合、手動でフィールドを取得してフォールバック
-                                print("⚠️ Decode failed for user \(memberId), using manual parsing: \(error)")
-                                if let data = userDoc.data() {
-                                    var user = User(
-                                        name: data["name"] as? String ?? "Unknown User",
-                                        email: data["email"] as? String ?? "",
-                                        projectIds: data["projectIds"] as? [String] ?? [],
-                                        roleAssignments: [:] // 複雑なRoleデータは初期化時は空にする
-                                    )
-                                    user.id = memberId
-                                    user.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
-                                    user.lastActiveAt = (data["lastActiveAt"] as? Timestamp)?.dateValue()
-                                    loadedMembers.append(user)
-                                }
+                                print("✅ [Issue #44] Successfully parsed user manually: \(user.name)")
                             }
-                        } else {
-                            // ユーザードキュメントが存在しない場合のフォールバック
-                            var placeholderUser = User(
-                                name: "Unknown User (\(String(memberId.prefix(8))))",
-                                email: "",
-                                projectIds: [],
-                                roleAssignments: [:]
-                            )
-                            placeholderUser.id = memberId
-                            loadedMembers.append(placeholderUser)
-                            print("⚠️ User document not found for ID: \(memberId)")
                         }
-                    } catch {
-                        print("❌ Error loading user \(memberId): \(error)")
-                        // エラーでも順序を保つため、プレースホルダーユーザーを追加
-                        var errorUser = User(
-                            name: "Load Error (\(String(memberId.prefix(8))))",
-                            email: "エラーにより読み込めませんでした",
+                    } else {
+                        // ユーザードキュメントが存在しない場合のフォールバック
+                        var placeholderUser = User(
+                            name: "ユーザーが見つかりません",
+                            email: "ユーザーID: \(String(memberId.prefix(8)))",
                             projectIds: [],
                             roleAssignments: [:]
                         )
-                        errorUser.id = memberId
-                        loadedMembers.append(errorUser)
+                        placeholderUser.id = memberId
+                        loadedMembers.append(placeholderUser)
+                        print("⚠️ [Issue #44] User document not found for ID: \(memberId)")
+                    }
+                } catch {
+                    print("❌ [Issue #44] Error loading user \(memberId): \(error)")
+                    
+                    // Issue #44 Fix: Create user-friendly error messages based on error type
+                    let errorName: String
+                    let errorDescription = error.localizedDescription.lowercased()
+                    
+                    if errorDescription.contains("network") || errorDescription.contains("connection") {
+                        errorName = "接続エラー"
+                    } else if errorDescription.contains("permission") || errorDescription.contains("denied") {
+                        errorName = "アクセス権限がありません"
+                    } else if errorDescription.contains("timeout") {
+                        errorName = "読み込みタイムアウト"
+                    } else {
+                        errorName = "エラーにより読み込めませんでした"
+                    }
+                    
+                    var errorUser = User(
+                        name: errorName,
+                        email: "ユーザーID: \(String(memberId.prefix(8)))",
+                        projectIds: [],
+                        roleAssignments: [:]
+                    )
+                    errorUser.id = memberId
+                    loadedMembers.append(errorUser)
+                }
+            }
+            
+            await MainActor.run {
+                familyMembers = loadedMembers
+                isLoadingMembers = false
+                print("✅ [Issue #44] Successfully loaded \(loadedMembers.count) members")
+                
+                // Log summary of member loading results
+                let successCount = loadedMembers.filter { !$0.name.contains("エラー") && !$0.name.contains("見つかりません") }.count
+                let errorCount = loadedMembers.count - successCount
+                print("📊 [Issue #44] Loading summary: \(successCount) success, \(errorCount) errors")
+            }
+            
+        } catch {
+            await MainActor.run { 
+                isLoadingMembers = false 
+                print("❌ [Issue #44] Critical error in loadFamilyMembers: \(error)")
+            }
+        }
+    }
+    
+    // Issue #44: Retry mechanism for individual failed member loads
+    private func retryMemberLoad(memberId: String) {
+        print("🔄 [Issue #44] Retrying member load for: \(memberId)")
+        retryingMembers.insert(memberId)
+        
+        Task {
+            await loadSingleMember(memberId: memberId)
+            await MainActor.run {
+                retryingMembers.remove(memberId)
+            }
+        }
+    }
+    
+    // Issue #44: Load a single member and update the family members array
+    private func loadSingleMember(memberId: String) async {
+        do {
+            let db = Firestore.firestore()
+            let decoder = Firestore.Decoder()
+            
+            print("🔄 [Issue #44] Retrying single member: \(memberId)")
+            
+            let userDoc = try await db.collection("users").document(memberId).getDocument()
+            
+            var newUser: User
+            
+            if userDoc.exists {
+                do {
+                    // 最新のUserモデルでデコードを試行
+                    var user = try userDoc.data(as: User.self, decoder: decoder)
+                    user.id = memberId
+                    newUser = user
+                    print("✅ [Issue #44] Retry successful for user: \(user.name)")
+                } catch {
+                    // デコードに失敗した場合、手動でフィールドを取得してフォールバック
+                    print("⚠️ [Issue #44] Retry: Decode failed, using manual parsing: \(error)")
+                    if let data = userDoc.data() {
+                        var user = User(
+                            name: data["name"] as? String ?? "Unknown User",
+                            email: data["email"] as? String ?? "",
+                            projectIds: data["projectIds"] as? [String] ?? [],
+                            roleAssignments: [:]
+                        )
+                        user.id = memberId
+                        user.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
+                        user.lastActiveAt = (data["lastActiveAt"] as? Timestamp)?.dateValue()
+                        newUser = user
+                        print("✅ [Issue #44] Retry successful with manual parsing: \(user.name)")
+                    } else {
+                        // Still failed, create error user
+                        newUser = User(
+                            name: "エラーにより読み込めませんでした",
+                            email: "ユーザーID: \(String(memberId.prefix(8)))",
+                            projectIds: [],
+                            roleAssignments: [:]
+                        )
+                        newUser.id = memberId
+                        print("❌ [Issue #44] Retry failed: manual parsing also failed")
                     }
                 }
-                
-                await MainActor.run {
-                    familyMembers = loadedMembers
-                    isLoadingMembers = false
-                    print("✅ Successfully loaded \(loadedMembers.count) members")
+            } else {
+                // ユーザードキュメントが存在しない場合
+                newUser = User(
+                    name: "ユーザーが見つかりません",
+                    email: "ユーザーID: \(String(memberId.prefix(8)))",
+                    projectIds: [],
+                    roleAssignments: [:]
+                )
+                newUser.id = memberId
+                print("⚠️ [Issue #44] Retry: User document still not found: \(memberId)")
+            }
+            
+            // Update the specific member in the family members array
+            await MainActor.run {
+                if let index = familyMembers.firstIndex(where: { $0.id == memberId }) {
+                    familyMembers[index] = newUser
+                    print("✅ [Issue #44] Updated member at index \(index): \(newUser.name)")
                 }
-                
-            } catch {
-                await MainActor.run { 
-                    isLoadingMembers = false 
-                    print("❌ Critical error in loadFamilyMembers: \(error)")
+            }
+            
+        } catch {
+            print("❌ [Issue #44] Retry failed for \(memberId): \(error)")
+            
+            // Create error user for failed retry
+            let errorName: String
+            let errorDescription = error.localizedDescription.lowercased()
+            
+            if errorDescription.contains("network") || errorDescription.contains("connection") {
+                errorName = "接続エラー (再試行失敗)"
+            } else if errorDescription.contains("permission") || errorDescription.contains("denied") {
+                errorName = "アクセス権限がありません"
+            } else {
+                errorName = "エラーにより読み込めませんでした"
+            }
+            
+            let errorUser = User(
+                name: errorName,
+                email: "ユーザーID: \(String(memberId.prefix(8)))",
+                projectIds: [],
+                roleAssignments: [:]
+            )
+            
+            await MainActor.run {
+                if let index = familyMembers.firstIndex(where: { $0.id == memberId }) {
+                    var updatedUser = errorUser
+                    updatedUser.id = memberId
+                    familyMembers[index] = updatedUser
                 }
             }
         }
@@ -410,8 +595,9 @@ struct FamilyDetailView: View {
                 
                 await MainActor.run {
                     // 退出成功時は画面を閉じる（管理者・一般メンバー共通）
-                    // SwiftUIのナビゲーション管理はFamilyManagerの楽観更新とFamilyViewのリスナーで処理
-                    print("✅ Family exit successful - UI will update via listeners")
+                    print("✅ Family exit successful - dismissing screen")
+                    // Issue #49 Fix: Automatically dismiss FamilyDetailView after successful leave
+                    dismiss()
                 }
             } catch {
                 print("Error leaving family: \(error)")
@@ -455,7 +641,9 @@ struct MemberRowView: View {
                     .foregroundColor(.secondary)
                 
                 if let createdAt = member.createdAt {
-                    Text("参加日: \(DateFormatter.shortDate.string(from: createdAt))")
+                    // Issue #48 Fix: Show appropriate date label based on member role
+                    let dateLabel = isCreator ? "作成日" : "参加日"
+                    Text("\(dateLabel): \(DateFormatter.shortDate.string(from: createdAt))")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }

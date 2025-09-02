@@ -44,6 +44,8 @@ class ProjectListViewModel: ObservableObject {
     private let loadCooldownInterval: TimeInterval = 1.0
     private var lastAuthStateChange: Date? = nil
     private let authChangeCooldown: TimeInterval = 2.0
+    // Issue #50 Fix: Add task cancellation for tab validation operations
+    private var tabValidationTask: Task<Void, Never>?
     
     // MARK: - Access to ProjectManager for Views that need it
     var projectManagerForViews: ProjectManager {

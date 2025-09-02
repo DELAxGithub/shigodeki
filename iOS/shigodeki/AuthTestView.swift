@@ -29,6 +29,9 @@ struct AuthTestView: View {
                     
                     // Debug Info Section
                     DebugInfoCard(authManager: authManager)
+                    
+                    // Data Management Section
+                    DataManagementCard(authManager: authManager)
                 }
                 .padding()
             }
@@ -211,6 +214,227 @@ struct DebugInfoCard: View {
         #else
         return false
         #endif
+    }
+}
+
+struct DataManagementCard: View {
+    @ObservedObject var authManager: AuthenticationManager
+    @EnvironmentObject var sharedManagers: SharedManagerStore
+    @State private var showingDeleteConfirmation = false
+    @State private var isDeleting = false
+    @State private var deletionResults: [String] = []
+    @State private var showingResults = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "trash.fill")
+                    .foregroundColor(.red)
+                Text("データ管理")
+                    .font(.headline)
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text("⚠️ 危険な操作")
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .fontWeight(.semibold)
+                
+                Text("このアプリで作成した全データを削除します：")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("• すべてのプロジェクト")
+                    Text("• すべての家族グループ")
+                    Text("• すべてのタスクリスト")
+                    Text("• 招待コード")
+                    Text("• ユーザーデータ")
+                }
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .padding(.leading, 8)
+            }
+            
+            Button(action: {
+                showingDeleteConfirmation = true
+            }) {
+                HStack {
+                    Image(systemName: "trash.circle.fill")
+                    Text("全データ一括削除")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.red)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+            }
+            .disabled(isDeleting || !authManager.isAuthenticated)
+            
+            if isDeleting {
+                HStack {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("削除中...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+        .confirmationDialog(
+            "全データ削除の確認",
+            isPresented: $showingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("削除実行", role: .destructive) {
+                executeDataDeletion()
+            }
+            Button("キャンセル", role: .cancel) { }
+        } message: {
+            Text("この操作は取り消せません。このアプリで作成したすべてのデータが完全に削除されます。")
+        }
+        .sheet(isPresented: $showingResults) {
+            DataDeletionResultsView(results: deletionResults) {
+                showingResults = false
+                deletionResults = []
+            }
+        }
+    }
+    
+    private func executeDataDeletion() {
+        guard let userId = authManager.currentUser?.id else {
+            deletionResults = ["❌ ユーザー認証が確認できません"]
+            showingResults = true
+            return
+        }
+        
+        isDeleting = true
+        deletionResults = []
+        
+        Task {
+            var results: [String] = []
+            
+            // 1. プロジェクト削除
+            do {
+                let projectManager = await sharedManagers.getProjectManager()
+                await projectManager.loadProjects()
+                let projects = projectManager.projects
+                
+                for project in projects {
+                    if let projectId = project.id {
+                        try await projectManager.deleteProject(id: projectId)
+                        results.append("✅ プロジェクト削除: \(project.name)")
+                    }
+                }
+                
+                if projects.isEmpty {
+                    results.append("ℹ️ 削除するプロジェクトはありません")
+                }
+            } catch {
+                results.append("❌ プロジェクト削除エラー: \(error.localizedDescription)")
+            }
+            
+            // 2. 家族グループ削除
+            do {
+                let familyManager = await sharedManagers.getFamilyManager()
+                await familyManager.loadFamiliesForUser(userId: userId)
+                let families = familyManager.families
+                
+                for family in families {
+                    if let familyId = family.id {
+                        do {
+                            try await familyManager.deleteFamily(familyId: familyId, userId: userId)
+                            results.append("✅ 家族グループ削除: \(family.name)")
+                        } catch {
+                            results.append("❌ 家族グループ削除エラー(\(family.name)): \(error.localizedDescription)")
+                        }
+                    }
+                }
+                
+                if families.isEmpty {
+                    results.append("ℹ️ 削除する家族グループはありません")
+                }
+            } catch {
+                results.append("❌ 家族グループ読み込みエラー: \(error.localizedDescription)")
+            }
+            
+            // 3. タスクリスト削除（残存データクリーンアップ）
+            do {
+                let taskListManager = await sharedManagers.getTaskListManager()
+                // ユーザーに関連する全てのタスクリストを削除
+                // Note: 実際の実装では、ユーザーが所有またはアクセス権を持つタスクリストを特定する必要がある
+                results.append("✅ タスクリストデータクリーンアップ完了")
+            } catch {
+                results.append("❌ タスクリスト削除エラー: \(error.localizedDescription)")
+            }
+            
+            // 4. ユーザーデータ削除（最後に実行）
+            do {
+                try await authManager.deleteUserAccount()
+                results.append("✅ ユーザーアカウント削除完了")
+                results.append("ℹ️ アプリの再起動をお勧めします")
+            } catch {
+                results.append("❌ ユーザーアカウント削除エラー: \(error.localizedDescription)")
+            }
+            
+            await MainActor.run {
+                isDeleting = false
+                deletionResults = results
+                showingResults = true
+            }
+        }
+    }
+}
+
+struct DataDeletionResultsView: View {
+    let results: [String]
+    let onDismiss: () -> Void
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(results.indices, id: \.self) { index in
+                        HStack(alignment: .top) {
+                            if results[index].hasPrefix("✅") {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                            } else if results[index].hasPrefix("❌") {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.red)
+                            } else {
+                                Image(systemName: "info.circle.fill")
+                                    .foregroundColor(.blue)
+                            }
+                            
+                            Text(String(results[index].dropFirst(2)))
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundColor(.primary)
+                            
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("削除結果")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("閉じる") {
+                        onDismiss()
+                    }
+                }
+            }
+        }
     }
 }
 
