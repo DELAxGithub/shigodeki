@@ -114,21 +114,28 @@ struct MainTabView: View {
                 }
                 
                 await MainActor.run {
-                    if newVal == projectTabIndex { 
-                        print("📱 Issue #46 Debug: Project tab selected, resetting navigation (debounced)")
+                    // Issue #46 Fix: Only reset navigation when re-selecting same tab (iOS standard)
+                    if oldVal == newVal && newVal == projectTabIndex { 
+                        print("📱 Issue #46: Same Project tab re-selected, resetting navigation")
                         NotificationCenter.default.post(name: .projectTabSelected, object: nil) 
                     }
-                    if newVal == familyTabIndex { 
-                        print("📱 Issue #46 Debug: Family tab selected, resetting navigation (debounced)")
+                    if oldVal == newVal && newVal == familyTabIndex { 
+                        print("📱 Issue #46: Same Family tab re-selected, resetting navigation")
                         NotificationCenter.default.post(name: .familyTabSelected, object: nil) 
                     }
-                    if newVal == taskTabIndex { 
-                        print("📱 Issue #46 Debug: Task tab selected, resetting navigation (debounced)")
+                    if oldVal == newVal && newVal == taskTabIndex { 
+                        print("📱 Issue #46: Same Task tab re-selected, resetting navigation")
                         NotificationCenter.default.post(name: .taskTabSelected, object: nil) 
                     }
-                    if newVal == settingsTabIndex { NotificationCenter.default.post(name: .settingsTabSelected, object: nil) }
+                    if oldVal == newVal && newVal == settingsTabIndex { 
+                        print("📱 Issue #46: Same Settings tab re-selected, resetting navigation")
+                        NotificationCenter.default.post(name: .settingsTabSelected, object: nil) 
+                    }
                     #if DEBUG
-                    if newVal == testTabIndex { NotificationCenter.default.post(name: .testTabSelected, object: nil) }
+                    if oldVal == newVal && newVal == testTabIndex { 
+                        print("📱 Issue #46: Same Test tab re-selected, resetting navigation")
+                        NotificationCenter.default.post(name: .testTabSelected, object: nil) 
+                    }
                     #endif
                 }
             }
