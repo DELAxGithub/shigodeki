@@ -18,11 +18,40 @@ struct FamilyView: View {
     @State private var showingJoinFamily = false
     @State private var navigationResetId = UUID()
     
+    // Duplicate prevention
+    @State private var lastCreateTap: Date?
+    @State private var lastJoinTap: Date?
+    private let tapCooldownSeconds: TimeInterval = 2.0
+    
     // DEBUG: Simple test alert to verify alert display functionality
     @State private var showSimpleTestAlert = false
 
     var body: some View {
-        NavigationView {
+        NavigationSplitView {
+            // iPad Sidebar Content (Empty state shows main content instead)
+            if let vm = viewModel, !vm.families.isEmpty {
+                List(vm.families) { family in
+                    NavigationLink(value: family) {
+                        FamilyRowView(family: family)
+                    }
+                    .accessibilityIdentifier("family_\(family.name)")
+                }
+                .listStyle(.sidebar)
+                .navigationTitle("家族")
+            } else {
+                // Show placeholder when no families
+                VStack {
+                    Image(systemName: "person.3.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(.gray)
+                    Text("家族グループがありません")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                }
+                .navigationTitle("家族")
+            }
+        } detail: {
+            // Main Detail View
             VStack {
                 if let vm = viewModel {
                     contentView(viewModel: vm)
@@ -31,7 +60,7 @@ struct FamilyView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .navigationTitle("家族")
+            .navigationTitle("家族グループ")
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     // DEBUG: Manual test button for alert testing
@@ -43,19 +72,17 @@ struct FamilyView: View {
                             .font(.caption)
                     }
                     Button {
-                        print("🔄 [DEBUG] Join family button tapped")
-                        // Only show the sheet, not the test alert
-                        showingJoinFamily = true
+                        joinFamilyWithCooldown()
                     } label: {
                         Image(systemName: "person.badge.plus")
                     }
+                    .disabled((viewModel?.isJoiningFamily ?? false) || isJoinCooldownActive())
                     Button(action: {
-                        print("🔄 [DEBUG] Create family button tapped")
-                        // Only show the sheet, not the test alert
-                        showingCreateFamily = true
+                        createFamilyWithCooldown()
                     }) {
                         Image(systemName: "plus")
                     }
+                    .disabled((viewModel?.isCreatingFamily ?? false) || isCreateCooldownActive())
                     .accessibilityIdentifier("create_family_button")
                     .accessibilityLabel("新しい家族グループを作成")
                 }
@@ -241,6 +268,9 @@ struct FamilyView: View {
                 }
             }
         }
+        .navigationDestination(for: Family.self) { family in
+            FamilyDetailView(family: family)
+        }
         .id(navigationResetId)
         .onReceive(NotificationCenter.default.publisher(for: .familyTabSelected)) { _ in
             // Reset navigation stack to show the root list when family tab is selected
@@ -311,8 +341,7 @@ struct FamilyView: View {
             
             VStack(spacing: 12) {
                 Button(action: {
-                    print("🔄 [DEBUG] Create family from empty button tapped")
-                    showingCreateFamily = true
+                    createFamilyWithCooldown()
                 }) {
                     HStack {
                         Image(systemName: "plus")
@@ -321,11 +350,11 @@ struct FamilyView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled((viewModel?.isCreatingFamily ?? false) || isCreateCooldownActive())
                 .accessibilityIdentifier("create_family_from_empty")
                 
                 Button(action: {
-                    print("🔄 [DEBUG] Join family from empty button tapped")
-                    showingJoinFamily = true
+                    joinFamilyWithCooldown()
                 }) {
                     HStack {
                         Image(systemName: "person.badge.plus")
@@ -334,6 +363,7 @@ struct FamilyView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .disabled((viewModel?.isJoiningFamily ?? false) || isJoinCooldownActive())
                 .accessibilityIdentifier("join_family_from_empty")
             }
             .padding(.horizontal, 48)
@@ -344,16 +374,92 @@ struct FamilyView: View {
     
     @ViewBuilder
     private func familyListView(viewModel: FamilyViewModel) -> some View {
-        List(viewModel.families) { family in
-            NavigationLink(destination: FamilyDetailView(family: family)) {
-                FamilyRowView(family: family)
+        // NavigationSplitView: Detail view shows overview instead of list
+        VStack(spacing: 24) {
+            Image(systemName: "person.3.fill")
+                .font(.system(size: 60))
+                .foregroundColor(.blue)
+            
+            VStack(spacing: 8) {
+                Text("家族グループ管理")
+                    .font(.title)
+                    .fontWeight(.medium)
+                
+                Text("\(viewModel.families.count)個の家族グループに参加中")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
             }
-            .accessibilityIdentifier("family_\(family.name)")
+            
+            VStack(spacing: 12) {
+                Button(action: {
+                    createFamilyWithCooldown()
+                }) {
+                    HStack {
+                        Image(systemName: "plus")
+                        Text("新しい家族グループを作成")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.isCreatingFamily || isCreateCooldownActive())
+                .accessibilityIdentifier("create_family_from_overview")
+                
+                Button(action: {
+                    joinFamilyWithCooldown()
+                }) {
+                    HStack {
+                        Image(systemName: "person.badge.plus")
+                        Text("招待コードで参加")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.isJoiningFamily || isJoinCooldownActive())
+                .accessibilityIdentifier("join_family_from_overview")
+            }
+            .padding(.horizontal, 48)
+            
+            Spacer()
         }
-        .listStyle(PlainListStyle())
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(UIColor.systemGroupedBackground))
     }
     
     // MARK: - Private Methods
+    
+    private func createFamilyWithCooldown() {
+        print("🔄 [DEBUG] Create family button tapped with cooldown check")
+        
+        guard !isCreateCooldownActive() else {
+            print("⚠️ [DEBUG] Create family button ignored - cooldown active")
+            return
+        }
+        
+        lastCreateTap = Date()
+        showingCreateFamily = true
+    }
+    
+    private func joinFamilyWithCooldown() {
+        print("🔄 [DEBUG] Join family button tapped with cooldown check")
+        
+        guard !isJoinCooldownActive() else {
+            print("⚠️ [DEBUG] Join family button ignored - cooldown active")
+            return
+        }
+        
+        lastJoinTap = Date()
+        showingJoinFamily = true
+    }
+    
+    private func isCreateCooldownActive() -> Bool {
+        guard let lastTap = lastCreateTap else { return false }
+        return Date().timeIntervalSince(lastTap) < tapCooldownSeconds
+    }
+    
+    private func isJoinCooldownActive() -> Bool {
+        guard let lastTap = lastJoinTap else { return false }
+        return Date().timeIntervalSince(lastTap) < tapCooldownSeconds
+    }
     
     private func initializeViewModel() async {
         // Issue #50 Fix: Wait for centralized preload before initializing ViewModel
@@ -463,17 +569,17 @@ struct CreateFamilyView: View {
                     .accessibilityIdentifier("create_family_confirm")
                 }
             }
-            .onChange(of: viewModel?.shouldDismissCreateSheet) { shouldDismiss in
+            .onChange(of: viewModel?.shouldDismissCreateSheet) { _, shouldDismiss in
                 if shouldDismiss == true {
                     dismiss()
                     viewModel?.resetSuccessStates()
                 }
             }
-            .onChange(of: viewModel?.showCreateProcessing) { isProcessing in
+            .onChange(of: viewModel?.showCreateProcessing) { _, isProcessing in
                 print("🔍 [DEBUG] CreateFamilyView: onChange showCreateProcessing = \(isProcessing ?? false)")
                 showProcessingAlert = isProcessing == true || viewModel?.showCreateSuccess == true
             }
-            .onChange(of: viewModel?.showCreateSuccess) { isSuccess in
+            .onChange(of: viewModel?.showCreateSuccess) { _, isSuccess in
                 print("🔍 [DEBUG] CreateFamilyView: onChange showCreateSuccess = \(isSuccess ?? false)")
                 showProcessingAlert = viewModel?.showCreateProcessing == true || isSuccess == true
             }
@@ -575,7 +681,7 @@ struct JoinFamilyView: View {
                     Text("不明なエラーが発生しました")
                 }
             }
-            .onChange(of: viewModel?.showJoinSuccess) { showSuccess in
+            .onChange(of: viewModel?.showJoinSuccess) { _, showSuccess in
                 if showSuccess == true {
                     dismiss()
                 }

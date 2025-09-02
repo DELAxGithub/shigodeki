@@ -61,7 +61,18 @@
       "Bash(xcrun xccov view:*)",
       "Bash(sed:*)",
       "Bash(/usr/bin/xcodebuild test:*)",
-      "Bash(/usr/bin/xcodebuild build:*)"
+      "Bash(/usr/bin/xcodebuild build:*)",
+      "Bash(git checkout:*)",
+      "Bash(npm test)",
+      "Bash(export:*)",
+      "Bash(npx mocha test:*)",
+      "Bash(npm run test:emulator:*)",
+      "Bash(gh pr view:*)",
+      "Bash(git pull:*)",
+      "Bash(xcrun simctl launch:*)",
+      "Bash(xcrun simctl boot:*)",
+      "Bash(mkdir:*)",
+      "Bash(xcrun simctl list:*)"
     ],
     "deny": [],
     "ask": []

@@ -321,8 +321,11 @@ struct DataManagementCard: View {
             // 1. プロジェクト削除
             do {
                 let projectManager = await sharedManagers.getProjectManager()
-                await projectManager.loadProjects()
-                let projects = projectManager.projects
+                guard let userId = authManager.currentUserId else {
+                    results.append("❌ ユーザーID取得エラー")
+                    return
+                }
+                let projects = try await projectManager.getUserProjects(userId: userId)
                 
                 for project in projects {
                     if let projectId = project.id {
@@ -347,7 +350,7 @@ struct DataManagementCard: View {
                 for family in families {
                     if let familyId = family.id {
                         do {
-                            try await familyManager.deleteFamily(familyId: familyId, userId: userId)
+                            try await familyManager.leaveFamily(familyId: familyId, userId: userId)
                             results.append("✅ 家族グループ削除: \(family.name)")
                         } catch {
                             results.append("❌ 家族グループ削除エラー(\(family.name)): \(error.localizedDescription)")
@@ -372,13 +375,13 @@ struct DataManagementCard: View {
                 results.append("❌ タスクリスト削除エラー: \(error.localizedDescription)")
             }
             
-            // 4. ユーザーデータ削除（最後に実行）
+            // 4. ユーザーサインアウト（最後に実行）
             do {
-                try await authManager.deleteUserAccount()
-                results.append("✅ ユーザーアカウント削除完了")
+                await authManager.signOut()
+                results.append("✅ ユーザーサインアウト完了")
                 results.append("ℹ️ アプリの再起動をお勧めします")
             } catch {
-                results.append("❌ ユーザーアカウント削除エラー: \(error.localizedDescription)")
+                results.append("❌ ユーザーサインアウトエラー: \(error.localizedDescription)")
             }
             
             await MainActor.run {

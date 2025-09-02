@@ -1,0 +1,32 @@
+{
+  "configurations": [
+    {
+      "id": "F2C89796-7A3F-433F-8A8F-8A96F95A4C53",
+      "name": "Configuration 1",
+      "options": {
+
+      }
+    }
+  ],
+  "defaultOptions": {
+    "codeCoverage": false,
+    "commandLineArgsAndEnvVars": {},
+    "targetForVariableExpansion": {
+      "containerPath": "container:shigodeki.xcodeproj",
+      "identifier": "DE918B052E5FC87300340EB2",
+      "name": "shigodeki"
+    },
+    "testExecutionOrdering": "random",
+    "testTimeoutsEnabled": false
+  },
+  "testTargets": [
+    {
+      "target": {
+        "containerPath": "container:shigodeki.xcodeproj",
+        "identifier": "shigodekiTests",
+        "name": "shigodekiTests"
+      }
+    }
+  ],
+  "version": 1
+}

@@ -21,10 +21,51 @@ class FamilyViewModel: ObservableObject {
     // Family creation state
     @Published var isCreatingFamily = false
     @Published var isJoiningFamily = false
-    @Published var shouldDismissCreateSheet = false
-    @Published var showJoinSuccess = false
-    @Published var joinSuccessMessage = ""
+    @Published var shouldDismissCreateSheet = false {
+        didSet {
+            print("📱 [DEBUG] FamilyViewModel: shouldDismissCreateSheet changed from \(oldValue) to \(shouldDismissCreateSheet)")
+        }
+    }
+    @Published var showJoinSuccess = false {
+        didSet {
+            print("✅ [DEBUG] FamilyViewModel: showJoinSuccess changed from \(oldValue) to \(showJoinSuccess)")
+        }
+    }
+    @Published var joinSuccessMessage = "" {
+        didSet {
+            print("📝 [DEBUG] FamilyViewModel: joinSuccessMessage changed to '\(joinSuccessMessage)'")
+        }
+    }
     @Published var newFamilyInvitationCode: String?
+    
+    // Success alerts for create/join operations
+    @Published var showCreateSuccess = false {
+        didSet {
+            print("✅ [DEBUG] FamilyViewModel: showCreateSuccess changed from \(oldValue) to \(showCreateSuccess)")
+        }
+    }
+    @Published var createSuccessMessage = "" {
+        didSet {
+            print("📝 [DEBUG] FamilyViewModel: createSuccessMessage changed to '\(createSuccessMessage)'")
+        }
+    }
+    
+    // Processing popups - show immediately when buttons are pressed
+    @Published var showCreateProcessing = false {
+        didSet {
+            print("🔄 [DEBUG] FamilyViewModel: showCreateProcessing changed from \(oldValue) to \(showCreateProcessing)")
+        }
+    }
+    @Published var showJoinProcessing = false {
+        didSet {
+            print("🔄 [DEBUG] FamilyViewModel: showJoinProcessing changed from \(oldValue) to \(showJoinProcessing)")
+        }
+    }
+    @Published var processingMessage = "" {
+        didSet {
+            print("📝 [DEBUG] FamilyViewModel: processingMessage changed to '\(processingMessage)'")
+        }
+    }
     
     // --- Dependencies ---
     private let familyManager: FamilyManager
@@ -87,7 +128,9 @@ class FamilyViewModel: ObservableObject {
     
     private func updateEmptyState() {
         // Empty state logic: show when not loading and no families exist
-        shouldShowEmptyState = !isLoading && families.isEmpty && authManager.currentUser?.id != nil
+        let newEmptyState = !isLoading && families.isEmpty && authManager.currentUser?.id != nil
+        print("🔍 [DEBUG] updateEmptyState: loading=\(isLoading), familiesEmpty=\(families.isEmpty), userId=\(authManager.currentUser?.id ?? "nil") → shouldShowEmptyState=\(newEmptyState)")
+        shouldShowEmptyState = newEmptyState
     }
     
     // MARK: - Public Interface
@@ -114,6 +157,16 @@ class FamilyViewModel: ObservableObject {
             return false
         }
         
+        // Show processing popup immediately
+        await MainActor.run {
+            processingMessage = "家族グループを作成中..."
+            showCreateProcessing = true
+            print("🔄 [Debug] showCreateProcessing set to true")
+        }
+        
+        // Give UI time to show the processing popup (minimum 500ms)
+        try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
+        
         isCreatingFamily = true
         defer { isCreatingFamily = false }
         
@@ -127,14 +180,24 @@ class FamilyViewModel: ObservableObject {
                 print("✅ [Issue #42] FamilyViewModel: Family created with optimistic update - ID: \(familyId)")
                 print("📋 [Issue #42] Families array count: \(familyManager.families.count)")
                 
-                // Immediately trigger sheet dismiss
-                shouldDismissCreateSheet = true
+                // Switch to success message in the same popup
+                processingMessage = "家族グループが作成されました！"
+                showCreateSuccess = true
+                print("✅ [Debug] showCreateSuccess set to true, showCreateProcessing: \(showCreateProcessing)")
+                
+                // CRUCIAL: Refresh Firebase data in background immediately after success
+                // This ensures the family appears in the list when user presses OK
+                if let userId = authManager.currentUser?.id {
+                    print("🔄 [Background] Refreshing Firebase listener after family creation")
+                    familyManager.startListeningToFamilies(userId: userId)
+                }
             }
             
             return true
             
         } catch {
             await MainActor.run {
+                showCreateProcessing = false
                 self.error = FirebaseError.from(error)
                 print("❌ FamilyViewModel: Error creating family: \(error)")
             }
@@ -148,6 +211,16 @@ class FamilyViewModel: ObservableObject {
             return false
         }
         
+        // Show processing popup immediately  
+        await MainActor.run {
+            processingMessage = "家族グループに参加中..."
+            showJoinProcessing = true
+            print("🔄 [Debug] showJoinProcessing set to true")
+        }
+        
+        // Give UI time to show the processing popup (minimum 500ms)
+        try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
+        
         isJoiningFamily = true
         defer { isJoiningFamily = false }
         
@@ -156,15 +229,26 @@ class FamilyViewModel: ObservableObject {
             let familyName = try await familyManager.joinFamilyWithCodeOptimistic(invitationCode, userId: userId)
             
             await MainActor.run {
+                // Switch to success message in the same popup
+                processingMessage = "「\(familyName)」に参加しました！"
                 joinSuccessMessage = "「\(familyName)」に参加しました！"
                 showJoinSuccess = true
                 print("✅ [Issue #43] FamilyViewModel: Successfully joined family: \(familyName) (optimistic)")
+                print("✅ [Debug] showJoinSuccess set to true, showJoinProcessing: \(showJoinProcessing)")
+                
+                // CRUCIAL: Refresh Firebase data in background immediately after success
+                // This ensures the family appears in the list when user presses OK
+                if let userId = authManager.currentUser?.id {
+                    print("🔄 [Background] Refreshing Firebase listener after family join")
+                    familyManager.startListeningToFamilies(userId: userId)
+                }
             }
             
             return true
             
         } catch {
             await MainActor.run {
+                showJoinProcessing = false
                 self.error = FirebaseError.from(error)
                 print("❌ FamilyViewModel: Error joining family: \(error)")
             }
@@ -177,6 +261,22 @@ class FamilyViewModel: ObservableObject {
         showJoinSuccess = false
         joinSuccessMessage = ""
         newFamilyInvitationCode = nil
+        showCreateSuccess = false
+        createSuccessMessage = ""
+        showCreateProcessing = false
+        showJoinProcessing = false
+        processingMessage = ""
+    }
+    
+    func dismissCreateSheetWithReload() {
+        shouldDismissCreateSheet = true
+        // Firebase refresh is already done in background during success message
+        print("✅ [UI] Dismissing create sheet - Firebase data already refreshed")
+    }
+    
+    func dismissJoinViewWithReload() {
+        // Firebase refresh is already done in background during success message  
+        print("✅ [UI] Dismissing join view - Firebase data already refreshed")
     }
     
     // MARK: - Private Business Logic
@@ -204,5 +304,33 @@ class FamilyViewModel: ObservableObject {
     func clearError() {
         familyManager.errorMessage = nil
         error = nil
+    }
+    
+    // MARK: - DEBUG: Simple test methods to verify alert display
+    
+    func triggerTestCreateProcessingAlert() {
+        print("🧪 [DEBUG] FamilyViewModel: triggerTestCreateProcessingAlert called")
+        processingMessage = "テスト処理中..."
+        showCreateProcessing = true
+        
+        // After 2 seconds, switch to success
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            self?.processingMessage = "テスト成功！"
+            self?.showCreateSuccess = true
+            print("🧪 [DEBUG] FamilyViewModel: Switched to success state after 2 seconds")
+        }
+    }
+    
+    func triggerTestJoinProcessingAlert() {
+        print("🧪 [DEBUG] FamilyViewModel: triggerTestJoinProcessingAlert called")
+        processingMessage = "テスト参加中..."
+        showJoinProcessing = true
+        
+        // After 2 seconds, switch to success
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            self?.joinSuccessMessage = "テスト参加成功！"
+            self?.showJoinSuccess = true
+            print("🧪 [DEBUG] FamilyViewModel: Switched to join success state after 2 seconds")
+        }
     }
 }
