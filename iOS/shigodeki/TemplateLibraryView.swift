@@ -20,6 +20,30 @@ struct TemplateLibraryView: View {
     @State private var previewTemplate: ProjectTemplate?
     @State private var sortOption: SortOption = .name
     
+    // Issue #54 Fix: Add pager view mode and initial loading state management
+    @State private var viewMode: ViewMode = .pager
+    @State private var currentPagerIndex = 0
+    @State private var pagerTemplatesLoaded = false
+    
+    enum ViewMode {
+        case list
+        case pager
+        
+        var displayName: String {
+            switch self {
+            case .list: return "リスト"
+            case .pager: return "ページャー"
+            }
+        }
+        
+        var systemImage: String {
+            switch self {
+            case .list: return "list.bullet"
+            case .pager: return "rectangle.stack"
+            }
+        }
+    }
+    
     enum SortOption: String, CaseIterable {
         case name = "名前"
         case category = "カテゴリ"
@@ -84,7 +108,11 @@ struct TemplateLibraryView: View {
                 }
                 
                 // テンプレート一覧
-                templateListSection
+                if viewMode == .list {
+                    templateListSection
+                } else {
+                    templatePagerSection
+                }
             }
             .navigationTitle("テンプレートライブラリ")
             .navigationBarTitleDisplayMode(.large)
@@ -92,10 +120,21 @@ struct TemplateLibraryView: View {
                 leading: Button("キャンセル") {
                     isPresented = false
                 },
-                trailing: Menu {
-                    menuContent
-                } label: {
-                    Image(systemName: "ellipsis.circle")
+                trailing: HStack {
+                    // Issue #54 Fix: View mode toggle
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            viewMode = viewMode == .list ? .pager : .list
+                        }
+                    } label: {
+                        Image(systemName: viewMode.systemImage)
+                    }
+                    
+                    Menu {
+                        menuContent
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
                 }
             )
         }
@@ -119,6 +158,11 @@ struct TemplateLibraryView: View {
         }
         .onAppear {
             templateManager.loadBuiltInTemplates()
+            // Issue #54 Fix: Reset pager loading state when view appears
+            if viewMode == .pager {
+                pagerTemplatesLoaded = false
+                currentPagerIndex = 0
+            }
         }
     }
     
@@ -249,6 +293,89 @@ struct TemplateLibraryView: View {
                 }
             }
             .padding(.vertical)
+        }
+    }
+    
+    // Issue #54 Fix: Pager section with proper initial loading
+    private var templatePagerSection: some View {
+        VStack(spacing: 16) {
+            if filteredTemplates.isEmpty {
+                emptyStateView
+            } else {
+                // Page indicator
+                HStack {
+                    Text("テンプレート")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    
+                    Spacer()
+                    
+                    Text("\(currentPagerIndex + 1) / \(filteredTemplates.count)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal)
+                
+                // TabView with PageTabViewStyle for paging
+                TabView(selection: $currentPagerIndex) {
+                    ForEach(filteredTemplates.indices, id: \.self) { index in
+                        let template = filteredTemplates[index]
+                        
+                        // Issue #54 Fix: Ensure proper loading state for each template
+                        VStack {
+                            if pagerTemplatesLoaded {
+                                TemplatePagerCard(template: template) {
+                                    previewTemplate = template
+                                    showTemplatePreview = true
+                                }
+                                .padding(.horizontal, 20)
+                            } else {
+                                // Loading placeholder
+                                VStack(spacing: 16) {
+                                    ProgressView()
+                                        .scaleEffect(1.2)
+                                    Text("テンプレートを読み込み中...")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
+                        }
+                        .tag(index)
+                    }
+                }
+                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                .frame(maxHeight: .infinity)
+                .onChange(of: currentPagerIndex) { _, newValue in
+                    // Issue #54 Fix: Ensure proper loading when page changes
+                    if !pagerTemplatesLoaded {
+                        loadPagerTemplates()
+                    }
+                }
+            }
+        }
+        .onAppear {
+            // Issue #54 Fix: Proper initialization timing
+            loadPagerTemplates()
+        }
+    }
+    
+    // Issue #54 Fix: Dedicated loading function for pager templates
+    private func loadPagerTemplates() {
+        // Ensure templates are loaded before showing pager content
+        if !templateManager.allTemplates.isEmpty && !pagerTemplatesLoaded {
+            // Small delay to ensure proper SwiftUI layout timing
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    pagerTemplatesLoaded = true
+                }
+            }
+        } else if templateManager.allTemplates.isEmpty {
+            // Retry loading if templates aren't available yet
+            templateManager.loadBuiltInTemplates()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                loadPagerTemplates()
+            }
         }
     }
     
@@ -537,6 +664,129 @@ struct FilterChip: View {
         .background(color.opacity(0.2))
         .foregroundColor(color)
         .cornerRadius(12)
+    }
+}
+
+// Issue #54 Fix: Pager-specific template card
+struct TemplatePagerCard: View {
+    let template: ProjectTemplate
+    let action: () -> Void
+    
+    private var stats: TemplateStats {
+        TemplateStats(template: template)
+    }
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 20) {
+                // Template header with large display
+                VStack(alignment: .center, spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(template.category.color.opacity(0.2))
+                            .frame(width: 80, height: 80)
+                        
+                        Image(systemName: template.category.icon)
+                            .font(.system(size: 32))
+                            .foregroundColor(template.category.color)
+                    }
+                    
+                    VStack(spacing: 8) {
+                        Text(template.name)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.primary)
+                            .multilineTextAlignment(.center)
+                        
+                        if let description = template.description {
+                            Text(description)
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(3)
+                        }
+                        
+                        DifficultyBadge(difficulty: template.metadata.difficulty)
+                    }
+                }
+                
+                // Statistics in grid format
+                LazyVGrid(columns: [
+                    GridItem(.flexible()),
+                    GridItem(.flexible()),
+                    GridItem(.flexible())
+                ], spacing: 16) {
+                    PagerStatItem(
+                        icon: "list.bullet",
+                        value: "\(stats.totalPhases)",
+                        label: "フェーズ"
+                    )
+                    
+                    PagerStatItem(
+                        icon: "checkmark.square",
+                        value: "\(stats.totalTasks)",
+                        label: "タスク"
+                    )
+                    
+                    PagerStatItem(
+                        icon: "clock",
+                        value: stats.completionTimeRange,
+                        label: "期間"
+                    )
+                }
+                
+                // Tags if available
+                if !template.metadata.tags.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(template.metadata.tags.prefix(4), id: \.self) { tag in
+                                Text(tag)
+                                    .font(.caption)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color(.systemGray5))
+                                    .foregroundColor(.secondary)
+                                    .cornerRadius(8)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct PagerStatItem: View {
+    let icon: String
+    let value: String
+    let label: String
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(.primaryBlue)
+            
+            Text(value)
+                .font(.headline)
+                .fontWeight(.semibold)
+            
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(minHeight: 60)
     }
 }
 
