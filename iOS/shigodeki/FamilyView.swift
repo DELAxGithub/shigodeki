@@ -332,6 +332,20 @@ struct JoinFamilyView: View {
             } message: {
                 Text(viewModel?.joinSuccessMessage ?? "家族グループに参加しました！")
             }
+            .alert("エラー", isPresented: Binding(
+                get: { viewModel?.error != nil },
+                set: { _ in viewModel?.clearError() }
+            )) {
+                Button("OK") {
+                    viewModel?.clearError()
+                }
+            } message: {
+                if let error = viewModel?.error {
+                    Text(error.localizedDescription)
+                } else {
+                    Text("不明なエラーが発生しました")
+                }
+            }
         }
     }
     
