@@ -13,6 +13,8 @@ struct MainTabView: View {
     @StateObject private var themeManager = ThemeManager()
     
     @State private var selectedTab: Int = 0
+    // Issue #50 Fix: Add debounced tab switching to prevent loading instability
+    @State private var tabSwitchDebounceTask: Task<Void, Never>?
     private let projectTabIndex = 0
     private let familyTabIndex = 1
     private let taskTabIndex = 2
@@ -94,14 +96,42 @@ struct MainTabView: View {
                 await sharedManagers.cleanupUnusedManagers()
             }
         }
-        .onChange(of: selectedTab) { _, newVal in
-            if newVal == projectTabIndex { NotificationCenter.default.post(name: .projectTabSelected, object: nil) }
-            if newVal == familyTabIndex { NotificationCenter.default.post(name: .familyTabSelected, object: nil) }
-            if newVal == taskTabIndex { NotificationCenter.default.post(name: .taskTabSelected, object: nil) }
-            if newVal == settingsTabIndex { NotificationCenter.default.post(name: .settingsTabSelected, object: nil) }
-            #if DEBUG
-            if newVal == testTabIndex { NotificationCenter.default.post(name: .testTabSelected, object: nil) }
-            #endif
+        .onChange(of: selectedTab) { oldVal, newVal in
+            print("🔄 Issue #50 Debug: Tab changed from \(oldVal) to \(newVal)")
+            
+            // Issue #50 Fix: Cancel previous debounce task to prevent overlapping operations
+            tabSwitchDebounceTask?.cancel()
+            
+            // Issue #50 Fix: Debounce tab notifications to prevent rapid-fire data loading
+            tabSwitchDebounceTask = Task {
+                // Small delay to debounce rapid tab switches
+                try? await Task.sleep(nanoseconds: 150_000_000) // 150ms delay
+                
+                // Check if task was cancelled during sleep
+                guard !Task.isCancelled else {
+                    print("🔄 Issue #50 Debug: Tab notification cancelled due to new tab switch")
+                    return
+                }
+                
+                await MainActor.run {
+                    if newVal == projectTabIndex { 
+                        print("📱 Issue #46 Debug: Project tab selected, resetting navigation (debounced)")
+                        NotificationCenter.default.post(name: .projectTabSelected, object: nil) 
+                    }
+                    if newVal == familyTabIndex { 
+                        print("📱 Issue #46 Debug: Family tab selected, resetting navigation (debounced)")
+                        NotificationCenter.default.post(name: .familyTabSelected, object: nil) 
+                    }
+                    if newVal == taskTabIndex { 
+                        print("📱 Issue #46 Debug: Task tab selected, resetting navigation (debounced)")
+                        NotificationCenter.default.post(name: .taskTabSelected, object: nil) 
+                    }
+                    if newVal == settingsTabIndex { NotificationCenter.default.post(name: .settingsTabSelected, object: nil) }
+                    #if DEBUG
+                    if newVal == testTabIndex { NotificationCenter.default.post(name: .testTabSelected, object: nil) }
+                    #endif
+                }
+            }
         }
     }
 }
@@ -299,7 +329,7 @@ struct SettingsView: View {
                 APISettingsView()
             }
             .sheet(isPresented: $showTaskImprovement) {
-                TaskImprovementSuggestionView(userId: authManager.currentUserId ?? "")
+                TaskImprovementSuggestionView(userId: authManager?.currentUserId ?? "")
                     .environmentObject(sharedManagers)
             }
             .alert("ユーザー名を編集", isPresented: $showEditUsername) {
