@@ -252,19 +252,27 @@ struct MemberDetailView: View {
             let db = Firestore.firestore()
             let decoder = Firestore.Decoder()
             
+            print("🔍 Issue #45 Debug: Loading projects for userId: \(userId)")
+            
             // ユーザーが参加しているプロジェクトを取得
             let projectSnapshot = try await db.collection("projects")
                 .whereField("memberIds", arrayContains: userId)
                 .getDocuments()
             
+            print("🔍 Issue #45 Debug: Found \(projectSnapshot.documents.count) project documents")
+            
             let projects = try projectSnapshot.documents.compactMap { doc -> Project? in
-                try doc.data(as: Project.self, decoder: decoder)
+                let project = try doc.data(as: Project.self, decoder: decoder)
+                print("🔍 Issue #45 Debug: Project \(project.name) has memberIds: \(project.memberIds)")
+                return project
             }
             
             userProjects = projects.sorted { ($0.lastModifiedAt ?? Date.distantPast) > ($1.lastModifiedAt ?? Date.distantPast) }
             
+            print("✅ Issue #45 Debug: Successfully loaded \(projects.count) projects for user")
+            
         } catch {
-            print("Error loading user projects: \(error)")
+            print("❌ Issue #45 Debug: Error loading user projects: \(error)")
             userProjects = []
         }
     }
@@ -278,14 +286,26 @@ struct MemberDetailView: View {
             let db = Firestore.firestore()
             let decoder = Firestore.Decoder()
             
-            // ユーザーにアサインされているタスクを取得
-            let taskSnapshot = try await db.collection("tasks")
+            print("🔍 Issue #52 Fix: Loading assigned tasks for userId: \(userId)")
+            
+            // Issue #52 Fix: Use collection group query to search across all tasks in the hierarchical structure
+            // Tasks are stored at: /projects/{projectId}/phases/{phaseId}/lists/{listId}/tasks/{taskId}
+            let taskSnapshot = try await db.collectionGroup("tasks")
                 .whereField("assignedTo", isEqualTo: userId)
                 .limit(to: 50) // 最大50件
                 .getDocuments()
             
+            print("🔍 Issue #52 Fix: Found \(taskSnapshot.documents.count) task documents using collection group query")
+            
             let tasks = try taskSnapshot.documents.compactMap { doc -> ShigodekiTask? in
-                try doc.data(as: ShigodekiTask.self, decoder: decoder)
+                do {
+                    let task = try doc.data(as: ShigodekiTask.self, decoder: decoder)
+                    print("🔍 Issue #52 Fix: Task '\(task.title)' assigned to: \(task.assignedTo ?? "nil")")
+                    return task
+                } catch {
+                    print("⚠️ Issue #52 Fix: Failed to decode task document: \(error)")
+                    return nil
+                }
             }
             
             assignedTasks = tasks.sorted { 
@@ -296,8 +316,10 @@ struct MemberDetailView: View {
                 return ($0.createdAt ?? Date.distantPast) > ($1.createdAt ?? Date.distantPast)
             }
             
+            print("✅ Issue #52 Fix: Successfully loaded \(tasks.count) assigned tasks for user")
+            
         } catch {
-            print("Error loading assigned tasks: \(error)")
+            print("❌ Issue #52 Fix: Error loading assigned tasks: \(error)")
             assignedTasks = []
         }
     }
