@@ -158,8 +158,3 @@ class PhaseTaskDetailViewModel: ObservableObject {
 
 // MARK: - Computed Properties for UI
 
-extension PhaseTaskDetailViewModel {
-    var canSave: Bool {
-        return shouldEnableSaveButton && !isLoading
-    }
-}

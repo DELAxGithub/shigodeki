@@ -49,18 +49,20 @@ class ProjectManager: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         
+        // 1. 一意の仮IDを持つ楽観的オブジェクトを作成（do-catchブロック外で定義）
+        var optimisticProject = Project(name: name, description: description, ownerId: ownerId, ownerType: ownerType)
+        let temporaryId = optimisticProject.id ?? UUID().uuidString
+        optimisticProject.id = temporaryId
+        print("📝 Creating optimistic project object with temporary ID: \(temporaryId)")
+        
         do {
-            print("📝 Creating project object...")
-            let project = Project(name: name, description: description, ownerId: ownerId, ownerType: ownerType)
-            print("📝 Project object created: \(project)")
-            
             print("✅ Validating project...")
-            try project.validate()
+            try optimisticProject.validate()
             print("✅ Project validation passed")
             
-            // 🚀 Optimistic UI Update: Add to local list immediately
+            // 2. 楽観的オブジェクトをUIに即時反映
             print("⚡ Adding project optimistically to UI")
-            projects.append(project)
+            projects.insert(optimisticProject, at: 0)
             
             // 🔍 Debug Firebase Auth state before Firestore operation
             print("🔍 Firebase Auth Debug before Firestore create:")
@@ -86,15 +88,14 @@ class ProjectManager: ObservableObject {
             }
             
             print("🔄 Creating project in Firestore...")
-            let createdProject = try await projectOperations.create(project)
+            // 3. Firestoreに永続化 (この時点では仮IDは送信されない)
+            var createdProject = try await projectOperations.create(optimisticProject)
             print("🎉 Project created successfully with ID: \(createdProject.id ?? "NO_ID")")
             
-            // Update the local project with the real ID from Firestore
-            if let index = projects.firstIndex(where: { $0.name == project.name && $0.ownerId == ownerId }) {
+            // 4. 仮オブジェクトを、Firestoreから返された実IDを持つオブジェクトに置き換える
+            if let index = projects.firstIndex(where: { $0.id == temporaryId }) {
                 projects[index] = createdProject
             }
-            // Mark pending to protect against empty listener snapshots for a short TTL
-            if let pid = createdProject.id { pendingProjectTimestamps[pid] = Date(); lastLocalChangeAt = Date() }
             
             // Create initial project member entry
             if ownerType == .individual {
@@ -134,7 +135,7 @@ class ProjectManager: ObservableObject {
             
             // 🔄 Rollback: Remove optimistically added project on error
             print("🔄 Rolling back optimistic UI update")
-            projects.removeAll { $0.name == name && $0.ownerId == ownerId }
+            projects.removeAll { $0.id == temporaryId }
             
             let firebaseError = FirebaseError.from(error)
             self.error = firebaseError

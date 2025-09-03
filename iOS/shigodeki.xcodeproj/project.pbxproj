@@ -13,8 +13,19 @@
 		DE5F1BCC2E5FD21500A91735 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = DE5F1B6E2E5FCB0100A91735 /* FirebaseStorage */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		DE918C022E5FC87600340EB3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DE918AFE2E5FC87300340EB2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DE918B052E5FC87300340EB2;
+			remoteInfo = shigodeki;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		DE918B062E5FC87300340EB2 /* shigodeki.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = shigodeki.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DE918BFF2E5FC87600340EB3 /* shigodekiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = shigodekiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -36,6 +47,11 @@
 			path = shigodeki;
 			sourceTree = "<group>";
 		};
+		DE918BFE2E5FC87600340EB3 /* shigodekiTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = shigodekiTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -47,6 +63,13 @@
 				DE5F1BCB2E5FD21500A91735 /* FirebaseFirestore in Frameworks */,
 				DE5F1BCA2E5FD21500A91735 /* FirebaseCore in Frameworks */,
 				DE5F1BC92E5FD21500A91735 /* FirebaseAuth in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DE918BFC2E5FC87600340EB3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -64,6 +87,7 @@
 			isa = PBXGroup;
 			children = (
 				DE918B082E5FC87300340EB2 /* shigodeki */,
+				DE918BFE2E5FC87600340EB3 /* shigodekiTests */,
 				DE5F1BE62E5FD31100A91735 /* Frameworks */,
 				DE918B072E5FC87300340EB2 /* Products */,
 			);
@@ -73,6 +97,7 @@
 			isa = PBXGroup;
 			children = (
 				DE918B062E5FC87300340EB2 /* shigodeki.app */,
+				DE918BFF2E5FC87600340EB3 /* shigodekiTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -107,6 +132,29 @@
 			productReference = DE918B062E5FC87300340EB2 /* shigodeki.app */;
 			productType = "com.apple.product-type.application";
 		};
+		DE918BFB2E5FC87600340EB3 /* shigodekiTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DE918C002E5FC87600340EB3 /* Build configuration list for PBXNativeTarget "shigodekiTests" */;
+			buildPhases = (
+				DE918BF92E5FC87600340EB3 /* Sources */,
+				DE918BFC2E5FC87600340EB3 /* Frameworks */,
+				DE918BFD2E5FC87600340EB3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DE918C032E5FC87600340EB3 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				DE918BFE2E5FC87600340EB3 /* shigodekiTests */,
+			);
+			name = shigodekiTests;
+			packageProductDependencies = (
+			);
+			productName = shigodekiTests;
+			productReference = DE918BFF2E5FC87600340EB3 /* shigodekiTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -119,6 +167,10 @@
 				TargetAttributes = {
 					DE918B052E5FC87300340EB2 = {
 						CreatedOnToolsVersion = 16.4;
+					};
+					DE918BFB2E5FC87600340EB3 = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = DE918B052E5FC87300340EB2;
 					};
 				};
 			};
@@ -140,12 +192,20 @@
 			projectRoot = "";
 			targets = (
 				DE918B052E5FC87300340EB2 /* shigodeki */,
+				DE918BFB2E5FC87600340EB3 /* shigodekiTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		DE918B042E5FC87300340EB2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DE918BFD2E5FC87600340EB3 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -182,7 +242,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		DE918BF92E5FC87600340EB3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		DE918C032E5FC87600340EB3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DE918B052E5FC87300340EB2 /* shigodeki */;
+			targetProxy = DE918C022E5FC87600340EB3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		DE918B182E5FC87600340EB2 /* Debug */ = {
@@ -380,6 +455,52 @@
 			};
 			name = Release;
 		};
+		DE918C012E5FC87600340EB3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = Z88477N5ZU;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				MARKETING_VERSION = 1.3;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hiroshikodera.shigodeki.dev.shigodekiTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/shigodeki.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/shigodeki";
+			};
+			name = Debug;
+		};
+		DE918C042E5FC87600340EB3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 3;
+				DEVELOPMENT_TEAM = Z88477N5ZU;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				MARKETING_VERSION = 1.3;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hiroshikodera.shigodeki.shigodekiTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/shigodeki.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/shigodeki";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -397,6 +518,15 @@
 			buildConfigurations = (
 				DE918B182E5FC87600340EB2 /* Debug */,
 				DE918B192E5FC87600340EB2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DE918C002E5FC87600340EB3 /* Build configuration list for PBXNativeTarget "shigodekiTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DE918C012E5FC87600340EB3 /* Debug */,
+				DE918C042E5FC87600340EB3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
