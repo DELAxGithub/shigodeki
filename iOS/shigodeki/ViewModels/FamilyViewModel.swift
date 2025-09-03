@@ -3,20 +3,24 @@
 //  shigodeki
 //
 //  Created by Claude on 2025-09-01.
-//  [Pattern Propagation] Applying the golden pattern from ProjectListViewModel
+//  🚨 CTO修正: 即時初期化、非同期注入パターンに全面改修
 //
 
 import Foundation
 import Combine
+import SwiftUI
+import FirebaseFirestore
 
 @MainActor
 class FamilyViewModel: ObservableObject {
-    // --- Output ---
-    // Viewが購読するためのプロパティ
+    // MARK: - Published Properties
     @Published var families: [Family] = []
     @Published var isLoading: Bool = false
     @Published var error: FirebaseError? = nil
     @Published var shouldShowEmptyState = false
+    
+    /// マネージャーが注入され、ViewModelが完全に機能する状態かを示す
+    @Published private(set) var isInitialized = false
     
     // Family creation state
     @Published var isCreatingFamily = false
@@ -67,13 +71,10 @@ class FamilyViewModel: ObservableObject {
         }
     }
     
-    // --- Dependencies ---
-    private let familyManager: FamilyManager
-    private let authManager: AuthenticationManager
+    // MARK: - Private Properties
+    private var familyManager: FamilyManager?
+    private var authManager: AuthenticationManager?
     private var cancellables = Set<AnyCancellable>()
-    
-    // 🚨 CTO修正: 非同期初期化のためのフラグ
-    private(set) var isSetup = false
     
     // --- Private Business Logic State ---
     // Currently minimal, but ready for expansion
@@ -82,34 +83,57 @@ class FamilyViewModel: ObservableObject {
     private var activeCreateRequests: Set<String> = []
     private var lastCreateRequest: (name: String, timestamp: Date)?
     private let duplicatePreventionWindow: TimeInterval = 2.0
+
+    /// **【重要】同期イニシャライザ**  
+    /// Viewの生成と同時に、依存関係なしで即座にインスタンス化される。
+    init(authManager: AuthenticationManager = .shared) {
+        print("⚡ FamilyViewModel: 同期初期化開始")
+        self.authManager = authManager
+        setupAuthenticationObserver()
+        print("✅ FamilyViewModel: 同期初期化完了 - 認証状態の監視を開始")
+    }
+    
+    private func setupAuthenticationObserver() {
+        authManager?.$currentUser
+            .removeDuplicates()
+            .sink { [weak self] user in
+                self?.handleUserChange(user)
+            }
+            .store(in: &cancellables)
+    }
+    
+    /// **【重要】認証状態変化ハンドラー**
+    /// ViewModelが自律的に認証状態を監視し、適切なタイミングでデータロードを実行
+    private func handleUserChange(_ user: User?) {
+        if let user = user, let userId = user.id {
+            print("🔄 FamilyViewModel: 認証ユーザー変更を検知。ユーザーID: \(userId)。データロードを開始します。")
+            Task {
+                // Managerがまだ注入されていない場合は待機する
+                await setupFamilyManagerIfNeeded()
+                await loadFamilies(for: userId)
+            }
+        } else {
+            print("🔄 FamilyViewModel: ユーザーがサインアウトしました。データをクリアします。")
+            self.families = []
+            self.familyManager?.stopListeningToFamilies()
+        }
+    }
     
     // MARK: - Access to Managers for Views that need it
-    var familyManagerForViews: FamilyManager {
+    var familyManagerForViews: FamilyManager? {
         return familyManager
     }
     
-    var authManagerForViews: AuthenticationManager {
+    var authManagerForViews: AuthenticationManager? {
         return authManager
     }
 
-    // 🚨 CTO修正: initでは同期的にManagerを受け取るだけにする
-    init(familyManager: FamilyManager, authManager: AuthenticationManager) {
-        self.familyManager = familyManager
-        self.authManager = authManager
-        // バインディングは非同期セットアップ後に行う
-    }
-
-    // 🚨 CTO修正: 本物のManagerをセットしてバインディングを開始
-    func setupWithManagers(familyManager: FamilyManager, authManager: AuthenticationManager) async {
-        guard !isSetup else { return }
-        
-        // 本物のManagerを設定（このプロパティは実はletなので再代入できない）
-        // 代わりにバインディングを開始
-        setupBindings()
-        isSetup = true
-    }
-
     private func setupBindings() {
+        guard let familyManager = familyManager else {
+            print("⚠️ FamilyViewModel: setupBindings() called but familyManager is nil")
+            return
+        }
+        
         // familyManagerのfamiliesを自身のfamiliesに繋ぎ込む
         familyManager.$families
             .receive(on: DispatchQueue.main)
@@ -141,9 +165,32 @@ class FamilyViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+            
+        print("🔗 FamilyViewModel: Manager bindingsが確立されました")
+    }
+    
+    private func loadInitialData() async {
+        guard let authManager = authManager,
+              let familyManager = familyManager,
+              let userId = authManager.currentUser?.id else {
+            print("⚠️ FamilyViewModel: loadInitialData() - 必要なManagerまたはユーザーIDが不足")
+            return
+        }
+        
+        print("🔄 FamilyViewModel: 初期データ読み込み開始 - User: \(userId)")
+        
+        // 家族データの読み込みを開始
+        familyManager.startListeningToFamilies(userId: userId)
+        print("✨ FamilyViewModel: 家族データのリスニングを開始")
     }
     
     private func updateEmptyState() {
+        // Manager注入前は常にfalse
+        guard let authManager = authManager else {
+            shouldShowEmptyState = false
+            return
+        }
+        
         // Empty state logic: show when not loading and no families exist
         let newEmptyState = !isLoading && families.isEmpty && authManager.currentUser?.id != nil
         print("🔍 [DEBUG] updateEmptyState: loading=\(isLoading), familiesEmpty=\(families.isEmpty), userId=\(authManager.currentUser?.id ?? "nil") → shouldShowEmptyState=\(newEmptyState)")
@@ -153,15 +200,15 @@ class FamilyViewModel: ObservableObject {
     // MARK: - Public Interface
     
     func onAppear() async {
-        // Initialize when view appears  
         #if DEBUG
         print("📱 FamilyViewModel: onAppear triggered")
         #endif
-        
-        await loadFamilies()
+        // 認証状態の変更によって自動的にロードされるため、ここでの明示的なロードは不要
     }
     
     func onDisappear() {
+        guard let familyManager = familyManager else { return }
+        
         #if DEBUG
         print("👋 FamilyViewModel: Disappearing, cleaning up listeners")
         #endif
@@ -169,6 +216,12 @@ class FamilyViewModel: ObservableObject {
     }
     
     func createFamily(name: String) async -> Bool {
+        guard let authManager = authManager,
+              let familyManager = familyManager else {
+            error = FirebaseError.operationFailed("システムが準備できていません")
+            return false
+        }
+        
         guard let userId = authManager.currentUser?.id else {
             error = FirebaseError.operationFailed("ユーザーが認証されていません")
             return false
@@ -320,6 +373,12 @@ class FamilyViewModel: ObservableObject {
     }
     
     func joinFamily(invitationCode: String) async -> Bool {
+        guard let authManager = authManager,
+              let familyManager = familyManager else {
+            error = FirebaseError.operationFailed("システムが準備できていません")
+            return false
+        }
+        
         guard let userId = authManager.currentUser?.id else {
             error = FirebaseError.operationFailed("ユーザーが認証されていません")
             return false
@@ -393,13 +452,22 @@ class FamilyViewModel: ObservableObject {
     
     // MARK: - Private Business Logic
     
-    private func loadFamilies() async {
-        guard let userId = authManager.currentUser?.id else {
-            print("⚠️ FamilyViewModel: No authenticated user yet")
+    private func setupFamilyManagerIfNeeded() async {
+        guard self.familyManager == nil else { return }
+        print("⏳ FamilyViewModel: FamilyManagerが未注入のため、SharedManagerStoreから取得します。")
+        self.familyManager = await SharedManagerStore.shared.getFamilyManager()
+        setupBindings() // Managerが注入されたので、バインディングを再設定
+        self.isInitialized = true
+        print("✅ FamilyViewModel: FamilyManagerの注入が完了しました。")
+    }
+    
+    private func loadFamilies(for userId: String) async {
+        guard let familyManager = self.familyManager else {
+            print("⚠️ FamilyViewModel: Manager not available for loadFamilies")
             return
         }
         
-        print("👤 FamilyViewModel: Loading families for user: \(userId)")
+        print("👤 FamilyViewModel: 家族データの読み込みを開始 - User: \(userId)")
         
         // Start real-time listening instead of just loading
         familyManager.startListeningToFamilies(userId: userId)
@@ -410,10 +478,12 @@ class FamilyViewModel: ObservableObject {
     // FamilyManagerのメソッドをそのまま委譲するプロキシメソッド
     
     func removeAllListeners() {
+        guard let familyManager = familyManager else { return }
         familyManager.stopListeningToFamilies()
     }
     
     func clearError() {
+        guard let familyManager = familyManager else { return }
         familyManager.errorMessage = nil
         error = nil
     }

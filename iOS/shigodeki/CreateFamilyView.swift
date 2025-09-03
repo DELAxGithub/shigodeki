@@ -175,9 +175,6 @@ struct InfoRow: View {
 }
 
 #Preview {
-    // プレビューは簡略化
-    CreateFamilyView(viewModel: FamilyViewModel(
-        familyManager: FamilyManager(),
-        authManager: AuthenticationManager.shared
-    ))
+    // プレビューは簡略化 - 新しい即時初期化パターンを使用
+    CreateFamilyView(viewModel: FamilyViewModel())
 }

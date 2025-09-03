@@ -32,9 +32,12 @@ class ProjectListViewModel: ObservableObject {
     @Published var isWaitingForAuth = false
     @Published var shouldShowEmptyState = false
     
+    // 🚨 CTO修正: プロジェクト作成フラグをViewModelで管理
+    @Published var showingCreateProject = false
+    
     // --- Dependencies ---
-    private let projectManager: ProjectManager
-    private let authManager: AuthenticationManager
+    private var projectManager: ProjectManager?
+    private var authManager: AuthenticationManager?
     private var cancellables = Set<AnyCancellable>()
     
     // --- Private Business Logic State ---
@@ -49,19 +52,27 @@ class ProjectListViewModel: ObservableObject {
     
     // MARK: - Access to ProjectManager for Views that need it
     var projectManagerForViews: ProjectManager {
+        guard let projectManager = projectManager else {
+            fatalError("ProjectManager not initialized - this should not happen with autonomous initialization")
+        }
         return projectManager
     }
 
-    init(projectManager: ProjectManager, authManager: AuthenticationManager) {
-        self.projectManager = projectManager
-        self.authManager = authManager
-
-        // ProjectManagerからのデータストリームを購読し、自身のプロパティに中継する
-        setupBindings()
+    /// **【重要】同期イニシャライザ**  
+    /// Viewの生成と同時に、依存関係なしで即座にインスタンス化される。
+    init() {
+        print("⚡ ProjectListViewModel: 同期初期化開始")
+        self.authManager = AuthenticationManager.shared
         setupAuthenticationObserver()
+        print("✅ ProjectListViewModel: 同期初期化完了 - 認証状態の監視を開始")
     }
 
     private func setupBindings() {
+        guard let projectManager = projectManager else {
+            print("⚠️ ProjectListViewModel: setupBindings() called but projectManager is nil")
+            return
+        }
+        
         // projectManagerのprojectsを自身のprojectsに繋ぎ込む
         projectManager.$projects
             .receive(on: DispatchQueue.main)
@@ -103,63 +114,67 @@ class ProjectListViewModel: ObservableObject {
     }
     
     private func setupAuthenticationObserver() {
-        authManager.$isAuthenticated
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] isAuthenticated in
-                self?.handleAuthStateChange(isAuthenticated)
+        authManager?.$currentUser
+            .removeDuplicates()
+            .sink { [weak self] user in
+                self?.handleUserChange(user)
             }
             .store(in: &cancellables)
     }
     
-    private func handleAuthStateChange(_ isAuthenticated: Bool) {
-        let now = Date()
-        
-        // 🆕 認証状態変更のデバウンス処理
-        if let lastChange = lastAuthStateChange,
-           now.timeIntervalSince(lastChange) < authChangeCooldown {
-            #if DEBUG
-            print("🚫 ProjectListViewModel: Auth state change ignored due to cooldown")
-            #endif
+    /// **【重要】認証状態変化ハンドラー**
+    /// ViewModelが自律的に認証状態を監視し、適切なタイミングでデータロードを実行
+    private func handleUserChange(_ user: User?) {
+        if let user = user, let userId = user.id {
+            print("🔄 ProjectListViewModel: 認証ユーザー変更を検知。ユーザーID: \(userId)。データロードを開始します。")
+            Task {
+                // Managerがまだ注入されていない場合は待機する
+                await setupProjectManagerIfNeeded()
+                await loadProjects(for: userId)
+            }
+        } else {
+            print("🔄 ProjectListViewModel: ユーザーがサインアウトしました。データをクリアします。")
+            self.projects = []
+            self.filteredProjects = []
+            self.projectManager?.removeAllListeners()
+        }
+    }
+    
+    private func setupProjectManagerIfNeeded() async {
+        guard self.projectManager == nil else { return }
+        print("⏳ ProjectListViewModel: ProjectManagerが未注入のため、SharedManagerStoreから取得します。")
+        self.projectManager = await SharedManagerStore.shared.getProjectManager()
+        setupBindings() // Managerが注入されたので、バインディングを再設定
+        print("✅ ProjectListViewModel: ProjectManagerの注入が完了しました。")
+    }
+    
+    private func loadProjects(for userId: String) async {
+        guard let projectManager = self.projectManager else {
+            print("⚠️ ProjectListViewModel: Manager not available for loadProjects")
             return
         }
         
-        lastAuthStateChange = now
+        print("👤 ProjectListViewModel: プロジェクトデータの読み込みを開始 - User: \(userId)")
         
-        #if DEBUG
-        print("📱 ProjectListViewModel: Authentication state changed: \(isAuthenticated)")
-        #endif
-        
-        if isAuthenticated {
-            // 🔧 既にプロジェクトが読み込まれている場合は重複ロードを避ける
-            if projects.isEmpty {
-                #if DEBUG
-                print("🔄 ProjectListViewModel: User authenticated, loading projects")
-                #endif
-                retryCount = 0
-                loadUserProjectsWithDebounce()
-            } else {
-                #if DEBUG
-                print("✅ ProjectListViewModel: Projects already loaded, skipping duplicate load")
-                #endif
-            }
-        } else {
-            // Reset states when user signs out
-            retryCount = 0
-            isWaitingForAuth = false
+        // Start real-time listening
+        await MainActor.run {
+            projectManager.startListeningForUserProjects(userId: userId)
         }
+        print("✨ ProjectListViewModel: Started listening to projects for user")
+    }
+    
+    func prepareForProjectCreation() {
+        // ボタンが押されたら、単純にフラグを立てるだけ
+        self.showingCreateProject = true
     }
     
     // MARK: - Public Interface
     
     func onAppear() async {
-        // Initialize managers when the view appears  
         #if DEBUG
         print("📱 ProjectListViewModel: onAppear triggered")
         #endif
-        
-        loadUserProjectsWithDebounce()
-        bootstrapped = true
-        applyFilter() // bootstrappedが変わったらempty stateも更新
+        // 認証状態の変更によって自動的にロードされるため、ここでの明示的なロードは不要
     }
     
     func onDisappear() {
@@ -197,7 +212,7 @@ class ProjectListViewModel: ObservableObject {
         // Firebase リスナーが自動的にデータを更新するため、重複呼び出しを避ける
         print("🔄 ProjectListViewModel: Refresh requested - using real-time listener (no additional API call)")
         
-        guard let userId = authManager.currentUser?.id else {
+        guard authManager?.currentUser?.id != nil else {
             print("⚠️ ProjectListViewModel: No authenticated user for refresh")
             return
         }
@@ -224,7 +239,7 @@ class ProjectListViewModel: ObservableObject {
     }
     
     private func loadUserProjects() {
-        guard let userId = authManager.currentUser?.id else {
+        guard let userId = authManager?.currentUser?.id else {
             isWaitingForAuth = true
             print("⚠️ ProjectListViewModel: No authenticated user yet, setting waiting state")
             return
@@ -235,35 +250,13 @@ class ProjectListViewModel: ObservableObject {
         print("👤 ProjectListViewModel: Loading projects for user: \(userId)")
         
         Task {
-            do {
-                print("🔄 ProjectListViewModel: Starting project listener")
-                self.startListeningForUserProjects(userId: userId)
-                // 🔧 リスナーが設定されるとデータは自動的に受信されるため、getUserProjects呼び出しは不要
-                
-                await MainActor.run {
-                    print("✨ ProjectListViewModel: Project listener started successfully")
-                }
+            print("🔄 ProjectListViewModel: Starting project listener")
+            self.startListeningForUserProjects(userId: userId)
+            // 🔧 リスナーが設定されるとデータは自動的に受信されるため、getUserProjects呼び出しは不要
+            
+            await MainActor.run {
+                print("✨ ProjectListViewModel: Project listener started successfully")
                 retryCount = 0  // 成功時にリセット
-            } catch {
-                await MainActor.run {
-                    retryCount += 1
-                    print("❌ ProjectListViewModel: Error loading projects (attempt \(retryCount)/\(maxRetries)): \(error)")
-                    
-                    if retryCount < maxRetries {
-                        let delay = exponentialBackoffDelay(for: retryCount - 1)
-                        print("🔄 ProjectListViewModel: Retrying in \(delay) seconds...")
-                        
-                        Task {
-                            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                            await MainActor.run {
-                                self.loadUserProjects()  // Retry
-                            }
-                        }
-                    } else {
-                        print("💥 ProjectListViewModel: Max retries exceeded")
-                        self.error = FirebaseError.from(error)
-                    }
-                }
             }
         }
     }
@@ -279,16 +272,16 @@ class ProjectListViewModel: ObservableObject {
     // ProjectManagerのメソッドをそのまま委譲するプロキシメソッド
     
     func removeAllListeners() {
-        projectManager.removeAllListeners()
+        projectManager?.removeAllListeners()
     }
     
     func startListeningForUserProjects(userId: String) {
-        projectManager.startListeningForUserProjects(userId: userId)
+        projectManager?.startListeningForUserProjects(userId: userId)
     }
     
     func deleteProject(id: String) async throws {
         do {
-            try await projectManager.deleteProject(id: id)
+            try await projectManager?.deleteProject(id: id)
         } catch {
             await MainActor.run {
                 self.error = FirebaseError.from(error)
@@ -298,6 +291,6 @@ class ProjectListViewModel: ObservableObject {
     }
     
     func clearError() {
-        projectManager.error = nil
+        projectManager?.error = nil
     }
 }

@@ -59,73 +59,88 @@ struct FamilyView: View {
     
     @ViewBuilder
     private var phoneContent: some View {
-        VStack {
-            contentView(viewModel: viewModel)
+        // ViewModelが完全に準備できるまで、プログレス表示を出す
+        if viewModel.isInitialized {
+            VStack {
+                contentView(viewModel: viewModel)
+            }
+            .navigationTitle("家族")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                phoneToolbarContent
+            }
+            .onAppear { Task { await viewModel.onAppear() } }
+            .onDisappear {
+                viewModel.onDisappear()
+            }
+            .sheet(isPresented: $showingCreateFamily) {
+                CreateFamilyView(viewModel: viewModel)
+            }
+            .sheet(isPresented: $showingJoinFamily) {
+                JoinFamilyView(viewModel: viewModel)
+            }
+            .modifier(AlertModifiers(viewModel: viewModel))
+        } else {
+            // Manager注入待ちの表示
+            ProgressView("データ読み込み中...")
+                .navigationTitle("家族")
+                .navigationBarTitleDisplayMode(.large)
         }
-        .navigationTitle("家族")
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            phoneToolbarContent
-        }
-        .onAppear { Task { await viewModel.onAppear() } }
-        .onDisappear {
-            viewModel.onDisappear()
-        }
-        .sheet(isPresented: $showingCreateFamily) {
-            CreateFamilyView(viewModel: viewModel)
-        }
-        .sheet(isPresented: $showingJoinFamily) {
-            JoinFamilyView(viewModel: viewModel)
-        }
-        .modifier(AlertModifiers(viewModel: viewModel))
     }
     
     // MARK: - Sidebar Content
     
     @ViewBuilder
     private var sidebarContent: some View {
-        let familiesCount = viewModel.families.count
-        let isLoading = viewModel.isLoading
-        let shouldShowEmptyState = viewModel.shouldShowEmptyState
-        let currentUserId = viewModel.authManagerForViews.currentUser?.id
-        let isAuthenticated = viewModel.authManagerForViews.isAuthenticated
-        
-        if currentUserId == nil && isAuthenticated {
-            ProgressView("ユーザー情報を取得中...")
-                .navigationTitle("家族")
-        } else if shouldShowEmptyState || isLoading {
-            VStack {
-                Image(systemName: "person.3.fill")
-                    .font(.system(size: 40))
-                    .foregroundColor(.gray)
-                Text(isLoading ? "読み込み中..." : "家族グループがありません")
-                    .font(.headline)
-                    .foregroundColor(.secondary)
-            }
-            .navigationTitle("家族")
-        } else if familiesCount > 0 {
-            List(viewModel.families) { family in
-                NavigationLink(value: family) {
-                    FamilyRowView(family: family)
+        // ViewModelが完全に準備できるまで、プログレス表示を出す
+        if viewModel.isInitialized {
+            let familiesCount = viewModel.families.count
+            let isLoading = viewModel.isLoading
+            let shouldShowEmptyState = viewModel.shouldShowEmptyState
+            let currentUserId = viewModel.authManagerForViews?.currentUser?.id
+            let isAuthenticated = viewModel.authManagerForViews?.isAuthenticated ?? false
+            
+            if currentUserId == nil && isAuthenticated {
+                ProgressView("ユーザー情報を取得中...")
+                    .navigationTitle("家族")
+            } else if shouldShowEmptyState || isLoading {
+                VStack {
+                    Image(systemName: "person.3.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(.gray)
+                    Text(isLoading ? "読み込み中..." : "家族グループがありません")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
                 }
-                .accessibilityIdentifier("family_\(family.name)")
-            }
-            .listStyle(.sidebar)
-            .navigationTitle("家族")
-            .onAppear {
-                print("🔍 [DEBUG] Sidebar showing family list with \(familiesCount) families")
-                print("📋 [DEBUG] Sidebar families: \(viewModel.families.map { $0.name })")
+                .navigationTitle("家族")
+            } else if familiesCount > 0 {
+                List(viewModel.families) { family in
+                    NavigationLink(value: family) {
+                        FamilyRowView(family: family)
+                    }
+                    .accessibilityIdentifier("family_\(family.name)")
+                }
+                .listStyle(.sidebar)
+                .navigationTitle("家族")
+                .onAppear {
+                    print("🔍 [DEBUG] Sidebar showing family list with \(familiesCount) families")
+                    print("📋 [DEBUG] Sidebar families: \(viewModel.families.map { $0.name })")
+                }
+            } else {
+                VStack {
+                    Image(systemName: "person.3.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(.gray)
+                    Text("家族グループがありません")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                }
+                .navigationTitle("家族")
             }
         } else {
-            VStack {
-                Image(systemName: "person.3.fill")
-                    .font(.system(size: 40))
-                    .foregroundColor(.gray)
-                Text("家族グループがありません")
-                    .font(.headline)
-                    .foregroundColor(.secondary)
-            }
-            .navigationTitle("家族")
+            // Manager注入待ちの表示
+            ProgressView("データ読み込み中...")
+                .navigationTitle("家族")
         }
     }
     
@@ -133,24 +148,31 @@ struct FamilyView: View {
     
     @ViewBuilder
     private var detailContent: some View {
-        VStack {
-            contentView(viewModel: viewModel)
+        // ViewModelが完全に準備できるまで、プログレス表示を出す
+        if viewModel.isInitialized {
+            VStack {
+                contentView(viewModel: viewModel)
+            }
+            .navigationTitle("家族グループ")
+            .toolbar {
+                toolbarContent
+            }
+            .onAppear { Task { await viewModel.onAppear() } }
+            .onDisappear {
+                viewModel.onDisappear()
+            }
+            .sheet(isPresented: $showingCreateFamily) {
+                CreateFamilyView(viewModel: viewModel)
+            }
+            .sheet(isPresented: $showingJoinFamily) {
+                JoinFamilyView(viewModel: viewModel)
+            }
+            .modifier(AlertModifiers(viewModel: viewModel))
+        } else {
+            // Manager注入待ちの表示
+            ProgressView("データ読み込み中...")
+                .navigationTitle("家族グループ")
         }
-        .navigationTitle("家族グループ")
-        .toolbar {
-            toolbarContent
-        }
-        .onAppear { Task { await viewModel.onAppear() } }
-        .onDisappear {
-            viewModel.onDisappear()
-        }
-        .sheet(isPresented: $showingCreateFamily) {
-            CreateFamilyView(viewModel: viewModel)
-        }
-        .sheet(isPresented: $showingJoinFamily) {
-            JoinFamilyView(viewModel: viewModel)
-        }
-        .modifier(AlertModifiers(viewModel: viewModel))
     }
     
     // MARK: - Toolbar Content
@@ -202,8 +224,8 @@ struct FamilyView: View {
         let familiesCount = viewModel.families.count
         let isLoading = viewModel.isLoading
         let shouldShowEmptyState = viewModel.shouldShowEmptyState
-        let currentUserId = viewModel.authManagerForViews.currentUser?.id
-        let isAuthenticated = viewModel.authManagerForViews.isAuthenticated
+        let currentUserId = viewModel.authManagerForViews?.currentUser?.id
+        let isAuthenticated = viewModel.authManagerForViews?.isAuthenticated ?? false
         
         // Debug logging moved to onAppear outside ViewBuilder
         let debugState = "families=\(familiesCount), loading=\(isLoading), empty=\(shouldShowEmptyState), userId=\(currentUserId ?? "nil"), auth=\(isAuthenticated)"

@@ -10,8 +10,8 @@ import SwiftUI
 struct MainTabView: View {
     // 🆕 統合されたManager管理（従来の8個→2個に削減）
     @StateObject private var sharedManagers = SharedManagerStore.shared
-    // 🚨 CTO修正: FamilyViewModelを動的に作成
-    @State private var familyViewModel: FamilyViewModel?
+    // 🚨 CTO修正: FamilyViewModelを同期的に初期化して起動を高速化
+    @StateObject private var familyViewModel = FamilyViewModel(authManager: AuthenticationManager.shared)
     @StateObject private var themeManager = ThemeManager()
     
     @State private var selectedTab: Int = 0
@@ -37,23 +37,13 @@ struct MainTabView: View {
                 }
                 .tag(projectTabIndex)
             
-            if let viewModel = familyViewModel {
-                FamilyView()
-                    .tabItem {
-                        Image(systemName: "person.3.fill")
-                        Text("チーム")
-                    }
-                    // 🚨 CTO修正: 生成したViewModelを環境オブジェクトとして注入
-                    .environmentObject(viewModel)
-                    .tag(familyTabIndex)
-            } else {
-                ProgressView("初期化中...")
-                    .tabItem {
-                        Image(systemName: "person.3.fill")
-                        Text("チーム")
-                    }
-                    .tag(familyTabIndex)
-            }
+            FamilyView()
+                .tabItem {
+                    Image(systemName: "person.3.fill")
+                    Text("チーム")
+                }
+                .environmentObject(familyViewModel)
+                .tag(familyTabIndex)
             
             TaskListMainView()
                 .tabItem {
@@ -83,39 +73,8 @@ struct MainTabView: View {
         .environmentObject(themeManager)
         .environmentObject(sharedManagers) // 🆕 統合されたManager Storeを提供
         .withIntegratedPerformanceMonitoring() // 🆕 統合パフォーマンス監視
-        .task {
-            // Issue #50 Fix: Centralized manager preload to prevent tab-switching data load issues
-            #if DEBUG
-            let startTime = CFAbsoluteTimeGetCurrent()
-            await MainActor.run {
-                InstrumentsSetup.shared.logMemoryUsage(context: "MainTabView Startup")
-            }
-            #endif
-            
-            // 🎯 Issue #50 Fix: Preload all managers before tab views initialize their ViewModels
-            await sharedManagers.preloadAllManagers()
-            
-            #if DEBUG
-            await MainActor.run {
-                sharedManagers.logDebugInfo()
-                print("✅ SharedManagerStore: Centralized preload completed for stable tab switching")
-                let elapsedTime = CFAbsoluteTimeGetCurrent() - startTime
-                print("⚡ Performance: MainTabView initialization completed in \(Int(elapsedTime * 1000))ms")
-            }
-            #endif
-            
-            // 🚨 CTO修正: ViewModelをここで作成
-            let familyManager = await sharedManagers.getFamilyManager()
-            let authManager = await sharedManagers.getAuthManager()
-            
-            // メインスレッドでViewModelを作成
-            await MainActor.run {
-                familyViewModel = FamilyViewModel(familyManager: familyManager, authManager: authManager)
-            }
-            
-            // ViewModelのセットアップ
-            await familyViewModel?.setupWithManagers(familyManager: familyManager, authManager: authManager)
-        }
+        // 🚨 CTO修正: ViewModelが自律的に認証状態を監視し、必要に応じて自身でManagerを取得するため、
+        // MainTabViewでの中央集権的なManager事前読み込みは不要となった。
         .onMemoryWarning {
             // 🆕 メモリ警告時の自動クリーンアップ
             Task {

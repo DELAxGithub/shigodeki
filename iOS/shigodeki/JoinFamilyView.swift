@@ -158,9 +158,6 @@ struct JoinFamilyView: View {
 }
 
 #Preview {
-    // プレビューは簡略化
-    JoinFamilyView(viewModel: FamilyViewModel(
-        familyManager: FamilyManager(),
-        authManager: AuthenticationManager.shared
-    ))
+    // プレビューは簡略化 - 新しい即時初期化パターンを使用
+    JoinFamilyView(viewModel: FamilyViewModel())
 }

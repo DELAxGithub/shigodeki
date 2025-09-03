@@ -12,7 +12,8 @@ import Combine
 struct ProjectListView: View {
     // [Foundation Consolidation] Phase 2.2: Pure Presentation Layer
     @EnvironmentObject var sharedManagers: SharedManagerStore
-    @State private var viewModel: ProjectListViewModel?
+    // 🚨 CTO修正: ViewModelを同期的に初期化し、自律的に動作させる
+    @StateObject private var viewModel = ProjectListViewModel()
     
     // UI State - Only presentation concerns
     @State private var showingCreateProject = false
@@ -24,20 +25,18 @@ struct ProjectListView: View {
         NavigationView {
             VStack {
                 // PickerはViewModelの@Publishedプロパティを直接バインドする
-                if let vm = viewModel {
-                    Picker("所有者", selection: Binding(
-                        get: { vm.ownerFilter },
-                        set: { vm.ownerFilter = $0 }
-                    )) {
-                        ForEach(OwnerFilter.allCases, id: \.self) { filter in
-                            Text(filter.rawValue).tag(filter)
-                        }
+                Picker("所有者", selection: Binding(
+                    get: { viewModel.ownerFilter },
+                    set: { viewModel.ownerFilter = $0 }
+                )) {
+                    ForEach(OwnerFilter.allCases, id: \.self) { filter in
+                        Text(filter.rawValue).tag(filter)
                     }
-                    .pickerStyle(.segmented)
-                    .padding([.horizontal, .top])
-                    
-                    contentView(viewModel: vm)
                 }
+                .pickerStyle(.segmented)
+                .padding([.horizontal, .top])
+                
+                contentView(viewModel: viewModel)
             }
             .navigationTitle("プロジェクト")
             .toolbar {
@@ -48,7 +47,7 @@ struct ProjectListView: View {
                         Image(systemName: "person.badge.plus")
                     }
                     Button(action: {
-                        showingCreateProject = true
+                        viewModel.prepareForProjectCreation()
                     }) {
                         Image(systemName: "plus")
                     }
@@ -57,37 +56,34 @@ struct ProjectListView: View {
                 }
             }
             .loadingOverlay(
-                (viewModel?.isLoading ?? false) || !(viewModel?.bootstrapped ?? true) || (viewModel?.isWaitingForAuth ?? false),
-                message: (!(viewModel?.bootstrapped ?? true) || (viewModel?.isWaitingForAuth ?? false)) ? "初期化中..." : "プロジェクトを更新中..."
+                viewModel.isLoading || !viewModel.bootstrapped || viewModel.isWaitingForAuth,
+                message: (!viewModel.bootstrapped || viewModel.isWaitingForAuth) ? "初期化中..." : "プロジェクトを更新中..."
             )
-            .task {
-                // [Foundation Consolidation] Phase 2.2: Initialize ViewModel and delegate to it
-                await initializeViewModel()
+            .onAppear {
+                Task { await viewModel.onAppear() }
             }
             .onDisappear {
-                viewModel?.onDisappear()
+                viewModel.onDisappear()
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
                 print("🔚 ProjectListView: App terminating, cleaning up")
-                viewModel?.onDisappear()
+                viewModel.onDisappear()
             }
-            .sheet(isPresented: $showingCreateProject) {
-                if let vm = viewModel {
-                    CreateProjectView(projectManager: vm.projectManagerForViews)
-                }
+            .sheet(isPresented: $viewModel.showingCreateProject) {
+                CreateProjectView(projectManager: viewModel.projectManagerForViews)
             }
             .sheet(isPresented: $showingAcceptInvite) {
                 AcceptProjectInviteView()
             }
             .alert("エラー", isPresented: Binding(
-                get: { viewModel?.error != nil },
-                set: { _ in viewModel?.clearError() }
+                get: { viewModel.error != nil },
+                set: { _ in viewModel.clearError() }
             )) {
                 Button("OK") {
-                    viewModel?.clearError()
+                    viewModel.clearError()
                 }
             } message: {
-                if let error = viewModel?.error {
+                if let error = viewModel.error {
                     Text(error.localizedDescription)
                 } else {
                     Text("不明なエラーが発生しました")
@@ -99,10 +95,10 @@ struct ProjectListView: View {
             // Reset navigation stack to show the root list when project tab is selected
             navigationResetId = UUID()
         }
-        .onChange(of: viewModel?.filteredProjects.count ?? 0) { _, newCount in
+        .onChange(of: viewModel.filteredProjects.count) { _, newCount in
             #if DEBUG
             print("📊 ProjectListView: UI Projects count changed: \(newCount)")
-            print("📋 ProjectListView: UI Project names: \(viewModel?.filteredProjects.map { $0.name } ?? [])")
+            print("📋 ProjectListView: UI Project names: \(viewModel.filteredProjects.map { $0.name })")
             print("🎨 ProjectListView: SwiftUI triggering UI update")
             #endif
         }
@@ -171,45 +167,4 @@ struct ProjectListView: View {
     
     // MARK: - Private Methods
     
-    private func initializeViewModel() async {
-        // Issue #50 Fix: Wait for centralized preload before initializing ViewModel
-        #if DEBUG
-        print("📱 ProjectListView: Waiting for SharedManagerStore preload completion...")
-        #endif
-        
-        // 🚨 CTO修正: ポーリングループを非同期待機に変更
-        // 10ms間隔のポーリングを撤廃し、Combineの@Publishedプロパティを活用
-        await withCheckedContinuation { continuation in
-            if sharedManagers.isPreloaded {
-                print("⚡ ProjectListView: SharedManagerStore already preloaded")
-                continuation.resume()
-            } else {
-                // @Publishedプロパティの変更を監視
-                var cancellable: AnyCancellable?
-                cancellable = sharedManagers.$isPreloaded
-                    .filter { $0 } // isPreloaded == true になるまで待機
-                    .first()
-                    .sink { _ in
-                        print("⚡ ProjectListView: SharedManagerStore preload completed")
-                        cancellable?.cancel()
-                        continuation.resume()
-                    }
-            }
-        }
-        
-        let manager = await sharedManagers.getProjectManager()
-        let auth = await sharedManagers.getAuthManager()
-        
-        #if DEBUG
-        print("📱 ProjectListView: task triggered")
-        print("🔧 ProjectListView: Creating ViewModel with pre-loaded ProjectManager and AuthManager")
-        print("🎯 Issue #50: ViewModel initialization after centralized preload completed")
-        #endif
-        
-        // ViewModelを初期化
-        viewModel = ProjectListViewModel(projectManager: manager, authManager: auth)
-        
-        // ViewModelのonAppearメソッドを呼び出し
-        await viewModel?.onAppear()
-    }
 }
