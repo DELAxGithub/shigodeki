@@ -31,6 +31,7 @@ class ProjectListViewModel: ObservableObject {
     @Published var bootstrapped = false
     @Published var isWaitingForAuth = false
     @Published var shouldShowEmptyState = false
+    @Published var showError = false
     
     // 🚨 CTO修正: プロジェクト作成フラグをViewModelで管理
     @Published var showingCreateProject = false
@@ -285,6 +286,7 @@ class ProjectListViewModel: ObservableObject {
         } catch {
             await MainActor.run {
                 self.error = FirebaseError.from(error)
+                self.showError = true
             }
             throw error
         }
@@ -292,5 +294,6 @@ class ProjectListViewModel: ObservableObject {
     
     func clearError() {
         projectManager?.error = nil
+        showError = false
     }
 }
