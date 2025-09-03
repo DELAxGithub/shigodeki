@@ -27,31 +27,31 @@ class OfflineManager {
         db.settings = settings
     }
     
-    func enableOfflineMode() async {
+    func goOnline() async {
         do {
             try await db.enableNetwork()
             await MainActor.run {
                 self.isOfflineMode = false
             }
-            logger.info("✅ Network enabled successfully")
+            logger.info("✅ Network re-enabled successfully. App is ONLINE.")
         } catch {
             logger.error("❌ Failed to enable network: \(error.localizedDescription, privacy: .public)")
             // Still update state to reflect attempt
             await MainActor.run {
-                self.isOfflineMode = true
+                self.isOfflineMode = false
             }
         }
     }
     
-    func disableOfflineMode() async {
+    func goOffline() async {
         do {
             try await db.disableNetwork()
             await MainActor.run {
                 self.isOfflineMode = true
             }
-            logger.info("📴 Offline mode enabled successfully")
+            logger.info("📴 Network disabled successfully. App is OFFLINE.")
         } catch {
-            logger.error("❌ Failed to enable offline mode: \(error.localizedDescription, privacy: .public)")
+            logger.error("❌ Failed to disable network: \(error.localizedDescription, privacy: .public)")
             // Keep previous state if operation failed
         }
     }

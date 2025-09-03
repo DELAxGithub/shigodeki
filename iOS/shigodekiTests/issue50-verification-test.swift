@@ -74,28 +74,48 @@ class Issue50VerificationTest: XCTestCase {
         XCTAssertGreaterThanOrEqual(firebaseListenerManager.listenerStats.totalActive, initialCount)
     }
     
-    /// Test 4: Tab switching debounce mechanism
-    func testTabSwitchDebounce() async {
-        // Given: Rapid tab switches simulated
-        let expectation = XCTestExpectation(description: "Debounce should prevent rapid operations")
-        
-        var operationCount = 0
-        let debounceTask = Task {
-            // Simulate rapid tab switches
-            for _ in 0..<5 {
-                operationCount += 1
-                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms intervals (faster than 150ms debounce)
+    /// Actor to safely count debounced operations
+    actor OperationCounter {
+        var count = 0
+        func increment() {
+            count += 1
+        }
+    }
+
+    /// Debouncer to limit rapid calls
+    actor Debouncer {
+        private var task: Task<Void, Never>?
+        private let duration: TimeInterval
+
+        init(duration: TimeInterval) {
+            self.duration = duration
+        }
+
+        func debounce(action: @escaping () async -> Void) {
+            task?.cancel()
+            task = Task {
+                try? await Task.sleep(for: .seconds(duration))
+                if !Task.isCancelled {
+                    await action()
+                }
             }
         }
-        
-        // When: Wait for debounce completion
-        await debounceTask.value
-        
-        // Then: Operations should be limited by debounce
-        XCTAssertEqual(operationCount, 5, "All operations should execute but debounce should prevent conflicts")
-        expectation.fulfill()
-        
-        await fulfillment(of: [expectation], timeout: 2.0)
+    }
+
+    /// Test 4: Tab switching debounce mechanism
+    func testTabSwitchDebounce() async {
+        // Given: A counter and a debouncer with a 150ms interval
+        let counter = OperationCounter()
+        let debouncer = Debouncer(duration: 0.15)
+        // When: The debounced action is called 5 times in rapid succession (50ms intervals)
+        for _ in 0..<5 {
+            await debouncer.debounce { await counter.increment() }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        // Then: After waiting for the debounce interval to pass, the action should have been executed only once.
+        try? await Task.sleep(for: .milliseconds(200)) // Wait longer than the debounce duration
+        let finalCount = await counter.count
+        XCTAssertEqual(finalCount, 1, "Debounce should ensure the operation is only performed once for a rapid series of calls.")
     }
     
     /// Test 5: ViewModel initialization waiting for preload

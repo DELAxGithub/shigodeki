@@ -18,6 +18,11 @@ class PhaseTaskDetailViewModel: ObservableObject {
     @Published private(set) var shouldEnableSaveButton: Bool = false
     @Published private(set) var isLoading: Bool = false
     
+    // Computed property for save button state
+    var canSave: Bool {
+        return shouldEnableSaveButton && !isLoading
+    }
+    
     // MARK: - Current Values (Editable)
     
     @Published var isCompleted: Bool {
