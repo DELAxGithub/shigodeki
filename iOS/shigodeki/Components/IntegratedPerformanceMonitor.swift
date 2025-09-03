@@ -34,9 +34,9 @@ class IntegratedPerformanceMonitor: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var lastOptimizationTime: Date = Date.distantPast
     private let optimizationCooldownInterval: TimeInterval = 120.0 // 2分クールダウン（頻度を下げてループ抑制）
-    private var initializationTime: Date = Date()
-    private let initializationGracePeriod: TimeInterval = 45.0 // 45秒の初期化猶予期間（起動直後の最適化を抑止）
-    private var lastGraceLogTime: Date = Date.distantPast // 🆕 Grace期間ログの頻度制御
+    
+    // ✅ Issue #82 Fix: 手動グレース期間を完全廃止
+    // 適切なロード完了検知に基づく最適化制御に変更
     
     private init() {
         setupMonitoring()
@@ -199,15 +199,13 @@ class IntegratedPerformanceMonitor: ObservableObject {
     private func triggerAutoOptimizationIfNeeded(_ metrics: IntegratedPerformanceMetrics) {
         let now = Date()
         
-        // 初期化猶予期間チェック（起動直後の最適化を防ぐ）
-        guard now.timeIntervalSince(initializationTime) > initializationGracePeriod else {
+        // ✅ Issue #82 Fix: 初期化グレース期間を完全削除
+        // 適切なロード状態に基づく判定に変更
+        
+        // SharedManagerStoreのプリロード完了チェック
+        guard sharedManagers.isPreloaded else {
             #if DEBUG
-            // 🆕 Grace期間ログを3秒間隔に制限（26回→5回に削減）
-            if now.timeIntervalSince(lastGraceLogTime) > 3.0 {
-                let remainingGrace = initializationGracePeriod - now.timeIntervalSince(initializationTime)
-                print("🕐 IntegratedPerformanceMonitor: Grace period active (\(String(format: "%.1f", remainingGrace))s remaining)")
-                lastGraceLogTime = now
-            }
+            print("🔧 IntegratedPerformanceMonitor: Waiting for SharedManagerStore preload completion")
             #endif
             return
         }
@@ -262,9 +260,12 @@ class IntegratedPerformanceMonitor: ObservableObject {
     // MARK: - Setup Methods
     
     private func setupMonitoring() {
-        // アプリのライフサイクル監視
+        // ✅ Issue #82 Fix: アプリライフサイクル監視を簡略化
+        // UIApplicationの直接使用を避け、より軽量な実装に変更
+        
+        // メモリ警告の監視のみ維持（パフォーマンス監視に必要最小限）
         NotificationCenter.default.addObserver(
-            forName: UIApplication.didReceiveMemoryWarningNotification,
+            forName: Notification.Name("UIApplicationDidReceiveMemoryWarningNotification"),
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -272,31 +273,11 @@ class IntegratedPerformanceMonitor: ObservableObject {
                 self?.handleMemoryWarning()
             }
         }
-        
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.didEnterBackgroundNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.stopMonitoring()
-            }
-        }
-        
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.willEnterForegroundNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.startMonitoring()
-            }
-        }
     }
     
     private func setupPerformanceMonitorSubscription() {
         performanceMonitor.objectWillChange
-            .sink { [weak self] _ in
+            .sink { [weak self] (_: Void) in
                 // PerformanceMonitorの変更を受信
                 Task { @MainActor in
                     await self?.updateMetrics()
@@ -326,12 +307,13 @@ class IntegratedPerformanceMonitor: ObservableObject {
         }
     }
     
-    /// Extends the initial grace period to prevent optimizations during heavy operations like template imports.
-    func extendGracePeriod(seconds: TimeInterval) {
+    /// ✅ Issue #82 Fix: Grace period extension removed
+    /// 適切な処理完了待ちに基づく制御に変更済み
+    func extendOptimizationCooldown(seconds: TimeInterval) {
         #if DEBUG
-        print("⏳ Extending performance monitor grace period by \(seconds)s.")
+        print("⏳ Extending performance optimization cooldown by \(seconds)s.")
         #endif
-        self.initializationTime = Date().addingTimeInterval(seconds - self.initializationGracePeriod)
+        self.lastOptimizationTime = Date().addingTimeInterval(seconds - optimizationCooldownInterval)
     }
     
     // MARK: - Reporting
