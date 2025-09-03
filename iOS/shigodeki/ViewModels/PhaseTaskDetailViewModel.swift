@@ -41,6 +41,10 @@ class PhaseTaskDetailViewModel: ObservableObject {
         didSet { evaluateChanges() }
     }
     
+    @Published var assignedTo: String? {
+        didSet { evaluateChanges() }
+    }
+    
     // MARK: - Original Values (Immutable Reference)
     
     private let originalTask: ShigodekiTask
@@ -48,6 +52,7 @@ class PhaseTaskDetailViewModel: ObservableObject {
     private let originalPriority: TaskPriority
     private let originalTitle: String
     private let originalDescription: String
+    private let originalAssignedTo: String?
     
     // MARK: - Dependencies
     
@@ -64,12 +69,14 @@ class PhaseTaskDetailViewModel: ObservableObject {
         self.originalPriority = task.priority
         self.originalTitle = task.title
         self.originalDescription = task.description ?? ""
+        self.originalAssignedTo = task.assignedTo
         
         // Initialize current editable values
         self.isCompleted = task.isCompleted
         self.priority = task.priority
         self.title = task.title
         self.taskDescription = task.description ?? ""
+        self.assignedTo = task.assignedTo
         
         // Store dependencies
         self.project = project
@@ -98,6 +105,10 @@ class PhaseTaskDetailViewModel: ObservableObject {
         taskDescription = newDescription
     }
     
+    func setAssignedTo(_ newAssignedTo: String?) {
+        assignedTo = newAssignedTo
+    }
+    
     // MARK: - State Evaluation (Core Logic)
     
     private func evaluateChanges() {
@@ -105,8 +116,9 @@ class PhaseTaskDetailViewModel: ObservableObject {
         let hasPriorityChanged = priority != originalPriority
         let hasTitleChanged = title != originalTitle
         let hasDescriptionChanged = taskDescription != originalDescription
+        let hasAssigneeChanged = assignedTo != originalAssignedTo
         
-        hasChanges = hasCompletionChanged || hasPriorityChanged || hasTitleChanged || hasDescriptionChanged
+        hasChanges = hasCompletionChanged || hasPriorityChanged || hasTitleChanged || hasDescriptionChanged || hasAssigneeChanged
         shouldEnableSaveButton = hasChanges
     }
     
@@ -124,6 +136,7 @@ class PhaseTaskDetailViewModel: ObservableObject {
         updatedTask.priority = priority
         updatedTask.title = title
         updatedTask.description = taskDescription.isEmpty ? nil : taskDescription
+        updatedTask.assignedTo = assignedTo
         
         // Issue #63 Fix: Update completedAt timestamp when completion status changes
         if isCompleted != originalIsCompleted {
@@ -152,6 +165,7 @@ class PhaseTaskDetailViewModel: ObservableObject {
         priority = originalPriority
         title = originalTitle
         taskDescription = originalDescription
+        assignedTo = originalAssignedTo
         evaluateChanges() // Should result in hasChanges = false
     }
 }

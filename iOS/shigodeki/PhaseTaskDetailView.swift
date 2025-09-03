@@ -21,7 +21,6 @@ struct PhaseTaskDetailView: View {
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var localImages: [UIImage] = []
     @State private var projectMembers: [ProjectMember] = []
-    @State private var selectedAssignee: String? = nil
     @State private var newTagText: String = ""
     @State private var selectedSectionId: String? = nil
     
@@ -64,9 +63,7 @@ struct PhaseTaskDetailView: View {
             Section("担当・タグ・セクション") {
                 AssigneeSectionView(
                     members: projectMembers,
-                    selectedAssignee: $selectedAssignee,
-                    assignedTo: Binding(get: { task.assignedTo }, set: { _ in }),
-                    onChange: { }
+                    assignedTo: $viewModel.assignedTo
                 )
                 TagsSectionView(
                     tags: Binding(get: { task.tags }, set: { _ in }),
