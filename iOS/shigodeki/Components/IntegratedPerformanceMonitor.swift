@@ -37,7 +37,6 @@ class IntegratedPerformanceMonitor: ObservableObject {
     private var initializationTime: Date = Date()
     private let initializationGracePeriod: TimeInterval = 45.0 // 45秒の初期化猶予期間（起動直後の最適化を抑止）
     private var lastGraceLogTime: Date = Date.distantPast // 🆕 Grace期間ログの頻度制御
-    private var manualGraceUntil: Date? = nil // 🆕 手動グレース期間（重い処理後に延長）
     
     private init() {
         setupMonitoring()
@@ -212,14 +211,6 @@ class IntegratedPerformanceMonitor: ObservableObject {
             #endif
             return
         }
-        // 手動グレース期間チェック（テンプレ/インポート直後の最適化を防ぐ）
-        if let manualGraceUntil, now < manualGraceUntil {
-            #if DEBUG
-            let remaining = manualGraceUntil.timeIntervalSince(now)
-            print("🛡️ IntegratedPerformanceMonitor: Manual grace active (\(String(format: "%.1f", remaining))s remaining)")
-            #endif
-            return
-        }
         
         // クールダウン期間チェック
         guard now.timeIntervalSince(lastOptimizationTime) > optimizationCooldownInterval else {
@@ -335,6 +326,14 @@ class IntegratedPerformanceMonitor: ObservableObject {
         }
     }
     
+    /// Extends the initial grace period to prevent optimizations during heavy operations like template imports.
+    func extendGracePeriod(seconds: TimeInterval) {
+        #if DEBUG
+        print("⏳ Extending performance monitor grace period by \(seconds)s.")
+        #endif
+        self.initializationTime = Date().addingTimeInterval(seconds - self.initializationGracePeriod)
+    }
+    
     // MARK: - Reporting
     
     func generatePerformanceReport() -> String {
@@ -377,14 +376,6 @@ class IntegratedPerformanceMonitor: ObservableObject {
         return report
     }
     
-    // MARK: - Manual Grace Control (Public API)
-    /// 直近の重い処理（テンプレ適用/大量書き込み等）の後に、一定時間の自動最適化を抑止します。
-    func extendGracePeriod(seconds: TimeInterval) {
-        manualGraceUntil = Date().addingTimeInterval(seconds)
-        #if DEBUG
-        print("🛡️ IntegratedPerformanceMonitor: Grace period extended by \(Int(seconds))s")
-        #endif
-    }
 }
 
 // MARK: - Data Models
