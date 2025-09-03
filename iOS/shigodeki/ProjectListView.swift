@@ -12,9 +12,9 @@ import Combine
 struct ProjectListView: View {
     // [Foundation Consolidation] Phase 2.2: Pure Presentation Layer
     @EnvironmentObject var sharedManagers: SharedManagerStore
-    // 🚨 CTO修正: ViewModelを同期的に初期化し、自律的に動作させる
+    // 🚨 CTO Requirement: ViewModel must be non-optional and autonomous.
     @StateObject private var viewModel = ProjectListViewModel()
-    
+
     // UI State - Only presentation concerns
     @State private var showingCreateProject = false
     @State private var selectedProject: Project?
@@ -24,19 +24,17 @@ struct ProjectListView: View {
     var body: some View {
         NavigationView {
             VStack {
-                // PickerはViewModelの@Publishedプロパティを直接バインドする
-                Picker("所有者", selection: Binding(
-                    get: { viewModel.ownerFilter },
-                    set: { viewModel.ownerFilter = $0 }
-                )) {
+                Picker("所有者", selection: $viewModel.ownerFilter) {
                     ForEach(OwnerFilter.allCases, id: \.self) { filter in
                         Text(filter.rawValue).tag(filter)
                     }
                 }
                 .pickerStyle(.segmented)
                 .padding([.horizontal, .top])
+                .disabled(viewModel.isLoading)
                 
-                contentView(viewModel: viewModel)
+                // 🚨 CTO Requirement: Consolidate loading logic into a single source of truth.
+                contentView
             }
             .navigationTitle("プロジェクト")
             .toolbar {
@@ -47,7 +45,7 @@ struct ProjectListView: View {
                         Image(systemName: "person.badge.plus")
                     }
                     Button(action: {
-                        viewModel.prepareForProjectCreation()
+                        showingCreateProject = true
                     }) {
                         Image(systemName: "plus")
                     }
@@ -55,30 +53,26 @@ struct ProjectListView: View {
                     .accessibilityLabel("新しいプロジェクトを作成")
                 }
             }
-            .loadingOverlay(
-                viewModel.isLoading || !viewModel.bootstrapped || viewModel.isWaitingForAuth,
-                message: (!viewModel.bootstrapped || viewModel.isWaitingForAuth) ? "初期化中..." : "プロジェクトを更新中..."
-            )
-            .onAppear {
-                Task { await viewModel.onAppear() }
-            }
-            .onDisappear {
-                viewModel.onDisappear()
+            .task {
+                await viewModel.onAppear()
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
                 print("🔚 ProjectListView: App terminating, cleaning up")
                 viewModel.onDisappear()
             }
-            .sheet(isPresented: $viewModel.showingCreateProject) {
-                CreateProjectView(projectManager: viewModel.projectManagerForViews)
+            .sheet(isPresented: $showingCreateProject) {
+                if let pm = viewModel.projectManagerForViews {
+                    CreateProjectView(projectManager: pm)
+                } else {
+                    // Managerがまだ準備できていない場合はローディング表示
+                    LoadingStateView(message: "システムを準備中...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
             .sheet(isPresented: $showingAcceptInvite) {
                 AcceptProjectInviteView()
             }
-            .alert("エラー", isPresented: Binding(
-                get: { viewModel.error != nil },
-                set: { _ in viewModel.clearError() }
-            )) {
+            .alert("エラー", isPresented: $viewModel.showError) {
                 Button("OK") {
                     viewModel.clearError()
                 }
@@ -107,44 +101,26 @@ struct ProjectListView: View {
     // MARK: - View Components
     
     @ViewBuilder
-    private func contentView(viewModel: ProjectListViewModel) -> some View {
-        VStack {
-            mainContentView(viewModel: viewModel)
-            loadingStateView(viewModel: viewModel)
-        }
-    }
-    
-    @ViewBuilder
-    private func mainContentView(viewModel: ProjectListViewModel) -> some View {
-        if viewModel.shouldShowEmptyState {
+    private var contentView: some View {
+        // 🚨 CTO Requirement: Single source of truth for loading state display.
+        if !viewModel.bootstrapped || viewModel.isWaitingForAuth {
+            LoadingStateView(message: (!viewModel.bootstrapped) ? "初期化中..." : "ユーザー情報を取得中...")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if viewModel.shouldShowEmptyState {
             ProjectEmptyStateView {
                 showingCreateProject = true
             }
         } else {
-            projectListView(viewModel: viewModel)
+            projectListView
         }
     }
     
     @ViewBuilder
-    private func loadingStateView(viewModel: ProjectListViewModel) -> some View {
-        if !viewModel.bootstrapped {
-            LoadingStateView(message: "初期化中...")
-                .padding()
-        } else if viewModel.isWaitingForAuth {
-            LoadingStateView(message: "ユーザー情報を取得中...")
-                .padding()
-        } else if viewModel.isLoading {
-            LoadingStateView(message: "プロジェクトを読み込み中...")
-                .padding()
-        }
-    }
-    
-    @ViewBuilder
-    private func projectListView(viewModel: ProjectListViewModel) -> some View {
+    private var projectListView: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 ForEach(viewModel.filteredProjects) { project in
-                    NavigationLink(destination: ProjectDetailView(project: project, projectManager: viewModel.projectManagerForViews)) {
+                    NavigationLink(destination: projectDetailDestination(project)) {
                         OptimizedProjectRow(project: project)
                             .optimizedForList() // 🆕 描画最適化
                     }
@@ -165,6 +141,13 @@ struct ProjectListView: View {
         }
     }
     
-    // MARK: - Private Methods
-    
+    @ViewBuilder
+    private func projectDetailDestination(_ project: Project) -> some View {
+        if let pm = viewModel.projectManagerForViews {
+            ProjectDetailView(project: project, projectManager: pm)
+        } else {
+            // Manager準備中は空のビュー
+            EmptyView()
+        }
+    }
 }
