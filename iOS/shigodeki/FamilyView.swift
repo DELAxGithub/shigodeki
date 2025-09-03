@@ -24,23 +24,60 @@ struct FamilyView: View {
     @State private var lastCreateTap: Date?
     @State private var lastJoinTap: Date?
     private let tapCooldownSeconds: TimeInterval = 2.0
-    
-    // DEBUG: Simple test alert to verify alert display functionality
-    @State private var showSimpleTestAlert = false
 
     var body: some View {
-        NavigationSplitView {
-            sidebarContent
-        } detail: {
-            detailContent
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            // iPad: Use NavigationSplitView
+            NavigationSplitView {
+                sidebarContent
+            } detail: {
+                detailContent
+            }
+            .navigationDestination(for: Family.self) { family in
+                FamilyDetailView(family: family)
+            }
+            .id(navigationResetId)
+            .onReceive(NotificationCenter.default.publisher(for: .familyTabSelected)) { _ in
+                navigationResetId = UUID()
+            }
+        } else {
+            // iPhone: Use standard NavigationView
+            NavigationView {
+                phoneContent
+            }
+            .navigationDestination(for: Family.self) { family in
+                FamilyDetailView(family: family)
+            }
+            .id(navigationResetId)
+            .onReceive(NotificationCenter.default.publisher(for: .familyTabSelected)) { _ in
+                navigationResetId = UUID()
+            }
         }
-        .navigationDestination(for: Family.self) { family in
-            FamilyDetailView(family: family)
+    }
+    
+    // MARK: - iPhone Content
+    
+    @ViewBuilder
+    private var phoneContent: some View {
+        VStack {
+            contentView(viewModel: viewModel)
         }
-        .id(navigationResetId)
-        .onReceive(NotificationCenter.default.publisher(for: .familyTabSelected)) { _ in
-            navigationResetId = UUID()
+        .navigationTitle("家族")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            phoneToolbarContent
         }
+        .onAppear { Task { await viewModel.onAppear() } }
+        .onDisappear {
+            viewModel.onDisappear()
+        }
+        .sheet(isPresented: $showingCreateFamily) {
+            CreateFamilyView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showingJoinFamily) {
+            JoinFamilyView(viewModel: viewModel)
+        }
+        .modifier(AlertModifiers(viewModel: viewModel))
     }
     
     // MARK: - Sidebar Content
@@ -113,10 +150,30 @@ struct FamilyView: View {
         .sheet(isPresented: $showingJoinFamily) {
             JoinFamilyView(viewModel: viewModel)
         }
-        .modifier(AlertModifiers(viewModel: viewModel, showSimpleTestAlert: $showSimpleTestAlert))
+        .modifier(AlertModifiers(viewModel: viewModel))
     }
     
     // MARK: - Toolbar Content
+    
+    @ToolbarContentBuilder
+    private var phoneToolbarContent: some ToolbarContent {
+        ToolbarItemGroup(placement: .navigationBarTrailing) {
+            Button(action: {
+                createFamilyWithCooldown()
+            }) {
+                Label("家族を作成", systemImage: "plus")
+            }
+            .disabled(viewModel.isCreatingFamily || isCreateCooldownActive())
+            .accessibilityIdentifier("create_family_button")
+            
+            Button {
+                joinFamilyWithCooldown()
+            } label: {
+                Label("家族に参加", systemImage: "person.badge.plus")
+            }
+            .disabled(viewModel.isJoiningFamily || isJoinCooldownActive())
+        }
+    }
     
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
@@ -135,14 +192,6 @@ struct FamilyView: View {
                 Label("家族に参加", systemImage: "person.badge.plus")
             }
             .disabled(viewModel.isJoiningFamily || isJoinCooldownActive())
-        }
-        
-        ToolbarItem(placement: .navigationBarLeading) {
-            Button("TEST") {
-                print("🧪 [DEBUG] Manual test button tapped")
-                showSimpleTestAlert = true
-            }
-            .font(.caption)
         }
     }
     
@@ -242,28 +291,45 @@ struct FamilyView: View {
     
     @ViewBuilder
     private func familyListView(viewModel: FamilyViewModel) -> some View {
-        // NavigationSplitView: Detail view shows actual family list
-        VStack(spacing: 0) {
-            // Header section
-            VStack(spacing: 16) {
-                Image(systemName: "person.3.fill")
-                    .font(.system(size: 50))
-                    .foregroundColor(.blue)
-                
-                VStack(spacing: 8) {
-                    Text("家族グループ一覧")
-                        .font(.title2)
-                        .fontWeight(.medium)
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            // iPad: Detail view shows actual family list
+            VStack(spacing: 0) {
+                // Header section
+                VStack(spacing: 16) {
+                    Image(systemName: "person.3.fill")
+                        .font(.system(size: 50))
+                        .foregroundColor(.blue)
                     
-                    Text("\(viewModel.families.count)個の家族グループに参加中")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    VStack(spacing: 8) {
+                        Text("家族グループ一覧")
+                            .font(.title2)
+                            .fontWeight(.medium)
+                        
+                        Text("\(viewModel.families.count)個の家族グループに参加中")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.top, 20)
+                .padding(.bottom, 24)
+                
+                // Actual family list
+                List(viewModel.families) { family in
+                    NavigationLink(value: family) {
+                        FamilyRowView(family: family)
+                    }
+                    .accessibilityIdentifier("family_detail_\(family.name)")
+                }
+                .listStyle(.insetGrouped)
+                .onAppear {
+                    print("🔍 [DEBUG] Detail view showing family list with \(viewModel.families.count) families")
+                    print("📋 [DEBUG] Detail families: \(viewModel.families.map { $0.name })")
                 }
             }
-            .padding(.top, 20)
-            .padding(.bottom, 24)
-            
-            // Actual family list
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(UIColor.systemGroupedBackground))
+        } else {
+            // iPhone: Simple list view
             List(viewModel.families) { family in
                 NavigationLink(value: family) {
                     FamilyRowView(family: family)
@@ -272,12 +338,10 @@ struct FamilyView: View {
             }
             .listStyle(.insetGrouped)
             .onAppear {
-                print("🔍 [DEBUG] Detail view showing family list with \(viewModel.families.count) families")
-                print("📋 [DEBUG] Detail families: \(viewModel.families.map { $0.name })")
+                print("🔍 [DEBUG] iPhone view showing family list with \(viewModel.families.count) families")
+                print("📋 [DEBUG] iPhone families: \(viewModel.families.map { $0.name })")
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(UIColor.systemGroupedBackground))
     }
     
     // MARK: - Private Methods
@@ -322,23 +386,9 @@ struct FamilyView: View {
 
 struct AlertModifiers: ViewModifier {
     @ObservedObject var viewModel: FamilyViewModel
-    @Binding var showSimpleTestAlert: Bool
     
     func body(content: Content) -> some View {
         content
-            .alert("テストアラート", isPresented: $showSimpleTestAlert) {
-                Button("OK") {
-                    print("✅ [DEBUG] Simple test alert dismissed successfully")
-                }
-                Button("処理中アラートテスト") {
-                    print("🧪 [DEBUG] Debug test button - create processing alert test")
-                }
-                Button("参加アラートテスト") {
-                    print("🧪 [DEBUG] Debug test button - join processing alert test")
-                }
-            } message: {
-                Text("アラート表示テスト\n各ボタンで処理フローをテストできます")
-            }
             .alert("エラー", isPresented: errorBinding) {
                 Button("OK") {
                     viewModel.clearError()
