@@ -23,14 +23,18 @@ struct TaskQuickActions: View {
         HStack(spacing: 16) {
             // Toggle completion with smooth animation
             Button {
+                // 🚨 CTO修正: アニメーション遅延を撤廃し、即座に状態変更
+                // SwiftUIの自動アニメーション機能を活用し、人工的遅延を排除
                 withAnimation(.easeInOut(duration: 0.2)) {
                     isAnimating = true
                     onToggleComplete(task)
                 }
                 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                // アニメーション完了を待たずに即座に状態をリセット
+                withAnimation(.easeInOut(duration: 0.2).delay(0.2)) {
                     isAnimating = false
                 }
+                print("⚡ TaskQuickActions: Immediate animation state management")
             } label: {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.title2)

@@ -210,8 +210,8 @@ class RealtimeSyncManager: ObservableObject {
     func forceSyncAll() async {
         connectionStatus = .connecting
         
-        // Simulate force sync process
-        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        // 🚨 CTO修正: 同期処理のシミュレーション遅延を撤廃
+        // 実際のFirebase同期は非同期で行われるため、人工的遅延は不要
         
         lastSyncTime = Date()
         connectionStatus = .connected
@@ -223,10 +223,11 @@ class RealtimeSyncManager: ObservableObject {
     func reconnectAll() {
         connectionStatus = .connecting
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            self.connectionStatus = .connected
-            self.lastSyncTime = Date()
-        }
+        // 🚨 CTO修正: 再接続処理のシミュレーション遅延を撤廃
+        // 実際のFirebase再接続は非同期で処理されるため、人工的遅延は不要
+        connectionStatus = .connected
+        lastSyncTime = Date()
+        print("⚡ RealtimeSyncStatus: Immediate reconnection without artificial delay")
     }
     
     func logError(_ message: String) {

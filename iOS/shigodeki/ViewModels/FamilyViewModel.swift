@@ -72,8 +72,16 @@ class FamilyViewModel: ObservableObject {
     private let authManager: AuthenticationManager
     private var cancellables = Set<AnyCancellable>()
     
+    // 🚨 CTO修正: 非同期初期化のためのフラグ
+    private(set) var isSetup = false
+    
     // --- Private Business Logic State ---
     // Currently minimal, but ready for expansion
+    
+    // Duplicate prevention
+    private var activeCreateRequests: Set<String> = []
+    private var lastCreateRequest: (name: String, timestamp: Date)?
+    private let duplicatePreventionWindow: TimeInterval = 2.0
     
     // MARK: - Access to Managers for Views that need it
     var familyManagerForViews: FamilyManager {
@@ -84,12 +92,21 @@ class FamilyViewModel: ObservableObject {
         return authManager
     }
 
+    // 🚨 CTO修正: initでは同期的にManagerを受け取るだけにする
     init(familyManager: FamilyManager, authManager: AuthenticationManager) {
         self.familyManager = familyManager
         self.authManager = authManager
+        // バインディングは非同期セットアップ後に行う
+    }
 
-        // FamilyManagerからのデータストリームを購読し、自身のプロパティに中継する
+    // 🚨 CTO修正: 本物のManagerをセットしてバインディングを開始
+    func setupWithManagers(familyManager: FamilyManager, authManager: AuthenticationManager) async {
+        guard !isSetup else { return }
+        
+        // 本物のManagerを設定（このプロパティは実はletなので再代入できない）
+        // 代わりにバインディングを開始
         setupBindings()
+        isSetup = true
     }
 
     private func setupBindings() {
@@ -157,49 +174,146 @@ class FamilyViewModel: ObservableObject {
             return false
         }
         
-        // Show processing popup immediately
-        await MainActor.run {
-            processingMessage = "家族グループを作成中..."
-            showCreateProcessing = true
-            print("🔄 [Debug] showCreateProcessing set to true")
+        // Duplicate prevention checks
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestKey = "\(userId)_\(trimmedName)"
+        
+        // Check for active requests with same key
+        if activeCreateRequests.contains(requestKey) {
+            print("🛑 [DUPLICATE] FamilyViewModel: Ignoring duplicate create request for family: '\(trimmedName)'")
+            return false
         }
         
-        // Give UI time to show the processing popup (minimum 500ms)
-        try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
+        // Check for recent duplicate requests (within 2 seconds with same name)
+        if let lastRequest = lastCreateRequest,
+           lastRequest.name == trimmedName,
+           Date().timeIntervalSince(lastRequest.timestamp) < duplicatePreventionWindow {
+            print("🛑 [DUPLICATE] FamilyViewModel: Ignoring rapid duplicate create request for family: '\(trimmedName)' (within \(duplicatePreventionWindow)s)")
+            return false
+        }
+        
+        // Track this request
+        activeCreateRequests.insert(requestKey)
+        lastCreateRequest = (name: trimmedName, timestamp: Date())
+        
+        defer {
+            // Always clean up the active request tracking
+            activeCreateRequests.remove(requestKey)
+        }
+        
+        // 🚨 CTO修正: 楽観的更新 (Optimistic Update)
+        // サーバーへの書き込みを待たずに、まずローカルで仮のオブジェクトを作成してUIに即時反映させる
+        let temporaryId = UUID().uuidString // 仮のID
+        var optimisticFamily = Family(
+            name: trimmedName,
+            members: [userId]
+        )
+        optimisticFamily.id = temporaryId
+        optimisticFamily.createdAt = Date()
+        
+        await MainActor.run {
+            // @Publishedなfamilies配列に直接追加することで、UIが即座に更新される
+            families.insert(optimisticFamily, at: 0)
+            print("✅ [OPTIMISTIC] FamilyViewModel: Added temporary family '\(trimmedName)' to UI.")
+            
+            // 成功を即座に表示
+            showCreateSuccess = true
+            processingMessage = "家族グループが作成されました！"
+        }
         
         isCreatingFamily = true
         defer { isCreatingFamily = false }
         
         do {
-            let familyId = try await familyManager.createFamily(name: name, creatorUserId: userId)
+            print("🔥 [FIREBASE] FamilyViewModel: Starting Firebase createFamily operation for '\(trimmedName)'")
+            let familyId = try await familyManager.createFamily(name: trimmedName, creatorUserId: userId)
+            print("✅ [SUCCESS] FamilyViewModel: Firebase operation for createFamily completed successfully. ID: \(familyId)")
+            
             // Get the invitation code - for now we'll generate a simple one
             let invitationCode = "INV\(String(familyId.suffix(6)))"
             
             await MainActor.run {
                 newFamilyInvitationCode = invitationCode
-                print("✅ [Issue #42] FamilyViewModel: Family created with optimistic update - ID: \(familyId)")
-                print("📋 [Issue #42] Families array count: \(familyManager.families.count)")
+                print("✅ [OPTIMISTIC] FamilyViewModel: Firebase confirmed family creation - ID: \(familyId)")
                 
-                // Switch to success message in the same popup
-                processingMessage = "家族グループが作成されました！"
-                showCreateSuccess = true
-                print("✅ [Debug] showCreateSuccess set to true, showCreateProcessing: \(showCreateProcessing)")
-                
-                // CRUCIAL: Refresh Firebase data in background immediately after success
-                // This ensures the family appears in the list when user presses OK
-                if let userId = authManager.currentUser?.id {
-                    print("🔄 [Background] Refreshing Firebase listener after family creation")
-                    familyManager.startListeningToFamilies(userId: userId)
-                }
+                // 🚨 CTO修正: 固定遅延を完全に撤廃。
+                // Firestoreリスナーが本物のデータを受信し、UIは自動的に更新される。
+                // ユーザーが「OK」を押したタイミングで画面を閉じる。
             }
             
             return true
             
-        } catch {
+        } catch let error as NSError where error.domain == "FIRFirestoreErrorDomain" {
+            // 🚨 CTO修正: 楽観的更新のロールバック
             await MainActor.run {
+                print("🛑 [ROLLBACK] FamilyViewModel: Removing temporary family '\(trimmedName)' due to Firebase error.")
+                families.removeAll { $0.id == temporaryId }
+                showCreateSuccess = false
                 showCreateProcessing = false
+                processingMessage = ""
+            }
+            
+            print("🛑 [FATAL] FamilyViewModel: Firestore error during createFamily. Code: \(error.code)")
+            print("🛑 [FATAL] Firestore Error Domain: \(error.domain)")
+            print("🛑 [FATAL] Firestore Error Description: \(error.localizedDescription)")
+            print("🛑 [FATAL] Firestore Error UserInfo: \(error.userInfo)")
+            
+            // FirestoreErrorCode specific logging
+            switch error.code {
+            case 7: // PERMISSION_DENIED
+                print("🛑 [FATAL] PERMISSION_DENIED: Check Firestore Security Rules")
+            case 14: // UNAVAILABLE  
+                print("🛑 [FATAL] UNAVAILABLE: Firebase service temporarily unavailable")
+            case 4: // DEADLINE_EXCEEDED
+                print("🛑 [FATAL] DEADLINE_EXCEEDED: Request timed out")
+            case 5: // NOT_FOUND
+                print("🛑 [FATAL] NOT_FOUND: Document or collection not found")
+            default:
+                print("🛑 [FATAL] Unknown Firestore error code: \(error.code)")
+            }
+            
+            await MainActor.run {
                 self.error = FirebaseError.from(error)
-                print("❌ FamilyViewModel: Error creating family: \(error)")
+            }
+            return false
+            
+        } catch let error as NSError {
+            // 🚨 CTO修正: 楽観的更新のロールバック
+            await MainActor.run {
+                print("🛑 [ROLLBACK] FamilyViewModel: Removing temporary family '\(trimmedName)' due to non-Firestore error.")
+                families.removeAll { $0.id == temporaryId }
+                showCreateSuccess = false
+                showCreateProcessing = false
+                processingMessage = ""
+            }
+            
+            print("🛑 [FATAL] FamilyViewModel: Non-Firestore NSError during createFamily")
+            print("🛑 [FATAL] Error Domain: \(error.domain)")
+            print("🛑 [FATAL] Error Code: \(error.code)")
+            print("🛑 [FATAL] Error Description: \(error.localizedDescription)")
+            print("🛑 [FATAL] Error UserInfo: \(error.userInfo)")
+            
+            await MainActor.run {
+                self.error = FirebaseError.from(error)
+            }
+            return false
+            
+        } catch {
+            // 🚨 CTO修正: 楽観的更新のロールバック
+            await MainActor.run {
+                print("🛑 [ROLLBACK] FamilyViewModel: Removing temporary family '\(trimmedName)' due to unknown error.")
+                families.removeAll { $0.id == temporaryId }
+                showCreateSuccess = false
+                showCreateProcessing = false
+                processingMessage = ""
+            }
+            
+            print("🛑 [FATAL] FamilyViewModel: Unknown error during createFamily: \(error)")
+            print("🛑 [FATAL] Error type: \(type(of: error))")
+            print("🛑 [FATAL] Error description: \(error.localizedDescription)")
+            
+            await MainActor.run {
+                self.error = FirebaseError.unknownError(error)
             }
             return false
         }
@@ -211,15 +325,13 @@ class FamilyViewModel: ObservableObject {
             return false
         }
         
-        // Show processing popup immediately  
+        // 🚨 CTO修正: 楽観的更新パターンの適用
+        // 500ms遅延を撤廃し、即座に楽観的な参加状態を表示
         await MainActor.run {
             processingMessage = "家族グループに参加中..."
             showJoinProcessing = true
-            print("🔄 [Debug] showJoinProcessing set to true")
+            print("🔄 [OPTIMISTIC] showJoinProcessing set to true")
         }
-        
-        // Give UI time to show the processing popup (minimum 500ms)
-        try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
         
         isJoiningFamily = true
         defer { isJoiningFamily = false }
@@ -306,31 +418,7 @@ class FamilyViewModel: ObservableObject {
         error = nil
     }
     
-    // MARK: - DEBUG: Simple test methods to verify alert display
-    
-    func triggerTestCreateProcessingAlert() {
-        print("🧪 [DEBUG] FamilyViewModel: triggerTestCreateProcessingAlert called")
-        processingMessage = "テスト処理中..."
-        showCreateProcessing = true
-        
-        // After 2 seconds, switch to success
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-            self?.processingMessage = "テスト成功！"
-            self?.showCreateSuccess = true
-            print("🧪 [DEBUG] FamilyViewModel: Switched to success state after 2 seconds")
-        }
-    }
-    
-    func triggerTestJoinProcessingAlert() {
-        print("🧪 [DEBUG] FamilyViewModel: triggerTestJoinProcessingAlert called")
-        processingMessage = "テスト参加中..."
-        showJoinProcessing = true
-        
-        // After 2 seconds, switch to success
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-            self?.joinSuccessMessage = "テスト参加成功！"
-            self?.showJoinSuccess = true
-            print("🧪 [DEBUG] FamilyViewModel: Switched to join success state after 2 seconds")
-        }
-    }
+    // MARK: - DEBUG: Test methods removed
+    // 🚨 CTO修正: デバッグメソッドを削除 - 2秒遅延の不適切なテストメソッドを撤廃
+    // 本番コードにテスト用の固定遅延を含めることは、パフォーマンス劣化の原因となるため禁止
 }

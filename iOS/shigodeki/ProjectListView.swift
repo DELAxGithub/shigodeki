@@ -177,9 +177,24 @@ struct ProjectListView: View {
         print("📱 ProjectListView: Waiting for SharedManagerStore preload completion...")
         #endif
         
-        // Wait for SharedManagerStore preload to complete to prevent initialization conflicts
-        while !sharedManagers.isPreloaded {
-            try? await Task.sleep(nanoseconds: 10_000_000) // 10ms intervals
+        // 🚨 CTO修正: ポーリングループを非同期待機に変更
+        // 10ms間隔のポーリングを撤廃し、Combineの@Publishedプロパティを活用
+        await withCheckedContinuation { continuation in
+            if sharedManagers.isPreloaded {
+                print("⚡ ProjectListView: SharedManagerStore already preloaded")
+                continuation.resume()
+            } else {
+                // @Publishedプロパティの変更を監視
+                var cancellable: AnyCancellable?
+                cancellable = sharedManagers.$isPreloaded
+                    .filter { $0 } // isPreloaded == true になるまで待機
+                    .first()
+                    .sink { _ in
+                        print("⚡ ProjectListView: SharedManagerStore preload completed")
+                        cancellable?.cancel()
+                        continuation.resume()
+                    }
+            }
         }
         
         let manager = await sharedManagers.getProjectManager()

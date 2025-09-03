@@ -275,11 +275,9 @@ class AnimationStateManager: ObservableObject {
             HapticFeedbackManager.shared.success()
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            withAnimation(.standardEase) {
-                self?.showSuccess = false
-            }
-        }
+        // 🚨 CTO修正: 固定時間での自動消去を撤廃
+        // ユーザーが意図的に操作するまで成功状態を保持し、適切なタイミングで呼び出し元が制御
+        print("✅ AnimationSystem: Success state shown - manual dismissal required")
     }
     
     func showErrorState() {
@@ -288,10 +286,23 @@ class AnimationStateManager: ObservableObject {
             HapticFeedbackManager.shared.error()
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            withAnimation(.standardEase) {
-                self?.showError = false
-            }
+        // 🚨 CTO修正: 固定時間での自動消去を撤廃
+        // ユーザーが意図的に操作するまでエラー状態を保持し、適切なタイミングで呼び出し元が制御
+        print("❌ AnimationSystem: Error state shown - manual dismissal required")
+    }
+    
+    // 🚨 CTO追加: 呼び出し元が明示的に状態を制御するためのメソッド
+    func dismissSuccessState() {
+        withAnimation(.standardEase) {
+            showSuccess = false
         }
+        print("✅ AnimationSystem: Success state manually dismissed")
+    }
+    
+    func dismissErrorState() {
+        withAnimation(.standardEase) {
+            showError = false
+        }
+        print("❌ AnimationSystem: Error state manually dismissed")
     }
 }

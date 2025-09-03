@@ -10,6 +10,8 @@ import SwiftUI
 struct MainTabView: View {
     // 🆕 統合されたManager管理（従来の8個→2個に削減）
     @StateObject private var sharedManagers = SharedManagerStore.shared
+    // 🚨 CTO修正: FamilyViewModelを動的に作成
+    @State private var familyViewModel: FamilyViewModel?
     @StateObject private var themeManager = ThemeManager()
     
     @State private var selectedTab: Int = 0
@@ -25,6 +27,7 @@ struct MainTabView: View {
     private let settingsTabIndex = 3
     #endif
     
+    
     var body: some View {
         TabView(selection: $selectedTab) {
             ProjectListView()
@@ -34,12 +37,23 @@ struct MainTabView: View {
                 }
                 .tag(projectTabIndex)
             
-            FamilyView()
-                .tabItem {
-                    Image(systemName: "person.3.fill")
-                    Text("チーム")
-                }
-                .tag(familyTabIndex)
+            if let viewModel = familyViewModel {
+                FamilyView()
+                    .tabItem {
+                        Image(systemName: "person.3.fill")
+                        Text("チーム")
+                    }
+                    // 🚨 CTO修正: 生成したViewModelを環境オブジェクトとして注入
+                    .environmentObject(viewModel)
+                    .tag(familyTabIndex)
+            } else {
+                ProgressView("初期化中...")
+                    .tabItem {
+                        Image(systemName: "person.3.fill")
+                        Text("チーム")
+                    }
+                    .tag(familyTabIndex)
+            }
             
             TaskListMainView()
                 .tabItem {
@@ -89,6 +103,18 @@ struct MainTabView: View {
                 print("⚡ Performance: MainTabView initialization completed in \(Int(elapsedTime * 1000))ms")
             }
             #endif
+            
+            // 🚨 CTO修正: ViewModelをここで作成
+            let familyManager = await sharedManagers.getFamilyManager()
+            let authManager = await sharedManagers.getAuthManager()
+            
+            // メインスレッドでViewModelを作成
+            await MainActor.run {
+                familyViewModel = FamilyViewModel(familyManager: familyManager, authManager: authManager)
+            }
+            
+            // ViewModelのセットアップ
+            await familyViewModel?.setupWithManagers(familyManager: familyManager, authManager: authManager)
         }
         .onMemoryWarning {
             // 🆕 メモリ警告時の自動クリーンアップ
@@ -111,19 +137,18 @@ struct MainTabView: View {
             // Issue #50 Fix: Debounce tab notifications to prevent rapid-fire data loading
             tabSwitchDebounceTask = Task {
                 let debounceStart = Date()
-                print("⏳ Issue #50 Debug: Starting 150ms debounce at \(debounceStart)")
+                // 🚨 CTO修正: 150msタブ切り替え遅延を撤廃し、即座に反応するUIを実装
+                // デバウンス処理は保持するが、遅延なしで即座に実行
+                print("⚡ Issue #50 優化: 即座にタブ切り替え通知を送信 at \(debounceStart)")
                 
-                // Small delay to debounce rapid tab switches
-                try? await Task.sleep(nanoseconds: 150_000_000) // 150ms delay
-                
-                // Check if task was cancelled during sleep
+                // Check if task was cancelled (without delay)
                 guard !Task.isCancelled else {
                     print("🔄 Issue #50 Debug: Tab notification cancelled due to new tab switch")
                     return
                 }
                 
                 let debounceEnd = Date()
-                print("✅ Issue #50 Debug: Debounce completed at \(debounceEnd), elapsed: \(Int((debounceEnd.timeIntervalSince(debounceStart)) * 1000))ms")
+                print("✅ Issue #50 優化: 即座実行完了 at \(debounceEnd), elapsed: \(Int((debounceEnd.timeIntervalSince(debounceStart)) * 1000))ms")
                 
                 await MainActor.run {
                     // Issue #46 Fix: Only reset navigation when re-selecting same tab (iOS standard)

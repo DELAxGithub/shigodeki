@@ -35,11 +35,14 @@ struct LoadingOverlay: ViewModifier {
         }
         .animation(.easeInOut(duration: 0.15), value: isLoading)
         .task(id: isLoading) {
+            // 🚨 CTO修正: ローディング表示の人工的遅延を撤廃
+            // 即座にローディング状態を反映し、レスポンシブなユーザー体験を提供
             if isLoading {
-                try? await Task.sleep(nanoseconds: UInt64((minShowDelay) * 1_000_000_000))
-                if isLoading { shouldShow = true }
+                shouldShow = true
+                print("⚡ LoadingOverlay: 即座にローディング表示開始")
             } else {
                 shouldShow = false
+                print("✅ LoadingOverlay: 即座にローディング表示終了")
             }
         }
     }
