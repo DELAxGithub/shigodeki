@@ -19,6 +19,9 @@ class FamilyViewModel: ObservableObject {
     @Published var error: FirebaseError? = nil
     @Published var shouldShowEmptyState = false
     
+    // 🚨 CTO Requirement: State for NavigationSplitView selection
+    @Published var selectedFamily: Family? = nil
+    
     /// マネージャーが注入され、ViewModelが完全に機能する状態かを示す
     @Published private(set) var isInitialized = false
     

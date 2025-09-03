@@ -256,6 +256,14 @@ struct FamilyDetailView: View {
         .loadingOverlay(isLoadingMembers || (familyManager?.isLoading ?? false), message: "読み込み中...")
         .navigationTitle("家族詳細")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("プロジェクト作成") {
+                    showingCreateProject = true
+                }
+                .disabled(projectManager == nil)
+            }
+        }
             .task {
                 if authManager == nil { authManager = await sharedManagers.getAuthManager() }
                 if familyManager == nil { 

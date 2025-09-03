@@ -19,12 +19,11 @@ struct MainTabView: View {
     @State private var tabSwitchDebounceTask: Task<Void, Never>?
     private let projectTabIndex = 0
     private let familyTabIndex = 1
-    private let taskTabIndex = 2
     #if DEBUG
-    private let testTabIndex = 3
-    private let settingsTabIndex = 4
-    #else
+    private let testTabIndex = 2
     private let settingsTabIndex = 3
+    #else
+    private let settingsTabIndex = 2
     #endif
     
     
@@ -44,13 +43,6 @@ struct MainTabView: View {
                 }
                 .environmentObject(familyViewModel)
                 .tag(familyTabIndex)
-            
-            TaskListMainView()
-                .tabItem {
-                    Image(systemName: "list.bullet")
-                    Text("家族タスク")
-                }
-                .tag(taskTabIndex)
             
             #if DEBUG
             AuthTestView()
@@ -119,10 +111,6 @@ struct MainTabView: View {
                         print("📱 Issue #46: Same Family tab re-selected, resetting navigation")
                         NotificationCenter.default.post(name: .familyTabSelected, object: nil) 
                     }
-                    if oldVal == newVal && newVal == taskTabIndex { 
-                        print("📱 Issue #46: Same Task tab re-selected, resetting navigation")
-                        NotificationCenter.default.post(name: .taskTabSelected, object: nil) 
-                    }
                     if oldVal == newVal && newVal == settingsTabIndex { 
                         print("📱 Issue #46: Same Settings tab re-selected, resetting navigation")
                         NotificationCenter.default.post(name: .settingsTabSelected, object: nil) 
@@ -142,7 +130,6 @@ struct MainTabView: View {
 extension Notification.Name {
     static let projectTabSelected = Notification.Name("ProjectTabSelectedNotification")
     static let familyTabSelected = Notification.Name("FamilyTabSelectedNotification")
-    static let taskTabSelected = Notification.Name("TaskTabSelectedNotification")
     static let settingsTabSelected = Notification.Name("SettingsTabSelectedNotification")
     static let testTabSelected = Notification.Name("TestTabSelectedNotification")
 }

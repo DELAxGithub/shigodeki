@@ -24,345 +24,88 @@ struct FamilyView: View {
     @State private var lastCreateTap: Date?
     @State private var lastJoinTap: Date?
     private let tapCooldownSeconds: TimeInterval = 2.0
+    
+    // DEBUG: Simple test alert to verify alert display functionality
+    @State private var showSimpleTestAlert = false
 
     var body: some View {
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            // iPad: Use NavigationSplitView
-            NavigationSplitView {
-                sidebarContent
-            } detail: {
-                detailContent
-            }
-            .navigationDestination(for: Family.self) { family in
-                FamilyDetailView(family: family)
-            }
-            .id(navigationResetId)
-            .onReceive(NotificationCenter.default.publisher(for: .familyTabSelected)) { _ in
-                navigationResetId = UUID()
-            }
-        } else {
-            // iPhone: Use standard NavigationView
-            NavigationView {
-                phoneContent
-            }
-            .navigationDestination(for: Family.self) { family in
-                FamilyDetailView(family: family)
-            }
-            .id(navigationResetId)
-            .onReceive(NotificationCenter.default.publisher(for: .familyTabSelected)) { _ in
-                navigationResetId = UUID()
-            }
-        }
-    }
-    
-    // MARK: - iPhone Content
-    
-    @ViewBuilder
-    private var phoneContent: some View {
-        // ViewModelが完全に準備できるまで、プログレス表示を出す
-        if viewModel.isInitialized {
-            VStack {
-                contentView(viewModel: viewModel)
-            }
-            .navigationTitle("家族")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                phoneToolbarContent
-            }
-            .onAppear { Task { await viewModel.onAppear() } }
-            .onDisappear {
-                viewModel.onDisappear()
-            }
-            .sheet(isPresented: $showingCreateFamily) {
-                CreateFamilyView(viewModel: viewModel)
-            }
-            .sheet(isPresented: $showingJoinFamily) {
-                JoinFamilyView(viewModel: viewModel)
-            }
-            .modifier(AlertModifiers(viewModel: viewModel))
-        } else {
-            // Manager注入待ちの表示
-            ProgressView("データ読み込み中...")
+        // 🚨 CTO Requirement: This is the correct, standard implementation for NavigationSplitView.
+        NavigationSplitView {
+            // MARK: - Sidebar
+            // The sidebar is ONLY for selection.
+            sidebarView
                 .navigationTitle("家族")
-                .navigationBarTitleDisplayMode(.large)
-        }
-    }
-    
-    // MARK: - Sidebar Content
-    
-    @ViewBuilder
-    private var sidebarContent: some View {
-        // ViewModelが完全に準備できるまで、プログレス表示を出す
-        if viewModel.isInitialized {
-            let familiesCount = viewModel.families.count
-            let isLoading = viewModel.isLoading
-            let shouldShowEmptyState = viewModel.shouldShowEmptyState
-            let currentUserId = viewModel.authManagerForViews?.currentUser?.id
-            let isAuthenticated = viewModel.authManagerForViews?.isAuthenticated ?? false
-            
-            if currentUserId == nil && isAuthenticated {
-                ProgressView("ユーザー情報を取得中...")
-                    .navigationTitle("家族")
-            } else if shouldShowEmptyState || isLoading {
-                VStack {
-                    Image(systemName: "person.3.fill")
-                        .font(.system(size: 40))
-                        .foregroundColor(.gray)
-                    Text(isLoading ? "読み込み中..." : "家族グループがありません")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                }
-                .navigationTitle("家族")
-            } else if familiesCount > 0 {
-                List(viewModel.families) { family in
-                    NavigationLink(value: family) {
-                        FamilyRowView(family: family)
+                .toolbar {
+                    // Global actions like "Create" belong on the sidebar.
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        Button(action: createFamilyWithCooldown) {
+                            Label("家族を作成", systemImage: "plus")
+                        }
+                        .disabled(viewModel.isCreatingFamily || isCreateCooldownActive())
+                        .accessibilityIdentifier("create_family_button")
+                        
+                        Button(action: joinFamilyWithCooldown) {
+                            Label("家族に参加", systemImage: "person.badge.plus")
+                        }
+                        .disabled(viewModel.isJoiningFamily || isJoinCooldownActive())
                     }
-                    .accessibilityIdentifier("family_\(family.name)")
                 }
-                .listStyle(.sidebar)
-                .navigationTitle("家族")
-                .onAppear {
-                    print("🔍 [DEBUG] Sidebar showing family list with \(familiesCount) families")
-                    print("📋 [DEBUG] Sidebar families: \(viewModel.families.map { $0.name })")
+        } detail: {
+            // MARK: - Detail
+            // The detail pane shows the content of the selection, or a placeholder.
+            NavigationStack {
+                if let selectedFamily = viewModel.selectedFamily {
+                    FamilyDetailView(family: selectedFamily)
+                } else {
+                    placeholderView
                 }
-            } else {
-                VStack {
-                    Image(systemName: "person.3.fill")
-                        .font(.system(size: 40))
-                        .foregroundColor(.gray)
-                    Text("家族グループがありません")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                }
-                .navigationTitle("家族")
             }
-        } else {
-            // Manager注入待ちの表示
-            ProgressView("データ読み込み中...")
-                .navigationTitle("家族")
         }
-    }
-    
-    // MARK: - Detail Content
-    
-    @ViewBuilder
-    private var detailContent: some View {
-        // ViewModelが完全に準備できるまで、プログレス表示を出す
-        if viewModel.isInitialized {
-            VStack {
-                contentView(viewModel: viewModel)
-            }
-            .navigationTitle("家族グループ")
-            .toolbar {
-                toolbarContent
-            }
-            .onAppear { Task { await viewModel.onAppear() } }
-            .onDisappear {
-                viewModel.onDisappear()
-            }
-            .sheet(isPresented: $showingCreateFamily) {
-                CreateFamilyView(viewModel: viewModel)
-            }
-            .sheet(isPresented: $showingJoinFamily) {
-                JoinFamilyView(viewModel: viewModel)
-            }
-            .modifier(AlertModifiers(viewModel: viewModel))
-        } else {
-            // Manager注入待ちの表示
-            ProgressView("データ読み込み中...")
-                .navigationTitle("家族グループ")
+        .navigationSplitViewStyle(.balanced) // Ensures sidebar is visible on iPad launch
+        .onAppear { Task { await viewModel.onAppear() } }
+        .onDisappear {
+            viewModel.onDisappear()
         }
-    }
-    
-    // MARK: - Toolbar Content
-    
-    @ToolbarContentBuilder
-    private var phoneToolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .navigationBarTrailing) {
-            Button(action: {
-                createFamilyWithCooldown()
-            }) {
-                Label("家族を作成", systemImage: "plus")
-            }
-            .disabled(viewModel.isCreatingFamily || isCreateCooldownActive())
-            .accessibilityIdentifier("create_family_button")
-            
-            Button {
-                joinFamilyWithCooldown()
-            } label: {
-                Label("家族に参加", systemImage: "person.badge.plus")
-            }
-            .disabled(viewModel.isJoiningFamily || isJoinCooldownActive())
+        .sheet(isPresented: $showingCreateFamily) {
+            CreateFamilyView(viewModel: viewModel)
         }
-    }
-    
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            Button(action: {
-                createFamilyWithCooldown()
-            }) {
-                Label("家族を作成", systemImage: "plus")
-            }
-            .disabled(viewModel.isCreatingFamily || isCreateCooldownActive())
-            .accessibilityIdentifier("create_family_button")
-            
-            Button {
-                joinFamilyWithCooldown()
-            } label: {
-                Label("家族に参加", systemImage: "person.badge.plus")
-            }
-            .disabled(viewModel.isJoiningFamily || isJoinCooldownActive())
+        .sheet(isPresented: $showingJoinFamily) {
+            JoinFamilyView(viewModel: viewModel)
         }
+        .modifier(AlertModifiers(viewModel: viewModel, showSimpleTestAlert: $showSimpleTestAlert))
     }
-    
+
     // MARK: - View Components
     
     @ViewBuilder
-    private func contentView(viewModel: FamilyViewModel) -> some View {
-        let familiesCount = viewModel.families.count
-        let isLoading = viewModel.isLoading
-        let shouldShowEmptyState = viewModel.shouldShowEmptyState
-        let currentUserId = viewModel.authManagerForViews?.currentUser?.id
-        let isAuthenticated = viewModel.authManagerForViews?.isAuthenticated ?? false
-        
-        // Debug logging moved to onAppear outside ViewBuilder
-        let debugState = "families=\(familiesCount), loading=\(isLoading), empty=\(shouldShowEmptyState), userId=\(currentUserId ?? "nil"), auth=\(isAuthenticated)"
-        
-        // Wait for auth userId to be available before deciding empty state
-        if currentUserId == nil && isAuthenticated {
+    private var sidebarView: some View {
+        // The sidebar's state is derived directly from the ViewModel.
+        if viewModel.isLoading {
             ProgressView("ユーザー情報を取得中...")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .onAppear {
-                    print("🔍 [DEBUG] ContentView state: \(debugState)")
-                    print("🔍 [DEBUG] Showing user info loading view")
-                }
-        } else if shouldShowEmptyState {
-            familyEmptyStateView()
-                .onAppear {
-                    print("🔍 [DEBUG] ContentView state: \(debugState)")
-                    print("🔍 [DEBUG] Showing empty state view")
-                }
-        } else if isLoading {
-            ProgressView("家族グループを読み込み中...")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .onAppear {
-                    print("🔍 [DEBUG] ContentView state: \(debugState)")
-                    print("🔍 [DEBUG] Showing loading view")
-                }
+        } else if viewModel.families.isEmpty {
+            Text("家族グループがありません")
+                .foregroundColor(.secondary)
         } else {
-            familyListView(viewModel: viewModel)
-                .onAppear {
-                    print("🔍 [DEBUG] ContentView state: \(debugState)")
-                    print("🔍 [DEBUG] Showing family list view with \(familiesCount) families")
+            // The List's selection is bound to the ViewModel's selectedFamily property.
+            // This is the core of the master-detail interface.
+            List(selection: $viewModel.selectedFamily) {
+                ForEach(viewModel.families) { family in
+                    FamilyRowView(family: family)
+                        .tag(family) // The tag MUST match the selection type.
                 }
+            }
         }
     }
     
     @ViewBuilder
-    private func familyEmptyStateView() -> some View {
-        VStack(spacing: 24) {
+    private var placeholderView: some View {
+        VStack(spacing: 16) {
             Image(systemName: "person.3.fill")
                 .font(.system(size: 60))
-                .foregroundColor(.gray)
-            
-            VStack(spacing: 8) {
-                Text("家族グループがありません")
-                    .font(.title2)
-                    .fontWeight(.medium)
-                
-                Text("新しい家族グループを作成するか\n招待コードで参加しましょう")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            
-            VStack(spacing: 12) {
-                Button(action: {
-                    createFamilyWithCooldown()
-                }) {
-                    HStack {
-                        Image(systemName: "plus")
-                        Text("家族グループを作成")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(viewModel.isCreatingFamily || isCreateCooldownActive())
-                .accessibilityIdentifier("create_family_from_empty")
-                
-                Button(action: {
-                    joinFamilyWithCooldown()
-                }) {
-                    HStack {
-                        Image(systemName: "person.badge.plus")
-                        Text("招待コードで参加")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(viewModel.isJoiningFamily || isJoinCooldownActive())
-                .accessibilityIdentifier("join_family_from_empty")
-            }
-            .padding(.horizontal, 48)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(UIColor.systemGroupedBackground))
-    }
-    
-    @ViewBuilder
-    private func familyListView(viewModel: FamilyViewModel) -> some View {
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            // iPad: Detail view shows actual family list
-            VStack(spacing: 0) {
-                // Header section
-                VStack(spacing: 16) {
-                    Image(systemName: "person.3.fill")
-                        .font(.system(size: 50))
-                        .foregroundColor(.blue)
-                    
-                    VStack(spacing: 8) {
-                        Text("家族グループ一覧")
-                            .font(.title2)
-                            .fontWeight(.medium)
-                        
-                        Text("\(viewModel.families.count)個の家族グループに参加中")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding(.top, 20)
-                .padding(.bottom, 24)
-                
-                // Actual family list
-                List(viewModel.families) { family in
-                    NavigationLink(value: family) {
-                        FamilyRowView(family: family)
-                    }
-                    .accessibilityIdentifier("family_detail_\(family.name)")
-                }
-                .listStyle(.insetGrouped)
-                .onAppear {
-                    print("🔍 [DEBUG] Detail view showing family list with \(viewModel.families.count) families")
-                    print("📋 [DEBUG] Detail families: \(viewModel.families.map { $0.name })")
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(UIColor.systemGroupedBackground))
-        } else {
-            // iPhone: Simple list view
-            List(viewModel.families) { family in
-                NavigationLink(value: family) {
-                    FamilyRowView(family: family)
-                }
-                .accessibilityIdentifier("family_detail_\(family.name)")
-            }
-            .listStyle(.insetGrouped)
-            .onAppear {
-                print("🔍 [DEBUG] iPhone view showing family list with \(viewModel.families.count) families")
-                print("📋 [DEBUG] iPhone families: \(viewModel.families.map { $0.name })")
-            }
+                .foregroundColor(.secondary)
+            Text("家族を選択してください")
+                .font(.title2)
+                .foregroundColor(.secondary)
         }
     }
     
@@ -408,9 +151,23 @@ struct FamilyView: View {
 
 struct AlertModifiers: ViewModifier {
     @ObservedObject var viewModel: FamilyViewModel
+    @Binding var showSimpleTestAlert: Bool
     
     func body(content: Content) -> some View {
         content
+            .alert("テストアラート", isPresented: $showSimpleTestAlert) {
+                Button("OK") {
+                    print("✅ [DEBUG] Simple test alert dismissed successfully")
+                }
+                Button("処理中アラートテスト") {
+                    print("🧪 [DEBUG] Debug test button - create processing alert test")
+                }
+                Button("参加アラートテスト") {
+                    print("🧪 [DEBUG] Debug test button - join processing alert test")
+                }
+            } message: {
+                Text("アラート表示テスト\n各ボタンで処理フローをテストできます")
+            }
             .alert("エラー", isPresented: errorBinding) {
                 Button("OK") {
                     viewModel.clearError()
