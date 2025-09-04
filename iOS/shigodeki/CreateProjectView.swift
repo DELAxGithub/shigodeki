@@ -83,17 +83,46 @@ struct CreateProjectView: View {
 
                         if selectedOwnerType == .family {
                             if familyManager.isLoading {
-                                HStack { ProgressView().scaleEffect(0.8); Text("家族を読み込み中...").font(.caption).foregroundColor(.secondary) }
+                                HStack { 
+                                    ProgressView().scaleEffect(0.8) 
+                                    Text("家族を読み込み中...").font(.caption).foregroundColor(.secondary) 
+                                }
                             } else if familyManager.families.isEmpty {
-                                Text("家族グループがありません。家族タブから作成/参加してください。")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Image(systemName: "info.circle")
+                                            .foregroundColor(.orange)
+                                        Text("家族グループがまだ作成されていません")
+                                            .font(.subheadline)
+                                            .foregroundColor(.primary)
+                                    }
+                                    
+                                    Text("家族プロジェクトを作成するには、先に家族グループを作成または参加する必要があります。")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("💡 個人プロジェクトとして作成する場合は「個人」を選択してください。")
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                        .padding(.top, 2)
+                                }
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .background(Color.orange.opacity(0.1))
+                                .cornerRadius(8)
                             } else {
                                 Picker("家族グループ", selection: $selectedFamilyId) {
                                     Text("選択してください").tag(String?.none)
                                     ForEach(familyManager.families) { fam in
                                         Text(fam.name).tag(Optional(fam.id))
                                     }
+                                }
+                                
+                                if selectedFamilyId == nil {
+                                    Text("⚠️ 家族グループを選択してください")
+                                        .font(.caption)
+                                        .foregroundColor(.orange)
+                                        .padding(.top, 4)
                                 }
                             }
                         }
@@ -427,6 +456,11 @@ struct CreateProjectView: View {
     private var isCreateButtonDisabled: Bool {
         let nameEmpty = projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         
+        // Check for family selection when family owner type is selected
+        if selectedOwnerType == .family && selectedFamilyId == nil {
+            return true
+        }
+        
         switch selectedCreationMethod {
         case .ai:
             let promptEmpty = aiPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -467,11 +501,19 @@ struct CreateProjectView: View {
             return
         }
         
+        // Validate family selection for family projects
+        if selectedOwnerType == .family && selectedFamilyId == nil {
+            print("❌ Family owner type selected but no family chosen")
+            errorMessage = "家族プロジェクトを作成する場合は、家族グループを選択してください。\n\n個人プロジェクトを作成する場合は「個人」を選択してください。"
+            showingError = true
+            return
+        }
+        
         print("✅ Validation passed - proceeding with creation")
         
         let description = projectDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         let finalDescription = description.isEmpty ? nil : description
-        let ownerId = (selectedOwnerType == .individual ? userId : (selectedFamilyId ?? userId))
+        let ownerId = (selectedOwnerType == .individual ? userId : selectedFamilyId!)
         
         isCreating = true
         

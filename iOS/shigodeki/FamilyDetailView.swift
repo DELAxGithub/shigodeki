@@ -60,7 +60,7 @@ struct FamilyDetailView: View {
             }
             
             // Members Section
-            Section("メンバー (\(family.members.count)人)") {
+            Section("メンバー (家族: \(family.members.count)人, 読み込み済み: \(familyMembers.count)人)") {
                 if isLoadingMembers {
                     HStack {
                         ProgressView()
@@ -333,100 +333,112 @@ struct FamilyDetailView: View {
     
     // Issue #44: Extracted member loading logic for reuse in retry functionality
     private func loadMembersInternal(memberIds: [String]) async {
-        do {
-            let db = Firestore.firestore()
-            let decoder = Firestore.Decoder()
+        print("🔍 [DEBUG] Loading \(memberIds.count) family members: \(memberIds)")
+        
+        let db = Firestore.firestore()
+        let decoder = Firestore.Decoder()
+        
+        // 重要: すべてのメンバーIDに対して処理を行い、エラーがあっても全員分作成する
+        var loadedMembers: [User] = []
+        
+        for (index, memberId) in memberIds.enumerated() {
+            print("🔍 [DEBUG] Loading member \(index + 1)/\(memberIds.count): \(memberId)")
             
-            print("🔍 [Issue #44] Loading \(memberIds.count) family members")
+            var memberUser: User
             
-            // 順序を保証するため、順次処理でユーザー情報を取得
-            var loadedMembers: [User] = []
-            
-            for memberId in memberIds {
-                print("🔍 [Issue #44] Loading member: \(memberId)")
-                do {
-                    let userDoc = try await db.collection("users").document(memberId).getDocument()
-                    
-                    if userDoc.exists {
-                        do {
-                            // 最新のUserモデルでデコードを試行
-                            var user = try userDoc.data(as: User.self, decoder: decoder)
+            do {
+                let userDoc = try await db.collection("users").document(memberId).getDocument()
+                
+                if userDoc.exists {
+                    do {
+                        // 最新のUserモデルでデコードを試行
+                        var user = try userDoc.data(as: User.self, decoder: decoder)
+                        user.id = memberId
+                        memberUser = user
+                        print("✅ [DEBUG] Successfully loaded user: \(user.name) (\(user.email))")
+                    } catch {
+                        // デコードに失敗した場合、手動でフィールドを取得してフォールバック
+                        print("⚠️ [DEBUG] Decode failed for user \(memberId), using manual parsing: \(error)")
+                        if let data = userDoc.data() {
+                            var user = User(
+                                name: data["name"] as? String ?? "Unknown User",
+                                email: data["email"] as? String ?? "",
+                                projectIds: data["projectIds"] as? [String] ?? [],
+                                roleAssignments: [:] // 複雑なRoleデータは初期化時は空にする
+                            )
                             user.id = memberId
-                            loadedMembers.append(user)
-                            print("✅ [Issue #44] Successfully loaded user: \(user.name)")
-                        } catch {
-                            // デコードに失敗した場合、手動でフィールドを取得してフォールバック
-                            print("⚠️ [Issue #44] Decode failed for user \(memberId), using manual parsing: \(error)")
-                            if let data = userDoc.data() {
-                                var user = User(
-                                    name: data["name"] as? String ?? "Unknown User",
-                                    email: data["email"] as? String ?? "",
-                                    projectIds: data["projectIds"] as? [String] ?? [],
-                                    roleAssignments: [:] // 複雑なRoleデータは初期化時は空にする
-                                )
-                                user.id = memberId
-                                user.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
-                                user.lastActiveAt = (data["lastActiveAt"] as? Timestamp)?.dateValue()
-                                loadedMembers.append(user)
-                                print("✅ [Issue #44] Successfully parsed user manually: \(user.name)")
-                            }
+                            user.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
+                            user.lastActiveAt = (data["lastActiveAt"] as? Timestamp)?.dateValue()
+                            memberUser = user
+                            print("✅ [DEBUG] Successfully parsed user manually: \(user.name)")
+                        } else {
+                            // データが空の場合
+                            var user = User(
+                                name: "データが読み込めませんでした",
+                                email: "ユーザーID: \(String(memberId.prefix(8)))",
+                                projectIds: [],
+                                roleAssignments: [:]
+                            )
+                            user.id = memberId
+                            memberUser = user
+                            print("⚠️ [DEBUG] Empty data for user \(memberId)")
                         }
-                    } else {
-                        // ユーザードキュメントが存在しない場合のフォールバック
-                        var placeholderUser = User(
-                            name: "ユーザーが見つかりません",
-                            email: "ユーザーID: \(String(memberId.prefix(8)))",
-                            projectIds: [],
-                            roleAssignments: [:]
-                        )
-                        placeholderUser.id = memberId
-                        loadedMembers.append(placeholderUser)
-                        print("⚠️ [Issue #44] User document not found for ID: \(memberId)")
                     }
-                } catch {
-                    print("❌ [Issue #44] Error loading user \(memberId): \(error)")
-                    
-                    // Issue #44 Fix: Create user-friendly error messages based on error type
-                    let errorName: String
-                    let errorDescription = error.localizedDescription.lowercased()
-                    
-                    if errorDescription.contains("network") || errorDescription.contains("connection") {
-                        errorName = "接続エラー"
-                    } else if errorDescription.contains("permission") || errorDescription.contains("denied") {
-                        errorName = "アクセス権限がありません"
-                    } else if errorDescription.contains("timeout") {
-                        errorName = "読み込みタイムアウト"
-                    } else {
-                        errorName = "エラーにより読み込めませんでした"
-                    }
-                    
-                    var errorUser = User(
-                        name: errorName,
+                } else {
+                    // ユーザードキュメントが存在しない場合のフォールバック
+                    var placeholderUser = User(
+                        name: "ユーザーが見つかりません",
                         email: "ユーザーID: \(String(memberId.prefix(8)))",
                         projectIds: [],
                         roleAssignments: [:]
                     )
-                    errorUser.id = memberId
-                    loadedMembers.append(errorUser)
+                    placeholderUser.id = memberId
+                    memberUser = placeholderUser
+                    print("⚠️ [DEBUG] User document not found for ID: \(memberId)")
                 }
-            }
-            
-            await MainActor.run {
-                familyMembers = loadedMembers
-                isLoadingMembers = false
-                print("✅ [Issue #44] Successfully loaded \(loadedMembers.count) members")
+            } catch {
+                print("❌ [DEBUG] Error loading user \(memberId): \(error)")
                 
-                // Log summary of member loading results
-                let successCount = loadedMembers.filter { !$0.name.contains("エラー") && !$0.name.contains("見つかりません") }.count
-                let errorCount = loadedMembers.count - successCount
-                print("📊 [Issue #44] Loading summary: \(successCount) success, \(errorCount) errors")
+                // Issue #44 Fix: Create user-friendly error messages based on error type
+                let errorName: String
+                let errorDescription = error.localizedDescription.lowercased()
+                
+                if errorDescription.contains("network") || errorDescription.contains("connection") {
+                    errorName = "接続エラー"
+                } else if errorDescription.contains("permission") || errorDescription.contains("denied") {
+                    errorName = "アクセス権限がありません"
+                } else if errorDescription.contains("timeout") {
+                    errorName = "読み込みタイムアウト"
+                } else {
+                    errorName = "エラーにより読み込めませんでした"
+                }
+                
+                var errorUser = User(
+                    name: errorName,
+                    email: "ユーザーID: \(String(memberId.prefix(8)))",
+                    projectIds: [],
+                    roleAssignments: [:]
+                )
+                errorUser.id = memberId
+                memberUser = errorUser
+                print("❌ [DEBUG] Created error user for \(memberId): \(errorName)")
             }
             
-        } catch {
-            await MainActor.run { 
-                isLoadingMembers = false 
-                print("❌ [Issue #44] Critical error in loadFamilyMembers: \(error)")
-            }
+            // 必ずメンバーを追加（エラーがあっても全員分のエントリを作成）
+            loadedMembers.append(memberUser)
+            print("📝 [DEBUG] Added member \(index + 1) to list: \(memberUser.name)")
+        }
+        
+        await MainActor.run {
+            familyMembers = loadedMembers
+            isLoadingMembers = false
+            print("✅ [DEBUG] Final result: \(loadedMembers.count)/\(memberIds.count) members loaded")
+            print("📊 [DEBUG] Member names: \(loadedMembers.map { $0.name })")
+            
+            // Log summary of member loading results
+            let successCount = loadedMembers.filter { !$0.name.contains("エラー") && !$0.name.contains("見つかりません") }.count
+            let errorCount = loadedMembers.count - successCount
+            print("📊 [DEBUG] Loading summary: \(successCount) success, \(errorCount) errors")
         }
     }
     
