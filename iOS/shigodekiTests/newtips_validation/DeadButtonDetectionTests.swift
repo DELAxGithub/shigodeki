@@ -14,7 +14,8 @@ class DeadButtonDetectionTests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["isRunningUITests", "skipOnboarding"]
+        // Removed problematic launch arguments that cause app launch failure
+        // TODO: Add proper launch arguments after confirming basic app launch works
         app.launch()
     }
     
@@ -134,14 +135,18 @@ class DeadButtonDetectionTests: XCTestCase {
     }
     
     private func writeToValidationLog(_ content: String) {
-        let logPath = "/Users/hiroshikodera/repos/_active/apps/shigodeki/iOS/validation_results_2025-08-29_17-25.log"
+        let logPath = "build/dead_button_report.md"
         do {
-            let fileHandle = FileHandle(forWritingAtPath: logPath)
-            fileHandle?.seekToEndOfFile()
-            fileHandle?.write(content.data(using: .utf8) ?? Data())
-            fileHandle?.closeFile()
+            // Try to append to the file if it exists, otherwise create it.
+            if let fileHandle = FileHandle(forWritingAtPath: logPath) {
+                fileHandle.seekToEndOfFile()
+                fileHandle.write(content.data(using: .utf8) ?? Data())
+                fileHandle.closeFile()
+            } else {
+                try content.write(toFile: logPath, atomically: true, encoding: .utf8)
+            }
         } catch {
-            print("Failed to write to log: \(error)")
+            print("⚠️ Failed to write to validation log at \(logPath): \(error)")
         }
     }
 }
@@ -165,6 +170,7 @@ struct AppState: Equatable {
 }
 
 // MARK: - XCUIApplication Extension (from newtips.md)
+
 
 extension XCUIApplication {
     func scanForDeadButtons() -> [String] {

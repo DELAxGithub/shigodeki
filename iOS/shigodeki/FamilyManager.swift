@@ -223,10 +223,40 @@ class FamilyManager: ObservableObject {
                 let userDoc = try await db.collection("users").document(userId).getDocument()
                 guard let userData = userDoc.data(),
                       let familyIds = userData["familyIds"] as? [String] else {
+                    print("👤 FamilyManager: No family IDs found for user, setting empty families")
+                    self.families = []
                     return
                 }
                 
-                // Set up listeners for each family
+                print("📋 FamilyManager: Found \(familyIds.count) family IDs, loading initial data...")
+                
+                // FIRST: Load initial data immediately
+                var initialFamilies: [Family] = []
+                for familyId in familyIds {
+                    do {
+                        let familyDoc = try await db.collection("families").document(familyId).getDocument()
+                        if let data = familyDoc.data() {
+                            var family = Family(
+                                name: data["name"] as? String ?? "",
+                                members: data["members"] as? [String] ?? []
+                            )
+                            family.id = familyDoc.documentID
+                            family.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
+                            family.lastUpdatedAt = (data["lastUpdatedAt"] as? Timestamp)?.dateValue()
+                            family.devEnvironmentTest = data["devEnvironmentTest"] as? String
+                            initialFamilies.append(family)
+                            print("✅ FamilyManager: Loaded initial family: \(family.name)")
+                        }
+                    } catch {
+                        print("❌ FamilyManager: Error loading initial family \(familyId): \(error)")
+                    }
+                }
+                
+                // Update families array with initial data
+                self.families = initialFamilies
+                print("🚀 FamilyManager: Initial load complete with \(initialFamilies.count) families")
+                
+                // THEN: Set up listeners for real-time updates
                 for familyId in familyIds {
                     let listener = db.collection("families").document(familyId)
                         .addSnapshotListener { [weak self] documentSnapshot, error in
