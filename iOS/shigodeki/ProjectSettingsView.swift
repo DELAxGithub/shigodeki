@@ -412,7 +412,7 @@ struct ProjectSettingsView: View {
     }
     
     private func createInvite() async {
-        guard let pid = project.id else { return }
+        guard project.id != nil else { return }
         guard let uid = authManager?.currentUser?.id else { return }
         isUpdating = true
         do {
@@ -430,6 +430,7 @@ struct ProjectSettingsView: View {
             }
         }
     }
+    
     
     private func formatDate(_ date: Date?) -> String {
         guard let date = date else { return "不明" }
