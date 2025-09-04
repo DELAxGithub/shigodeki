@@ -223,6 +223,52 @@ class SharedManagerStore: ObservableObject {
         )
     }
     
+    // MARK: - Centralized Initialization (Issue #50 Fix)
+    
+    /// Issue #50 Fix: Preload all essential managers to prevent tab-switching initialization conflicts
+    @Published var isPreloaded: Bool = false
+    private var preloadTask: Task<Void, Never>?
+    
+    func preloadAllManagers() async {
+        // Prevent multiple concurrent preload attempts
+        if let existingTask = preloadTask {
+            await existingTask.value
+            return
+        }
+        
+        if isPreloaded {
+            #if DEBUG
+            print("✅ SharedManagerStore: Already preloaded, skipping")
+            #endif
+            return
+        }
+        
+        preloadTask = Task {
+            #if DEBUG
+            let startTime = CFAbsoluteTimeGetCurrent()
+            print("🚀 SharedManagerStore: Starting centralized preload to prevent tab-switching issues")
+            #endif
+            
+            // Preload essential managers in dependency order
+            _ = await getAuthManager()
+            _ = await getProjectManager()
+            _ = await getFamilyManager()
+            _ = await getTaskListManager()
+            
+            await MainActor.run {
+                isPreloaded = true
+                #if DEBUG
+                let elapsedTime = CFAbsoluteTimeGetCurrent() - startTime
+                print("✅ SharedManagerStore: Preload completed in \(Int(elapsedTime * 1000))ms")
+                print("🎯 Issue #50: Tab switching should now be stable with preloaded managers")
+                #endif
+            }
+        }
+        
+        await preloadTask?.value
+        preloadTask = nil
+    }
+    
     // MARK: - Memory Management (🆕 統合キャッシュ管理)
     
     /// 未使用のManagerインスタンスを解放

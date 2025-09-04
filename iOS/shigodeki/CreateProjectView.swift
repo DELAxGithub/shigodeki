@@ -468,13 +468,17 @@ struct CreateProjectView: View {
         }
         
         print("✅ Validation passed - proceeding with creation")
+        
+        let description = projectDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalDescription = description.isEmpty ? nil : description
+        let ownerId = (selectedOwnerType == .individual ? userId : (selectedFamilyId ?? userId))
+        
         isCreating = true
         
         Task {
+            // 🚨 CTO修正: ProjectManagerが楽観的更新を処理するため、ここでの重複処理を削除
             do {
-                let description = projectDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-                let finalDescription = description.isEmpty ? nil : description
-                print("📋 Final inputs - Name: '\(trimmedName)', Description: '\(finalDescription ?? "nil")', Owner: '\(userId)'")
+                print("📋 Final inputs - Name: '\(trimmedName)', Description: '\(finalDescription ?? "nil")', Owner: '\(ownerId)'")
                 
                 let createdProject: Project
                 
@@ -484,7 +488,7 @@ struct CreateProjectView: View {
                     createdProject = try await projectManager.createProject(
                         name: trimmedName,
                         description: finalDescription,
-                        ownerId: (selectedOwnerType == .individual ? userId : (selectedFamilyId ?? userId)),
+                        ownerId: ownerId,
                         ownerType: selectedOwnerType,
                         createdByUserId: userId
                     )
@@ -502,7 +506,7 @@ struct CreateProjectView: View {
                     createdProject = try await projectManager.createProjectFromTemplate(
                         template,
                         projectName: trimmedName,
-                        ownerId: (selectedOwnerType == .individual ? userId : (selectedFamilyId ?? userId)),
+                        ownerId: ownerId,
                         ownerType: selectedOwnerType,
                         createdByUserId: userId,
                         customizations: nil // Basic implementation - can be enhanced later
@@ -519,7 +523,7 @@ struct CreateProjectView: View {
                     createdProject = try await projectManager.createProject(
                         name: trimmedName,
                         description: finalDescription,
-                        ownerId: (selectedOwnerType == .individual ? userId : (selectedFamilyId ?? userId)),
+                        ownerId: ownerId,
                         ownerType: selectedOwnerType,
                         createdByUserId: userId
                     )
@@ -546,10 +550,16 @@ struct CreateProjectView: View {
                 print("🎉 Project creation successful in view! Project ID: \(createdProject.id ?? "NO_ID")")
                 
                 await MainActor.run {
+                    print("✅ CreateProjectView: Project creation confirmed - ID: \(createdProject.id ?? "NO_ID")")
+                    
+                    // 🚨 CTO修正: ProjectManagerが楽観的更新を適切に処理済み
+                    // Firestoreリスナーが本物のデータを受信し、UIは自動的に更新される
                     print("📱 Dismissing create project view")
                     presentationMode.wrappedValue.dismiss()
                 }
             } catch {
+                // 🚨 CTO修正: ProjectManagerがエラーロールバックを適切に処理済み
+                
                 print("❌ Project creation failed in view: \(error)")
                 print("❌ Error type: \(type(of: error))")
                 print("❌ Error details: \(error.localizedDescription)")

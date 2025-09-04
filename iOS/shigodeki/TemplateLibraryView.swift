@@ -117,8 +117,17 @@ struct TemplateLibraryView: View {
                 )
             }
         }
+        .task {
+            // Issue #54 Fix: Ensure templates load before view displays
+            if templateManager.allTemplates.isEmpty {
+                templateManager.loadBuiltInTemplates()
+            }
+        }
         .onAppear {
-            templateManager.loadBuiltInTemplates()
+            // Fallback for cases where .task doesn't trigger
+            if templateManager.allTemplates.isEmpty && !templateManager.isLoading {
+                templateManager.loadBuiltInTemplates()
+            }
         }
     }
     
@@ -549,6 +558,9 @@ class TemplateManager: ObservableObject {
     @Published var isLoading = false
     
     func loadBuiltInTemplates() {
+        // Issue #54 Fix: Prevent duplicate loading
+        guard !isLoading else { return }
+        
         isLoading = true
         
         // 組み込みテンプレートを非同期で読み込み
@@ -559,6 +571,10 @@ class TemplateManager: ObservableObject {
                 self.builtInTemplates = templates
                 self.allTemplates = templates + self.customTemplates
                 self.isLoading = false
+                
+                #if DEBUG
+                print("✅ TemplateManager: Loaded \(templates.count) built-in templates")
+                #endif
             }
         }
     }

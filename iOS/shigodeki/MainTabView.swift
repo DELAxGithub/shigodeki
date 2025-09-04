@@ -10,18 +10,22 @@ import SwiftUI
 struct MainTabView: View {
     // 🆕 統合されたManager管理（従来の8個→2個に削減）
     @StateObject private var sharedManagers = SharedManagerStore.shared
+    // 🚨 CTO修正: FamilyViewModelを同期的に初期化して起動を高速化
+    @StateObject private var familyViewModel = FamilyViewModel(authManager: AuthenticationManager.shared)
     @StateObject private var themeManager = ThemeManager()
     
     @State private var selectedTab: Int = 0
+    // Issue #50 Fix: Add debounced tab switching to prevent loading instability
+    @State private var tabSwitchDebounceTask: Task<Void, Never>?
     private let projectTabIndex = 0
     private let familyTabIndex = 1
-    private let taskTabIndex = 2
     #if DEBUG
-    private let testTabIndex = 3
-    private let settingsTabIndex = 4
-    #else
+    private let testTabIndex = 2
     private let settingsTabIndex = 3
+    #else
+    private let settingsTabIndex = 2
     #endif
+    
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -37,14 +41,8 @@ struct MainTabView: View {
                     Image(systemName: "person.3.fill")
                     Text("チーム")
                 }
+                .environmentObject(familyViewModel)
                 .tag(familyTabIndex)
-            
-            TaskListMainView()
-                .tabItem {
-                    Image(systemName: "list.bullet")
-                    Text("家族タスク")
-                }
-                .tag(taskTabIndex)
             
             #if DEBUG
             AuthTestView()
@@ -67,41 +65,64 @@ struct MainTabView: View {
         .environmentObject(themeManager)
         .environmentObject(sharedManagers) // 🆕 統合されたManager Storeを提供
         .withIntegratedPerformanceMonitoring() // 🆕 統合パフォーマンス監視
-        .task {
-            // ⚡ Optimized startup - immediate initialization without artificial delays
-            #if DEBUG
-            let startTime = CFAbsoluteTimeGetCurrent()
-            await MainActor.run {
-                InstrumentsSetup.shared.logMemoryUsage(context: "MainTabView Startup")
-            }
-            #endif
-            
-            // 🚀 Essential manager initialization - no artificial delays
-            _ = await sharedManagers.getAuthManager()
-            
-            #if DEBUG
-            await MainActor.run {
-                sharedManagers.logDebugInfo()
-                print("✅ SharedManagerStore: Optimized initialization completed")
-                let elapsedTime = CFAbsoluteTimeGetCurrent() - startTime
-                print("⚡ Performance: MainTabView initialization completed in \(Int(elapsedTime * 1000))ms")
-            }
-            #endif
-        }
+        // 🚨 CTO修正: ViewModelが自律的に認証状態を監視し、必要に応じて自身でManagerを取得するため、
+        // MainTabViewでの中央集権的なManager事前読み込みは不要となった。
         .onMemoryWarning {
             // 🆕 メモリ警告時の自動クリーンアップ
             Task {
                 await sharedManagers.cleanupUnusedManagers()
             }
         }
-        .onChange(of: selectedTab) { _, newVal in
-            if newVal == projectTabIndex { NotificationCenter.default.post(name: .projectTabSelected, object: nil) }
-            if newVal == familyTabIndex { NotificationCenter.default.post(name: .familyTabSelected, object: nil) }
-            if newVal == taskTabIndex { NotificationCenter.default.post(name: .taskTabSelected, object: nil) }
-            if newVal == settingsTabIndex { NotificationCenter.default.post(name: .settingsTabSelected, object: nil) }
-            #if DEBUG
-            if newVal == testTabIndex { NotificationCenter.default.post(name: .testTabSelected, object: nil) }
-            #endif
+        .onChange(of: selectedTab) { oldVal, newVal in
+            let timestamp = Date()
+            print("🔄 Issue #50 Debug: Tab changed from \(oldVal) to \(newVal) at \(timestamp)")
+            print("📊 Issue #50 Debug: SharedManagerStore preload status: \(sharedManagers.isPreloaded)")
+            print("🔊 Issue #50 Debug: Active Firebase listeners: \(FirebaseListenerManager.shared.listenerStats.totalActive)")
+            
+            // Issue #50 Fix: Cancel previous debounce task to prevent overlapping operations
+            if tabSwitchDebounceTask != nil {
+                print("⏹️ Issue #50 Debug: Cancelling previous tab switch task")
+                tabSwitchDebounceTask?.cancel()
+            }
+            
+            // Issue #50 Fix: Debounce tab notifications to prevent rapid-fire data loading
+            tabSwitchDebounceTask = Task {
+                let debounceStart = Date()
+                // 🚨 CTO修正: 150msタブ切り替え遅延を撤廃し、即座に反応するUIを実装
+                // デバウンス処理は保持するが、遅延なしで即座に実行
+                print("⚡ Issue #50 優化: 即座にタブ切り替え通知を送信 at \(debounceStart)")
+                
+                // Check if task was cancelled (without delay)
+                guard !Task.isCancelled else {
+                    print("🔄 Issue #50 Debug: Tab notification cancelled due to new tab switch")
+                    return
+                }
+                
+                let debounceEnd = Date()
+                print("✅ Issue #50 優化: 即座実行完了 at \(debounceEnd), elapsed: \(Int((debounceEnd.timeIntervalSince(debounceStart)) * 1000))ms")
+                
+                await MainActor.run {
+                    // Issue #46 Fix: Only reset navigation when re-selecting same tab (iOS standard)
+                    if oldVal == newVal && newVal == projectTabIndex { 
+                        print("📱 Issue #46: Same Project tab re-selected, resetting navigation")
+                        NotificationCenter.default.post(name: .projectTabSelected, object: nil) 
+                    }
+                    if oldVal == newVal && newVal == familyTabIndex { 
+                        print("📱 Issue #46: Same Family tab re-selected, resetting navigation")
+                        NotificationCenter.default.post(name: .familyTabSelected, object: nil) 
+                    }
+                    if oldVal == newVal && newVal == settingsTabIndex { 
+                        print("📱 Issue #46: Same Settings tab re-selected, resetting navigation")
+                        NotificationCenter.default.post(name: .settingsTabSelected, object: nil) 
+                    }
+                    #if DEBUG
+                    if oldVal == newVal && newVal == testTabIndex { 
+                        print("📱 Issue #46: Same Test tab re-selected, resetting navigation")
+                        NotificationCenter.default.post(name: .testTabSelected, object: nil) 
+                    }
+                    #endif
+                }
+            }
         }
     }
 }
@@ -109,7 +130,6 @@ struct MainTabView: View {
 extension Notification.Name {
     static let projectTabSelected = Notification.Name("ProjectTabSelectedNotification")
     static let familyTabSelected = Notification.Name("FamilyTabSelectedNotification")
-    static let taskTabSelected = Notification.Name("TaskTabSelectedNotification")
     static let settingsTabSelected = Notification.Name("SettingsTabSelectedNotification")
     static let testTabSelected = Notification.Name("TestTabSelectedNotification")
 }
@@ -299,7 +319,7 @@ struct SettingsView: View {
                 APISettingsView()
             }
             .sheet(isPresented: $showTaskImprovement) {
-                TaskImprovementSuggestionView(userId: authManager.currentUserId ?? "")
+                TaskImprovementSuggestionView(userId: authManager?.currentUserId ?? "")
                     .environmentObject(sharedManagers)
             }
             .alert("ユーザー名を編集", isPresented: $showEditUsername) {

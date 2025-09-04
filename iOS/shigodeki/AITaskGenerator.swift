@@ -42,8 +42,8 @@ final class AITaskGenerator: ObservableObject {
             
             progressMessage = "Processing suggestions..."
             
-            // Add slight delay for better UX
-            try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            // 🚨 CTO修正: UX改善のための人工的遅延を撤廃
+            // レスポンシブなUIのため、遅延なしで即座に結果を表示
             
             generatedSuggestions = suggestions
             progressMessage = "Task suggestions generated successfully!"

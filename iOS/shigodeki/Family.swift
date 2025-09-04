@@ -8,7 +8,7 @@
 import Foundation
 import FirebaseFirestore
 
-struct Family: Identifiable, Codable {
+struct Family: Identifiable, Codable, Hashable {
     var id: String?
     let name: String
     var members: [String] // user IDs - var for optimistic updates

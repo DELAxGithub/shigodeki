@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
 
 struct ProjectSettingsView: View {
     let project: Project
@@ -32,6 +33,9 @@ struct ProjectSettingsView: View {
     // Owner change UI
     @State private var selectedOwnerType: ProjectOwnerType
     @State private var selectedFamilyId: String?
+    
+    // Issue #64 Fix: User display name resolution
+    @State private var ownerDisplayName: String = ""
     
     init(project: Project, projectManager: ProjectManager) {
         self.project = project
@@ -160,8 +164,9 @@ struct ProjectSettingsView: View {
                                 Text("作成者")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                Text("ID: \(project.ownerId)")
+                                Text(ownerDisplayName.isEmpty ? "読み込み中..." : ownerDisplayName)
                                     .font(.subheadline)
+                                    .foregroundColor(ownerDisplayName.isEmpty ? .secondary : .primary)
                             }
                         }
                         
@@ -262,6 +267,8 @@ struct ProjectSettingsView: View {
                 if let uid = authManager?.currentUser?.id {
                     await familyManager?.loadFamiliesForUser(userId: uid)
                 }
+                // Issue #64 Fix: Load owner display name
+                await loadOwnerDisplayName()
             }
             .confirmationDialog(
                 "プロジェクトを削除",
@@ -431,6 +438,36 @@ struct ProjectSettingsView: View {
         formatter.timeStyle = .short
         formatter.locale = Locale(identifier: "ja_JP")
         return formatter.string(from: date)
+    }
+    
+    // Issue #64 Fix: Load owner display name from Firestore
+    private func loadOwnerDisplayName() async {
+        do {
+            // Get user document from Firestore
+            let db = Firestore.firestore()
+            let userDoc = try await db.collection("users").document(project.ownerId).getDocument()
+            
+            if userDoc.exists, let data = userDoc.data() {
+                // Try different possible field names for display name
+                let displayName = data["displayName"] as? String ?? 
+                                 data["name"] as? String ?? 
+                                 data["email"] as? String ?? 
+                                 "ユーザー名不明"
+                
+                await MainActor.run {
+                    ownerDisplayName = displayName
+                }
+            } else {
+                await MainActor.run {
+                    ownerDisplayName = "ユーザー情報が見つかりません"
+                }
+            }
+        } catch {
+            print("Error loading owner display name: \(error)")
+            await MainActor.run {
+                ownerDisplayName = "ユーザー情報の取得に失敗"
+            }
+        }
     }
 }
 

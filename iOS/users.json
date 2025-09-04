@@ -1,0 +1,39 @@
+{"users": [
+{
+  "localId": "4gzhibc2DmhXSJZlmyKyxtyv0eU2",
+  "email": "h.kodera@gmail.com",
+  "emailVerified": false,
+  "passwordHash": "pVimqgHEz6WbZPGF80PQbJPGZqR6LrwtifM1/6L4f9jYFRnP0ma4cUies/mEhjBHB02x9XaH43Kdy6TU3YEm6Q==",
+  "salt": "bsHop6DQ56T+gg==",
+  "createdAt": "1756392137594",
+  "disabled": false,
+  "providerUserInfo": []
+},
+{
+  "localId": "TgrTjrgthhdwVlapMxCknVygi7h1",
+  "email": "demo@shigodeki.com",
+  "emailVerified": false,
+  "passwordHash": "25ohzl03jbLglPkZcsAbVe4CAC7aK7I08Uy85uEScQOHwtheBwyXqZbFSmcYN+t2wKEi9RYD/s1857YrAc7GQg==",
+  "salt": "Gugd+pBL1UVsaw==",
+  "lastSignedInAt": "1756650770631",
+  "createdAt": "1756392209509",
+  "providerUserInfo": []
+},
+{
+  "localId": "kH49JAs83MQPNRFf9WZ8Xzofboe2",
+  "email": "delaxtravel@gmail.com",
+  "emailVerified": true,
+  "displayName": "Hiroshi Kodera",
+  "lastSignedInAt": "1756860985563",
+  "createdAt": "1756392277605",
+  "disabled": false,
+  "providerUserInfo": []
+},
+{
+  "localId": "xEMEqpAKdiUPAYjXwQI9BhnziXf1",
+  "email": "notheshow@mac.com",
+  "emailVerified": true,
+  "lastSignedInAt": "1756859285003",
+  "createdAt": "1756443526833",
+  "providerUserInfo": []
+}]}

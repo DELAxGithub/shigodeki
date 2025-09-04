@@ -72,10 +72,18 @@ class FirebaseListenerManager: ObservableObject {
         completion: @escaping (Result<[T], FirebaseError>) -> Void
     ) -> String {
         
-        // 既存リスナーの確認
+        // Issue #50 Fix: Enhanced duplicate detection with detailed logging
         if activeListeners[id] != nil {
             updateAccessMetadata(for: id)
             InstrumentsSetup.shared.endFirebaseConnectionMeasurement(operation: "Listener Reuse", success: true)
+            
+            #if DEBUG
+            print("🔄 Issue #50: Firebase Listener REUSED: \(id) (type: \(type), priority: \(priority))")
+            print("📊 Issue #50: Active listeners count: \(activeListeners.count)")
+            if let metadata = listenerMetadata[id] {
+                print("📈 Issue #50: Listener access count: \(metadata.accessCount), last accessed: \(metadata.lastAccessed)")
+            }
+            #endif
             return id
         }
         
@@ -125,8 +133,17 @@ class FirebaseListenerManager: ObservableObject {
         
         updateStatistics()
         
+        #if DEBUG
+        print("🆕 Issue #50: Firebase Listener CREATED: \(id) (type: \(type), priority: \(priority))")
+        print("📊 Issue #50: Total active listeners: \(activeListeners.count)")
+        print("🗂️ Issue #50: Query path: \(query.description)")
+        #endif
+        
         // 自動最適化のトリガー
         if activeListeners.count > 15 {
+            #if DEBUG
+            print("⚠️ Issue #50: High listener count (\(activeListeners.count)), triggering optimization")
+            #endif
             optimizeListeners()
         }
         
@@ -198,11 +215,22 @@ class FirebaseListenerManager: ObservableObject {
     func removeListener(id: String) {
         guard let listener = activeListeners[id] else { return }
         
+        #if DEBUG
+        if let metadata = listenerMetadata[id] {
+            print("❌ Issue #50: Firebase Listener REMOVED: \(id) (type: \(metadata.type), access count: \(metadata.accessCount))")
+        }
+        #endif
+        
         listener.remove()
         activeListeners.removeValue(forKey: id)
         listenerMetadata.removeValue(forKey: id)
         
         updateStatistics()
+        
+        #if DEBUG
+        print("📊 Issue #50: Remaining active listeners: \(activeListeners.count)")
+        #endif
+        
         InstrumentsSetup.shared.logMemoryUsage(context: "After Listener Removal")
     }
     
@@ -223,12 +251,27 @@ class FirebaseListenerManager: ObservableObject {
     
     /// 全リスナーの削除
     func removeAllListeners() {
+        #if DEBUG
+        let count = activeListeners.count
+        print("🗑️ Issue #50: Removing ALL Firebase Listeners (\(count) total)")
+        for (id, _) in activeListeners {
+            if let metadata = listenerMetadata[id] {
+                print("  ❌ Removing: \(id) (type: \(metadata.type))")
+            }
+        }
+        #endif
+        
         for (_, listener) in activeListeners {
             listener.remove()
         }
         activeListeners.removeAll()
         listenerMetadata.removeAll()
         updateStatistics()
+        
+        #if DEBUG
+        print("✅ Issue #50: All Firebase Listeners removed. Active count: \(activeListeners.count)")
+        #endif
+        
         InstrumentsSetup.shared.logMemoryUsage(context: "After All Listeners Removal")
     }
     
