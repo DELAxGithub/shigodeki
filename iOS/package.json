@@ -1,0 +1,14 @@
+{
+  "name": "shigodeki-firebase-testing",
+  "version": "1.0.0",
+  "description": "Firebase Security Rules Testing for Shigodeki",
+  "scripts": {
+    "test": "mocha --timeout 10000",
+    "test:family": "mocha test/family-access.test.js --timeout 10000",
+    "test:emulator": "firebase emulators:exec --only firestore 'npm run test:family'"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.3",
+    "mocha": "^10.2.0"
+  }
+}

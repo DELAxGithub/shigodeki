@@ -50,6 +50,10 @@ iOS/.swiftpm/config/registries.json
 iOS/.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 iOS/.netrc
 
+# Swift Package Manager Build artifacts
+iOS/.build/
+iOS/Package.resolved
+
 ## Firebase Configuration (Keep config files but ignore secrets)
 iOS/GoogleService-Info*.plist
 

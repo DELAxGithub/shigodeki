@@ -49,18 +49,20 @@ class ProjectManager: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         
+        // 1. 一意の仮IDを持つ楽観的オブジェクトを作成（do-catchブロック外で定義）
+        var optimisticProject = Project(name: name, description: description, ownerId: ownerId, ownerType: ownerType)
+        let temporaryId = optimisticProject.id ?? UUID().uuidString
+        optimisticProject.id = temporaryId
+        print("📝 Creating optimistic project object with temporary ID: \(temporaryId)")
+        
         do {
-            print("📝 Creating project object...")
-            let project = Project(name: name, description: description, ownerId: ownerId, ownerType: ownerType)
-            print("📝 Project object created: \(project)")
-            
             print("✅ Validating project...")
-            try project.validate()
+            try optimisticProject.validate()
             print("✅ Project validation passed")
             
-            // 🚀 Optimistic UI Update: Add to local list immediately
+            // 2. 楽観的オブジェクトをUIに即時反映
             print("⚡ Adding project optimistically to UI")
-            projects.append(project)
+            projects.insert(optimisticProject, at: 0)
             
             // 🔍 Debug Firebase Auth state before Firestore operation
             print("🔍 Firebase Auth Debug before Firestore create:")
@@ -86,15 +88,14 @@ class ProjectManager: ObservableObject {
             }
             
             print("🔄 Creating project in Firestore...")
-            let createdProject = try await projectOperations.create(project)
+            // 3. Firestoreに永続化 (この時点では仮IDは送信されない)
+            var createdProject = try await projectOperations.create(optimisticProject)
             print("🎉 Project created successfully with ID: \(createdProject.id ?? "NO_ID")")
             
-            // Update the local project with the real ID from Firestore
-            if let index = projects.firstIndex(where: { $0.name == project.name && $0.ownerId == ownerId }) {
+            // 4. 仮オブジェクトを、Firestoreから返された実IDを持つオブジェクトに置き換える
+            if let index = projects.firstIndex(where: { $0.id == temporaryId }) {
                 projects[index] = createdProject
             }
-            // Mark pending to protect against empty listener snapshots for a short TTL
-            if let pid = createdProject.id { pendingProjectTimestamps[pid] = Date(); lastLocalChangeAt = Date() }
             
             // Create initial project member entry
             if ownerType == .individual {
@@ -134,7 +135,7 @@ class ProjectManager: ObservableObject {
             
             // 🔄 Rollback: Remove optimistically added project on error
             print("🔄 Rolling back optimistic UI update")
-            projects.removeAll { $0.name == name && $0.ownerId == ownerId }
+            projects.removeAll { $0.id == temporaryId }
             
             let firebaseError = FirebaseError.from(error)
             self.error = firebaseError
@@ -582,8 +583,8 @@ class ProjectManager: ObservableObject {
                 ownerId: ownerId,
                 customizations: customizations
             )
-            // 🛡️ Post-import stabilization: extend performance monitor grace period to avoid aggressive cleanup
-            IntegratedPerformanceMonitor.shared.extendGracePeriod(seconds: 45)
+            // 🛡️ Post-import stabilization: Wait for data to sync before returning
+            try await waitForDataSynchronization(projectId: createdProject.id ?? "")
             
             print("🎉 Project created from template successfully!")
             return createdProject
@@ -815,6 +816,37 @@ class ProjectManager: ObservableObject {
         } catch {
             throw FirebaseError.from(error)
         }
+    }
+    
+    // MARK: - Synchronization Helpers
+    
+    /// Waits for a newly created project's data to be synchronized back to the local `projects` array.
+    /// This prevents UI glitches where a new project disappears briefly after creation.
+    /// - Parameter projectId: The ID of the project to wait for.
+    private func waitForDataSynchronization(projectId: String) async throws {
+        guard !projectId.isEmpty else { return }
+        
+        let timeout = 2.0 // seconds
+        let interval: UInt64 = 100_000_000 // 100ms in nanoseconds
+        let startTime = Date()
+        
+        print("⏳ Waiting for project \(projectId) to synchronize...")
+        
+        while Date().timeIntervalSince(startTime) < timeout {
+            // Check if the project exists in the local @Published array
+            if projects.contains(where: { $0.id == projectId }) {
+                // Additionally, check if its statistics have been populated
+                if let project = projects.first(where: { $0.id == projectId }), project.statistics != nil, project.statistics!.totalTasks > 0 {
+                    let duration = Date().timeIntervalSince(startTime)
+                    print("✅ Project \(projectId) synchronized successfully in \(String(format: "%.2f", duration))s.")
+                    return
+                }
+            }
+            try await Task.sleep(nanoseconds: interval)
+        }
+        
+        let duration = Date().timeIntervalSince(startTime)
+        print("⚠️ Synchronization timed out for project \(projectId) after \(String(format: "%.2f", duration))s. Proceeding anyway.")
     }
     
     func importTemplateFromFile(url: URL) async throws -> ProjectTemplate {
