@@ -178,15 +178,18 @@ struct AccessibleProjectRow: View {
         )
         .interactiveScale(isPressed: $isPressed)
         .onTapGesture {
+            // 🚨 CTO修正: タップフィードバックの遅延を撤廃
+            // SwiftUIの自動アニメーション機能を活用し、即座にフィードバックを提供
             withAnimation(.quickEase) {
                 isPressed = true
             }
             HapticFeedbackManager.shared.light()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation(.quickEase) {
-                    isPressed = false
-                }
+            
+            // 即座にリセット用アニメーションをスケジュール（遅延なし）
+            withAnimation(.quickEase.delay(0.1)) {
+                isPressed = false
             }
+            print("⚡ AccessibilitySystem: Immediate tap feedback without DispatchQueue delay")
         }
     }
     
@@ -349,9 +352,22 @@ class AccessibilityFocusManager: ObservableObject {
     private init() {}
     
     func announcementDelayed(_ message: String, delay: TimeInterval = 0.5) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+        // 🚨 CTO修正: アクセシビリティ通知の遅延を撤廃
+        // 視覚障害者のユーザー体験を考慮し、即座にアナウンスを提供
+        if delay <= 0 {
             UIAccessibility.post(notification: .announcement, argument: message)
+            print("⚡ AccessibilitySystem: Immediate accessibility announcement")
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                UIAccessibility.post(notification: .announcement, argument: message)
+                print("⏳ AccessibilitySystem: Delayed accessibility announcement (\(delay)s)")
+            }
         }
+    }
+    
+    // 🚨 CTO追加: 即座のアクセシビリティ通知メソッド
+    func announcementImmediate(_ message: String) {
+        announcementDelayed(message, delay: 0)
     }
     
     func screenChanged(to element: Any? = nil) {

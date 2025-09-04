@@ -10,11 +10,10 @@ import PhotosUI
 
 struct AssigneeSectionView: View {
     let members: [ProjectMember]
-    @Binding var selectedAssignee: String?
     @Binding var assignedTo: String?
-    var onChange: () -> Void
+    
     var body: some View {
-        Picker("担当者", selection: Binding(get: { selectedAssignee ?? assignedTo }, set: { val in selectedAssignee = val; assignedTo = val; onChange() })) {
+        Picker("担当者", selection: $assignedTo) {
             Text("未指定").tag(String?.none)
             ForEach(members, id: \.userId) { member in
                 Text(member.displayName ?? String(member.userId.prefix(6))).tag(Optional(member.userId))

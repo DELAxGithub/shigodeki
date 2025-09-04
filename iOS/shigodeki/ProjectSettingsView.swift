@@ -35,8 +35,8 @@ struct ProjectSettingsView: View {
     @State private var selectedOwnerType: ProjectOwnerType
     @State private var selectedFamilyId: String?
     
-    // Creator display name
-    @State private var creatorDisplayName: String = ""
+    // Issue #64 Fix: User display name resolution
+    @State private var ownerDisplayName: String = ""
     
     init(project: Project, projectManager: ProjectManager) {
         self.project = project
@@ -168,8 +168,9 @@ struct ProjectSettingsView: View {
                                 Text("作成者")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                Text(creatorDisplayName)
+                                Text(ownerDisplayName.isEmpty ? "読み込み中..." : ownerDisplayName)
                                     .font(.subheadline)
+                                    .foregroundColor(ownerDisplayName.isEmpty ? .secondary : .primary)
                             }
                         }
                         
@@ -270,8 +271,9 @@ struct ProjectSettingsView: View {
                 if let uid = authManager?.currentUser?.id {
                     await familyManager?.loadFamiliesForUser(userId: uid)
                 }
-                await loadCreatorDisplayName()
-                updateHasChanges() // Initialize hasChanges state
+                // Issue #64 Fix: Load owner display name
+                await loadOwnerDisplayName()
+                updateHasChanges() // Issue #65 Fix: Initialize hasChanges state
             }
             .confirmationDialog(
                 "プロジェクトを削除",
@@ -435,39 +437,6 @@ struct ProjectSettingsView: View {
         }
     }
     
-    private func loadCreatorDisplayName() async {
-        do {
-            // ユーザー情報をFirestoreから取得
-            if let authMgr = authManager {
-                // Firestoreからユーザー情報を取得 - project.createdByを使用
-                let db = Firestore.firestore()
-                let creatorId = project.createdBy ?? project.ownerId
-                let userDoc = try await db.collection("users").document(creatorId).getDocument()
-                
-                if userDoc.exists, let userData = userDoc.data() {
-                    let displayName = userData["displayName"] as? String
-                    let email = userData["email"] as? String
-                    
-                    await MainActor.run {
-                        creatorDisplayName = displayName ?? email ?? "不明なユーザー"
-                    }
-                } else {
-                    await MainActor.run {
-                        creatorDisplayName = "不明なユーザー"
-                    }
-                }
-            } else {
-                await MainActor.run {
-                    creatorDisplayName = "不明なユーザー"
-                }
-            }
-        } catch {
-            print("Error loading creator display name: \(error)")
-            await MainActor.run {
-                creatorDisplayName = "読み込みエラー"
-            }
-        }
-    }
     
     private func formatDate(_ date: Date?) -> String {
         guard let date = date else { return "不明" }
@@ -476,6 +445,36 @@ struct ProjectSettingsView: View {
         formatter.timeStyle = .short
         formatter.locale = Locale(identifier: "ja_JP")
         return formatter.string(from: date)
+    }
+    
+    // Issue #64 Fix: Load owner display name from Firestore
+    private func loadOwnerDisplayName() async {
+        do {
+            // Get user document from Firestore
+            let db = Firestore.firestore()
+            let userDoc = try await db.collection("users").document(project.ownerId).getDocument()
+            
+            if userDoc.exists, let data = userDoc.data() {
+                // Try different possible field names for display name
+                let displayName = data["displayName"] as? String ?? 
+                                 data["name"] as? String ?? 
+                                 data["email"] as? String ?? 
+                                 "ユーザー名不明"
+                
+                await MainActor.run {
+                    ownerDisplayName = displayName
+                }
+            } else {
+                await MainActor.run {
+                    ownerDisplayName = "ユーザー情報が見つかりません"
+                }
+            }
+        } catch {
+            print("Error loading owner display name: \(error)")
+            await MainActor.run {
+                ownerDisplayName = "ユーザー情報の取得に失敗"
+            }
+        }
     }
 }
 

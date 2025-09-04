@@ -41,7 +41,7 @@ struct PhaseTaskView: View {
             // Hidden navigator
             NavigationLink(isActive: Binding(get: { selectedTaskId != nil }, set: { if !$0 { selectedTaskId = nil } })) {
                 if let tid = selectedTaskId, let t = taskVM.tasks.first(where: { $0.id == tid }) {
-                    PhaseTaskDetailView(project: project, phase: phase, task: t)
+                    PhaseTaskDetailView(task: t, project: project, phase: phase)
                 } else {
                     EmptyView()
                 }
