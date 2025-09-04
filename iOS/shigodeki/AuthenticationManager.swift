@@ -13,8 +13,8 @@ import CryptoKit
 
 @MainActor
 class AuthenticationManager: NSObject, ObservableObject {
-    // Singleton instance
-    static let shared = AuthenticationManager()
+    // Singleton instance - accessible from any context
+    nonisolated(unsafe) static let shared = AuthenticationManager()
     
     @Published var isAuthenticated = false
     @Published var currentUser: User?
@@ -61,48 +61,51 @@ class AuthenticationManager: NSObject, ObservableObject {
         }
     }
     
-    private override init() {
+    nonisolated private override init() {
         super.init()
         
-        // Clear any stale authentication state on app launch
-        clearAppleSignInState()
-        
-        // Listen for authentication state changes
-        _ = auth.addStateDidChangeListener { [weak self] _, user in
-            Task { @MainActor in
-                guard let self = self else { return }
-                if let user = user {
-                    print("🔐 AuthManager: Firebase user authenticated: \(user.uid)")
-                    // Set authenticated immediately for faster UI response
-                    self.isAuthenticated = true
-                    // Load user data asynchronously
-                    await self.loadUserData(uid: user.uid)
-                    print("👤 AuthManager: User data loaded, currentUserId: \(self.currentUserId ?? "nil")")
-                    // Clear Apple Sign In state after successful authentication
-                    self.clearAppleSignInState()
-                } else {
-                    print("🔐 AuthManager: User signed out")
-                    self.currentUser = nil
-                    self.isAuthenticated = false
-                    self.clearAppleSignInState()
+        // Schedule main actor work for initialization that requires it
+        Task { @MainActor in
+            // Clear any stale authentication state on app launch
+            self.clearAppleSignInState()
+            
+            // Listen for authentication state changes
+            _ = self.auth.addStateDidChangeListener { [weak self] _, user in
+                Task { @MainActor in
+                    guard let self = self else { return }
+                    if let user = user {
+                        print("🔐 AuthManager: Firebase user authenticated: \(user.uid)")
+                        // Set authenticated immediately for faster UI response
+                        self.isAuthenticated = true
+                        // Load user data asynchronously
+                        await self.loadUserData(uid: user.uid)
+                        print("👤 AuthManager: User data loaded, currentUserId: \(self.currentUserId ?? "nil")")
+                        // Clear Apple Sign In state after successful authentication
+                        self.clearAppleSignInState()
+                    } else {
+                        print("🔐 AuthManager: User signed out")
+                        self.currentUser = nil
+                        self.isAuthenticated = false
+                        self.clearAppleSignInState()
+                    }
                 }
             }
+            
+            // Set up app lifecycle observers for TestFlight reliability
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(self.appDidEnterBackground),
+                name: UIApplication.didEnterBackgroundNotification,
+                object: nil
+            )
+            
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(self.appWillEnterForeground),
+                name: UIApplication.willEnterForegroundNotification,
+                object: nil
+            )
         }
-        
-        // Set up app lifecycle observers for TestFlight reliability
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(appDidEnterBackground),
-            name: UIApplication.didEnterBackgroundNotification,
-            object: nil
-        )
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(appWillEnterForeground),
-            name: UIApplication.willEnterForegroundNotification,
-            object: nil
-        )
     }
     
     deinit {

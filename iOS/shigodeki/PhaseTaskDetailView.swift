@@ -132,14 +132,7 @@ struct PhaseTaskDetailView: View {
                 HStack {
                     TextField("https://example.com", text: Binding(
                         get: { task.linkURL ?? "" },
-<<<<<<< HEAD
-                        set: { newValue in 
-                            task.linkURL = newValue.isEmpty ? nil : newValue
-                            persistChanges()
-                        }
-=======
                         set: { _ in /* Link URL editing disabled for Issue #61 fix */ }
->>>>>>> origin/main
                     ))
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .keyboardType(.URL)
@@ -209,44 +202,15 @@ struct WrapTagsView: View {
 }
 
 extension PhaseTaskDetailView {
-<<<<<<< HEAD
-    private func save() {
-        // Issue #61 Fix: Proper save operation with user feedback
+    private func persistChanges() {
         Task {
             do {
-                // Perform the save operation
-                _ = try await taskManager.updatePhaseTask(task)
-                
-                // Only dismiss on successful save
-                await MainActor.run {
-                    // Provide success feedback (haptic)
-                    let feedbackGenerator = UINotificationFeedbackGenerator()
-                    feedbackGenerator.notificationOccurred(.success)
-                    
-                    // Dismiss the view after successful save
-                    dismiss()
-                }
+                try await viewModel.save()
             } catch {
-                // Issue #61 Fix: Proper error handling with user feedback
-                await MainActor.run {
-                    print("保存エラー: \(error)")
-                    
-                    // Provide error feedback (haptic)
-                    let feedbackGenerator = UINotificationFeedbackGenerator()
-                    feedbackGenerator.notificationOccurred(.error)
-                    
-                    // TODO: Show error alert to user
-                    // For now, do NOT dismiss - let user retry
-                }
+                print("❌ Failed to save task changes: \(error)")
             }
         }
     }
-
-    private func persistChanges() {
-        Task { do { _ = try await taskManager.updatePhaseTask(task) } catch { } }
-    }
-=======
->>>>>>> origin/main
 
     private func loadSubtasks() async {
         guard let tid = task.id, let pid = project.id, let phid = phase.id else { return }

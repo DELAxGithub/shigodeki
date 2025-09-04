@@ -89,7 +89,7 @@ class FamilyViewModel: ObservableObject {
 
     /// **【重要】同期イニシャライザ**  
     /// Viewの生成と同時に、依存関係なしで即座にインスタンス化される。
-    init(authManager: AuthenticationManager = .shared) {
+    init(authManager: AuthenticationManager = AuthenticationManager.shared) {
         print("⚡ FamilyViewModel: 同期初期化開始")
         self.authManager = authManager
         setupAuthenticationObserver()
