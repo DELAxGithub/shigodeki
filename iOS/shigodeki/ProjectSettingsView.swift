@@ -23,6 +23,7 @@ struct ProjectSettingsView: View {
     @State private var showingDeleteConfirmation = false
     @State private var showingError = false
     @State private var errorMessage = ""
+    @State private var hasChanges = false
     
     // Invitations
     @StateObject private var invitationManager = ProjectInvitationManager()
@@ -122,6 +123,7 @@ struct ProjectSettingsView: View {
                         TextField("プロジェクト名", text: $projectName)
                             .textInputAutocapitalization(.words)
                             .disableAutocorrection(false)
+                            .onChange(of: projectName) { _ in updateHasChanges() }
                         
                         ZStack(alignment: .topLeading) {
                             if projectDescription.isEmpty {
@@ -139,11 +141,13 @@ struct ProjectSettingsView: View {
                             
                             TextEditor(text: $projectDescription)
                                 .frame(minHeight: 80)
+                                .onChange(of: projectDescription) { _ in updateHasChanges() }
                         }
                     }
                     
                     Section(header: Text("ステータス")) {
                         Toggle("完了済み", isOn: $isCompleted)
+                            .onChange(of: isCompleted) { _ in updateHasChanges() }
                         
                         if isCompleted {
                             HStack {
@@ -269,6 +273,7 @@ struct ProjectSettingsView: View {
                 }
                 // Issue #64 Fix: Load owner display name
                 await loadOwnerDisplayName()
+                updateHasChanges() // Issue #65 Fix: Initialize hasChanges state
             }
             .confirmationDialog(
                 "プロジェクトを削除",
@@ -338,10 +343,11 @@ struct ProjectSettingsView: View {
         }
     }
     
-    private var hasChanges: Bool {
-        projectName.trimmingCharacters(in: .whitespacesAndNewlines) != project.name ||
-        projectDescription.trimmingCharacters(in: .whitespacesAndNewlines) != (project.description ?? "") ||
-        isCompleted != project.isCompleted
+    private func updateHasChanges() {
+        let newHasChanges = projectName.trimmingCharacters(in: .whitespacesAndNewlines) != project.name ||
+                           projectDescription.trimmingCharacters(in: .whitespacesAndNewlines) != (project.description ?? "") ||
+                           isCompleted != project.isCompleted
+        hasChanges = newHasChanges
     }
     
     private func updateProject() {
