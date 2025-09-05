@@ -1,0 +1,7 @@
+file_path,category,word_count,last_modified,diátaxis_type,priority_tier,content_type,duplication_risk
+./CLAUDE.md,project,1200,recent,explanation,1,project_setup,low
+./docs/README.md,overview,800,recent,tutorial,1,overview,medium
+./iOS/docs/setup/SETUP.md,setup,1500,recent,tutorial,1,setup_guide,low
+./docs/development/testing/newtips.md,testing,3000,recent,guide,1,methodology,low
+./docs/deployment/testflight/TestFlight-Setup.md,deployment,600,recent,guide,1,deployment,low
+./docs/project-management/completion-reports/Phase6-Final-Completion-Report.md,reporting,2000,recent,explanation,1,project_history,low

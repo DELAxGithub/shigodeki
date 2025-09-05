@@ -45,6 +45,17 @@ class PhaseTaskDetailViewModel: ObservableObject {
         didSet { evaluateChanges() }
     }
     
+    @Published var tags: [String] {
+        didSet { evaluateChanges() }
+    }
+    
+    // MARK: - Computed Properties
+    
+    var familyId: String {
+        // For family projects, ownerId is the familyId
+        return project.ownerType == .family ? project.ownerId : ""
+    }
+    
     // MARK: - Original Values (Immutable Reference)
     
     private let originalTask: ShigodekiTask
@@ -53,6 +64,7 @@ class PhaseTaskDetailViewModel: ObservableObject {
     private let originalTitle: String
     private let originalDescription: String
     private let originalAssignedTo: String?
+    private let originalTags: [String]
     
     // MARK: - Dependencies
     
@@ -70,6 +82,7 @@ class PhaseTaskDetailViewModel: ObservableObject {
         self.originalTitle = task.title
         self.originalDescription = task.description ?? ""
         self.originalAssignedTo = task.assignedTo
+        self.originalTags = task.tags
         
         // Initialize current editable values
         self.isCompleted = task.isCompleted
@@ -77,6 +90,7 @@ class PhaseTaskDetailViewModel: ObservableObject {
         self.title = task.title
         self.taskDescription = task.description ?? ""
         self.assignedTo = task.assignedTo
+        self.tags = task.tags
         
         // Store dependencies
         self.project = project
@@ -109,6 +123,10 @@ class PhaseTaskDetailViewModel: ObservableObject {
         assignedTo = newAssignedTo
     }
     
+    func updateTags(_ newTags: [String]) {
+        tags = newTags
+    }
+    
     // MARK: - State Evaluation (Core Logic)
     
     private func evaluateChanges() {
@@ -117,8 +135,9 @@ class PhaseTaskDetailViewModel: ObservableObject {
         let hasTitleChanged = title != originalTitle
         let hasDescriptionChanged = taskDescription != originalDescription
         let hasAssigneeChanged = assignedTo != originalAssignedTo
+        let hasTagsChanged = tags != originalTags
         
-        hasChanges = hasCompletionChanged || hasPriorityChanged || hasTitleChanged || hasDescriptionChanged || hasAssigneeChanged
+        hasChanges = hasCompletionChanged || hasPriorityChanged || hasTitleChanged || hasDescriptionChanged || hasAssigneeChanged || hasTagsChanged
         shouldEnableSaveButton = hasChanges
     }
     
@@ -137,6 +156,7 @@ class PhaseTaskDetailViewModel: ObservableObject {
         updatedTask.title = title
         updatedTask.description = taskDescription.isEmpty ? nil : taskDescription
         updatedTask.assignedTo = assignedTo
+        updatedTask.tags = tags
         
         // Issue #63 Fix: Update completedAt timestamp when completion status changes
         if isCompleted != originalIsCompleted {
@@ -166,6 +186,7 @@ class PhaseTaskDetailViewModel: ObservableObject {
         title = originalTitle
         taskDescription = originalDescription
         assignedTo = originalAssignedTo
+        tags = originalTags
         evaluateChanges() // Should result in hasChanges = false
     }
 }
