@@ -16,14 +16,14 @@ struct TagManagementView: View {
     @State private var tagToDelete: TaskTag?
     @State private var showingDeleteConfirmation = false
     @State private var searchText = ""
-    
-    let familyId: String
+
+    let projectId: String
     let createdBy: String
     
     // Computed properties
     var sortedTags: [TaskTag] {
         let filtered = tagManager.tags.filter { tag in
-            tag.familyId == familyId && (searchText.isEmpty || tag.name.localizedCaseInsensitiveContains(searchText))
+            tag.projectId == projectId && (searchText.isEmpty || tag.name.localizedCaseInsensitiveContains(searchText))
         }
         return filtered.sorted { $0.usageCount > $1.usageCount }
     }
@@ -62,8 +62,8 @@ struct TagManagementView: View {
             }
             .onAppear {
                 Task {
-                    await tagManager.loadTags(familyId: familyId)
-                    tagManager.startListening(familyId: familyId)
+                    await tagManager.loadTags(projectId: projectId)
+                    tagManager.startListening(projectId: projectId)
                 }
             }
             .onDisappear {
@@ -72,7 +72,7 @@ struct TagManagementView: View {
         }
         .sheet(isPresented: $showingCreateTag) {
             CreateTagView(
-                familyId: familyId,
+                projectId: projectId,
                 createdBy: createdBy,
                 onTagCreated: { _ in
                     // Tag will be automatically updated via listener
@@ -81,7 +81,7 @@ struct TagManagementView: View {
         }
         .sheet(item: $editingTag) { tag in
             EditTagView(tag: tag, onTagUpdated: { _ in
-                // Tag will be automatically updated via listener
+                // Tag will be automatically updated via listener 
             })
         }
         .alert("タグを削除しますか？", isPresented: $showingDeleteConfirmation, presenting: tagToDelete) { tag in
@@ -281,7 +281,7 @@ struct TagManagementView: View {
     private func cleanupUnusedTags() {
         Task {
             do {
-                try await tagManager.cleanupUnusedTags(familyId: familyId)
+                try await tagManager.cleanupUnusedTags(projectId: projectId)
             } catch {
                 print("Failed to cleanup unused tags: \(error)")
             }
@@ -468,7 +468,7 @@ struct EditTagView: View {
                                     name: tagName.isEmpty ? "タグ名" : tagName,
                                     color: selectedColor,
                                     emoji: emoji.isEmpty ? nil : emoji,
-                                    familyId: tag.familyId,
+                                    projectId: tag.projectId,
                                     createdBy: tag.createdBy
                                 )
                                 
@@ -588,7 +588,7 @@ struct EditTagView: View {
 
 #Preview {
     TagManagementView(
-        familyId: "family1",
+        projectId: "project1",
         createdBy: "user1"
     )
 }

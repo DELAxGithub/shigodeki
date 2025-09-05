@@ -65,6 +65,44 @@ final class AITaskGenerator: ObservableObject {
         progressMessage = ""
     }
     
+    // Generate detailed task description and implementation steps
+    func generateTaskDetails(for task: ShigodekiTask) async -> String? {
+        guard !isGenerating else { return nil }
+        
+        updateAvailableProviders()
+        guard !availableProviders.isEmpty else { return nil }
+        
+        let prompt = buildTaskDetailPrompt(for: task)
+        
+        do {
+            let detailText = try await generateText(prompt: prompt)
+            return detailText
+        } catch {
+            self.error = error as? AIClientError ?? .networkError(error)
+            return nil
+        }
+    }
+    
+    private func buildTaskDetailPrompt(for task: ShigodekiTask) -> String {
+        let baseDescription = task.description?.isEmpty == false ? task.description! : "詳細な説明はありません"
+        
+        return """
+        以下のタスクについて、実行可能で詳細な説明を日本語で生成してください：
+
+        タスク名: \(task.title)
+        現在の説明: \(baseDescription)
+
+        以下の要素を含めて、実用的で具体的な詳細を提供してください：
+        1. 実行手順（ステップバイステップ）
+        2. 必要な準備や前提条件
+        3. 完了の判断基準
+        4. 注意点や考慮事項
+        5. 推定所要時間
+
+        結果は実際にタスクを実行する人が参考にできるよう、具体的で実用的な内容にしてください。
+        """
+    }
+    
     // Generic text generation method for analysis and other purposes
     func generateText(prompt: String) async throws -> String {
         guard !isGenerating else { throw AIClientError.serviceUnavailable }

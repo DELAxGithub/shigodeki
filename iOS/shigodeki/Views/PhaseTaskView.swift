@@ -50,8 +50,14 @@ struct PhaseTaskView: View {
         .navigationTitle(phase.name)
         .navigationBarBackButtonHidden(true)
         .task {
-            await taskVM.bootstrap(phaseId: phase.id ?? "", projectId: project.id ?? "", store: sharedManagers)
-            sectionManager.startListening(phaseId: phase.id ?? "", projectId: project.id ?? "")
+            // 🚨 クラッシュ対策: IDがnilの場合に処理を中断し、空文字でのFirestoreアクセスを防ぐ
+            guard let phaseId = phase.id, !phaseId.isEmpty,
+                  let projectId = project.id, !projectId.isEmpty else {
+                print("❌ PhaseTaskView: Missing phaseId or projectId. Cannot bootstrap.")
+                return
+            }
+            await taskVM.bootstrap(phaseId: phaseId, projectId: projectId, store: sharedManagers)
+            sectionManager.startListening(phaseId: phaseId, projectId: projectId)
         }
         .refreshable { await taskVM.reload() }
         .loadingOverlay(taskVM.isLoading, message: "タスクを更新中...")

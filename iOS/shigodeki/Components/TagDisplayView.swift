@@ -211,10 +211,10 @@ struct TaskDetailTagsView: View {
     VStack(spacing: 20) {
         // Sample data
         let sampleTagMasters = [
-            TaskTag(name: "重要", color: "#FF3B30", emoji: "🔥", familyId: "family1", createdBy: "user1"),
-            TaskTag(name: "緊急", color: "#FF9500", emoji: "⚡", familyId: "family1", createdBy: "user1"),
-            TaskTag(name: "会議", color: "#007AFF", emoji: "🗣️", familyId: "family1", createdBy: "user1"),
-            TaskTag(name: "買い物", color: "#34C759", emoji: "🛒", familyId: "family1", createdBy: "user1")
+            TaskTag(name: "重要", color: "#FF3B30", emoji: "🔥", projectId: "project1", createdBy: "user1"),
+            TaskTag(name: "緊急", color: "#FF9500", emoji: "⚡", projectId: "project1", createdBy: "user1"),
+            TaskTag(name: "会議", color: "#007AFF", emoji: "🗣️", projectId: "project1", createdBy: "user1"),
+            TaskTag(name: "買い物", color: "#34C759", emoji: "🛒", projectId: "project1", createdBy: "user1")
         ]
         
         let sampleTask = ShigodekiTask(

@@ -28,6 +28,12 @@ class SubtaskManager: ObservableObject {
                       listId: String, phaseId: String, projectId: String, order: Int? = nil) async throws -> Subtask {
         isLoading = true
         defer { isLoading = false }
+
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !taskId.isEmpty, !listId.isEmpty, !phaseId.isEmpty, !projectId.isEmpty else {
+            print("❌ SubtaskManager.createSubtask: Invalid or empty ID provided. Aborting creation.")
+            throw FirebaseError.operationFailed("タスクID、リストID、フェーズID、プロジェクトIDは必須です。")
+        }
         
         do {
             let finalOrder: Int
@@ -64,6 +70,12 @@ class SubtaskManager: ObservableObject {
     func getSubtasks(taskId: String, listId: String, phaseId: String, projectId: String) async throws -> [Subtask] {
         isLoading = true
         defer { isLoading = false }
+        
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !taskId.isEmpty, !listId.isEmpty, !phaseId.isEmpty, !projectId.isEmpty else {
+            print("❌ SubtaskManager.getSubtasks: Invalid or empty ID provided. Aborting fetch.")
+            return []
+        }
         
         do {
             let subtasksCollection = getSubtaskCollection(taskId: taskId, listId: listId, phaseId: phaseId, projectId: projectId)
@@ -173,6 +185,13 @@ class SubtaskManager: ObservableObject {
     func getPhaseSubtasks(taskId: String, phaseId: String, projectId: String) async throws -> [Subtask] {
         isLoading = true
         defer { isLoading = false }
+
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !taskId.isEmpty, !phaseId.isEmpty, !projectId.isEmpty else {
+            print("❌ SubtaskManager.getPhaseSubtasks: Invalid or empty ID provided. Aborting fetch.")
+            return []
+        }
+
         do {
             let coll = getPhaseSubtaskCollection(taskId: taskId, phaseId: phaseId, projectId: projectId)
             let snapshot = try await coll.order(by: "order").getDocuments()

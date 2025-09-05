@@ -51,9 +51,8 @@ class PhaseTaskDetailViewModel: ObservableObject {
     
     // MARK: - Computed Properties
     
-    var familyId: String {
-        // For family projects, ownerId is the familyId
-        return project.ownerType == .family ? project.ownerId : ""
+    var projectId: String? {
+        return project.id
     }
     
     // MARK: - Original Values (Immutable Reference)
@@ -186,10 +185,8 @@ class PhaseTaskDetailViewModel: ObservableObject {
         title = originalTitle
         taskDescription = originalDescription
         assignedTo = originalAssignedTo
-        tags = originalTags
         evaluateChanges() // Should result in hasChanges = false
     }
 }
 
 // MARK: - Computed Properties for UI
-

@@ -330,9 +330,15 @@ struct QuickAIGenerationView: View {
             
             // AI Error
             if let error = aiGenerator.error {
-                AIErrorView(error: error) {
-                    aiGenerator.error = nil
-                }
+                AIErrorView(
+                    message: error.localizedDescription,
+                    onRetry: {
+                        aiGenerator.error = nil
+                    },
+                    onOpenSettings: {
+                        // TODO: Navigate to settings
+                    }
+                )
             }
             
             // AI Results

@@ -132,6 +132,12 @@ class EnhancedTaskManager: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !listId.isEmpty, !phaseId.isEmpty, !projectId.isEmpty else {
+            print("❌ EnhancedTaskManager.getTasks: Invalid or empty ID provided. Aborting fetch.")
+            return []
+        }
+        
         do {
             let tasksCollection = getTaskCollection(listId: listId, phaseId: phaseId, projectId: projectId)
             let snapshot = try await tasksCollection.order(by: "order").getDocuments()
@@ -394,6 +400,13 @@ class EnhancedTaskManager: ObservableObject {
     func getPhaseTasks(phaseId: String, projectId: String) async throws -> [ShigodekiTask] {
         isLoading = true
         defer { isLoading = false }
+
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !phaseId.isEmpty, !projectId.isEmpty else {
+            print("❌ EnhancedTaskManager.getPhaseTasks: Invalid or empty ID provided. Aborting fetch.")
+            return []
+        }
+
         do {
             let snapshot = try await getPhaseTaskCollection(phaseId: phaseId, projectId: projectId)
                 .order(by: "order")

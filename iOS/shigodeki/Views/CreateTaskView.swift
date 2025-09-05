@@ -105,8 +105,8 @@ struct CreateTaskView: View {
                             
                             TagInputView(
                                 selectedTags: $selectedTags,
-                                availableTags: tagManager.tags.filter { $0.familyId == family.id ?? "" },
-                                familyId: family.id ?? "",
+                                availableTags: tagManager.tags.filter { $0.projectId == taskList.projectId },
+                                projectId: taskList.projectId,
                                 createdBy: creatorUserId,
                                 onTagCreated: { newTag in
                                     // Tag will be automatically updated via listener
@@ -213,9 +213,9 @@ struct CreateTaskView: View {
             }
             .onAppear {
                 Task {
-                    guard let familyId = family.id else { return }
-                    await tagManager.loadTags(familyId: familyId)
-                    tagManager.startListening(familyId: familyId)
+                    guard !taskList.projectId.isEmpty else { return }
+                    await tagManager.loadTags(projectId: taskList.projectId)
+                    tagManager.startListening(projectId: taskList.projectId)
                 }
             }
             .onDisappear {
@@ -246,7 +246,7 @@ struct CreateTaskView: View {
                 // Update tag usage counts
                 if !selectedTags.isEmpty {
                     for tagName in selectedTags {
-                        await tagManager.incrementUsage(for: tagName, familyId: familyId)
+                        await tagManager.incrementUsage(for: tagName, projectId: taskList.projectId)
                     }
                 }
                 await MainActor.run {

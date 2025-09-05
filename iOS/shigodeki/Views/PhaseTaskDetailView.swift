@@ -8,12 +8,14 @@ import PhotosUI
 
 struct PhaseTaskDetailView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var sharedManagers: SharedManagerStore
     let project: Project
     let phase: Phase
     let task: ShigodekiTask
     @StateObject private var viewModel: PhaseTaskDetailViewModel
     @StateObject private var subtaskManager = SubtaskManager()
     @StateObject private var aiGenerator = AITaskGenerator()
+    @StateObject private var aiStateManager = AIStateManager() // シンプルな初期化に戻す
     @StateObject private var sectionManager = PhaseSectionManager()
     @StateObject private var projectManager = ProjectManager()
     @StateObject private var tagManager = TagManager()
@@ -26,6 +28,7 @@ struct PhaseTaskDetailView: View {
     @State private var selectedSectionId: String? = nil
     // Note: selectedTags moved to viewModel.tags for proper persistence
     @State private var showingTagEditor = false
+    @State private var showAISettings = false
     
     init(task: ShigodekiTask, project: Project, phase: Phase) {
         self.task = task
@@ -92,7 +95,7 @@ struct PhaseTaskDetailView: View {
                     } else {
                         TaskDetailTagsView(
                             tags: viewModel.tags,
-                            tagMasters: tagManager.tags.filter { $0.familyId == viewModel.familyId },
+                            tagMasters: tagManager.tags.filter { $0.projectId == viewModel.projectId ?? "" },
                             isEditing: showingTagEditor,
                             onTagTapped: { tagName in
                                 // TODO: Handle tag filter or navigation
@@ -104,11 +107,16 @@ struct PhaseTaskDetailView: View {
                         )
                     }
                 }
-                SectionPickerView(
-                    sections: sectionManager.sections,
-                    selectedSectionId: Binding(get: { selectedSectionId ?? task.sectionId }, set: { selectedSectionId = $0 }),
-                    onChange: { _ in /* Section change logic disabled for Issue #61 fix */ }
-                )
+                // クラッシュ対策: セクションデータが読み込まれるまでPickerを表示しない
+                if !sectionManager.sections.isEmpty {
+                    SectionPickerView(
+                        sections: sectionManager.sections,
+                        selectedSectionId: Binding(get: { selectedSectionId ?? task.sectionId }, set: { selectedSectionId = $0 }),
+                        onChange: { _ in /* Section change logic disabled for Issue #61 fix */ }
+                    )
+                } else {
+                    ProgressView().frame(maxWidth: .infinity, alignment: .center)
+                }
             }
             AttachmentsSectionView(
                 selectedPhotos: $selectedPhotos,
@@ -175,56 +183,79 @@ struct PhaseTaskDetailView: View {
             }
             
             Section("AI支援") {
-                Button {
-                    aiSplit()
-                } label: { 
-                    Label("AIでサブタスク分割", systemImage: "wand.and.stars") 
-                }
-                .disabled(aiGenerator.isGenerating)
-                
-                // Issue #58 Fix: Replaced broken aiDetail with functionality status
-                HStack {
-                    Label("AIで詳細提案", systemImage: "text.magnifyingglass")
-                    Spacer()
-                    Text("実装予定")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .foregroundColor(.secondary)
-                
-                if aiGenerator.isGenerating {
-                    Text(aiGenerator.progressMessage)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } else if !(aiGenerator.generatedSuggestions?.tasks.isEmpty ?? true) {
-                    Text("AI機能が利用できます")
-                        .font(.caption)
-                        .foregroundColor(.green)
+                switch aiStateManager.state {
+                case .idle, .checkingConfiguration:
+                    AIStatusIndicatorView(message: "設定確認中...")
+                    
+                case .needsConfiguration(let guidance):
+                    AIConfigurationPromptView(
+                        guidance: guidance,
+                        onNavigateToSettings: { showAISettings = true }
+                    )
+                    
+                case .ready:
+                    AIActionButtonsView(
+                        onGenerateSubtasks: { aiSplit() },
+                        onGenerateDetails: { aiStateManager.generateDetail(for: task) }
+                    )
+                    
+                case .loading(let message):
+                    AIStatusIndicatorView(message: message)
+                    
+                case .suggestion(let result):
+                    AIDetailResultView(
+                        result: result,
+                        onApply: { content in
+                            viewModel.taskDescription = content
+                            aiStateManager.applyResult(content)
+                        },
+                        onEdit: { content in
+                            viewModel.taskDescription = content
+                            aiStateManager.applyResult(content)
+                        },
+                        onReject: {
+                            aiStateManager.dismissResult()
+                        }
+                    )
+                    
+                case .error(let message):
+                    AIErrorView(
+                        message: message,
+                        onRetry: { aiStateManager.retry() },
+                        onOpenSettings: { showAISettings = true }
+                    )
                 }
             }
         }
         .navigationTitle("タスク詳細")
         .onAppear {
+            // Initialize AI state manager
+            aiStateManager.checkConfiguration()
+            
             // Initialize tag manager - tags are now managed by viewModel
             Task {
-                let familyId = viewModel.familyId
-                await tagManager.loadTags(familyId: familyId)
-                tagManager.startListening(familyId: familyId)
+                if let projectId = viewModel.projectId {
+                    await tagManager.loadTags(projectId: projectId)
+                    tagManager.startListening(projectId: projectId)
+                }
             }
         }
         .onDisappear {
             tagManager.stopListening()
         }
         .sheet(isPresented: $showingTagEditor) {
-            TagEditorSheet(
+            TaskTagEditorSheet(
                 currentTags: viewModel.tags,
-                availableTags: tagManager.tags.filter { $0.familyId == viewModel.familyId },
-                familyId: viewModel.familyId,
+                availableTags: tagManager.tags.filter { $0.projectId == viewModel.projectId ?? "" },
+                projectId: viewModel.projectId ?? "",
                 createdBy: task.createdBy,
                 onSave: { updatedTags in
                     viewModel.updateTags(updatedTags)
                 }
             )
+        }
+        .sheet(isPresented: $showAISettings) {
+            APISettingsView()
         }
         .toolbar { 
             ToolbarItem(placement: .navigationBarTrailing) { 
@@ -252,26 +283,6 @@ struct PhaseTaskDetailView: View {
     }
 }
 
-// MARK: - Tags wrap view
-struct WrapTagsView: View {
-    let tags: [String]
-    let onRemove: (String) -> Void
-    var body: some View {
-        let columns = [GridItem(.adaptive(minimum: 80), spacing: 6)]
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
-            ForEach(tags, id: \.self) { tag in
-                HStack(spacing: 4) {
-                    Text(tag).font(.caption)
-                    Button(action: { onRemove(tag) }) { Image(systemName: "xmark.circle.fill").font(.caption2) }
-                }
-                .padding(.horizontal, 8).padding(.vertical, 4)
-                .background(Color.blue.opacity(0.1))
-                .foregroundColor(.blue)
-                .clipShape(Capsule())
-            }
-        }
-    }
-}
 
 extension PhaseTaskDetailView {
     private func persistChanges() {
@@ -318,7 +329,18 @@ extension PhaseTaskDetailView {
         }
     }
     private func aiDetail() {
-        /* AI detail generation disabled for Issue #61 fix */
+        guard let taskId = task.id, let projectId = project.id, let phaseId = phase.id else { return }
+        
+        Task { @MainActor in
+            if let generatedDetail = await aiGenerator.generateTaskDetails(for: task) {
+                // Update task description with AI-generated detail
+                // Note: For now just displaying the detail, TODO: implement task update
+                print("AI Generated Detail for task '\(task.title)':")
+                print(generatedDetail)
+                
+                // TODO: Implement task update functionality once proper update method is available
+            }
+        }
     }
 
     private func loadMembers() async {
@@ -335,88 +357,3 @@ extension PhaseTaskDetailView {
     // Issue #60 Fix: Auto-link URLs in description text
 }
 
-// MARK: - TagEditorSheet
-
-struct TagEditorSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var selectedTags: [String]
-    
-    let availableTags: [TaskTag]
-    let familyId: String  
-    let createdBy: String
-    let onSave: ([String]) -> Void
-    
-    init(currentTags: [String], availableTags: [TaskTag], familyId: String, createdBy: String, onSave: @escaping ([String]) -> Void) {
-        self._selectedTags = State(initialValue: currentTags)
-        self.availableTags = availableTags
-        self.familyId = familyId
-        self.createdBy = createdBy
-        self.onSave = onSave
-    }
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 16) {
-                Text("タスクのタグを編集")
-                    .font(.headline)
-                    .padding(.top)
-                
-                TagInputView(
-                    selectedTags: $selectedTags,
-                    availableTags: availableTags,
-                    familyId: familyId,
-                    createdBy: createdBy,
-                    onTagCreated: { _ in
-                        // Tag will be automatically updated via listener
-                    }
-                )
-                .frame(maxHeight: 300)
-                
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("タグ編集")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("キャンセル") {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") {
-                        onSave(selectedTags)
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-    private func makeAttributedString(from text: String) -> AttributedString {
-        var attributedString = AttributedString(text)
-        
-        // Simple URL detection using NSDataDetector
-        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-        let range = NSRange(location: 0, length: text.utf16.count)
-        
-        detector?.enumerateMatches(in: text, options: [], range: range) { (match, _, _) in
-            guard let match = match, let _ = Range(match.range, in: text) else { return }
-            
-            if let url = match.url {
-                // Convert to AttributedString range
-                let startIndex = attributedString.index(attributedString.startIndex, offsetByCharacters: match.range.location)
-                let endIndex = attributedString.index(startIndex, offsetByCharacters: match.range.length)
-                let attributedRange = startIndex..<endIndex
-                
-                // Apply link styling
-                attributedString[attributedRange].foregroundColor = .blue
-                attributedString[attributedRange].underlineStyle = .single
-                attributedString[attributedRange].link = url
-            }
-        }
-        
-        return attributedString
-    }
-    
-}

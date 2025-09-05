@@ -17,18 +17,18 @@ struct TaskTag: Identifiable, Codable, Hashable, Equatable {
     var displayName: String
     var color: String  // Hex color code
     var emoji: String?
-    var familyId: String
+    var projectId: String
     var usageCount: Int
     var createdAt: Date?
     var createdBy: String
     var lastUsedAt: Date?
     
-    init(name: String, color: String, emoji: String? = nil, familyId: String, createdBy: String) {
+    init(name: String, color: String, emoji: String? = nil, projectId: String, createdBy: String) {
         self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         self.displayName = emoji != nil ? "\(emoji!) \(self.name)" : self.name
         self.color = color
         self.emoji = emoji
-        self.familyId = familyId
+        self.projectId = projectId
         self.createdBy = createdBy
         self.usageCount = 0
         self.createdAt = Date()
@@ -67,7 +67,7 @@ struct TaskTag: Identifiable, Codable, Hashable, Equatable {
             "name": name,
             "displayName": displayName,
             "color": color,
-            "familyId": familyId,
+            "projectId": projectId,
             "usageCount": usageCount,
             "createdBy": createdBy,
             "createdAt": createdAt ?? Date()
@@ -87,7 +87,7 @@ struct TaskTag: Identifiable, Codable, Hashable, Equatable {
     static func fromFirestoreData(_ data: [String: Any], documentId: String) -> TaskTag? {
         guard let name = data["name"] as? String,
               let color = data["color"] as? String,
-              let familyId = data["familyId"] as? String,
+              let projectId = data["projectId"] as? String,
               let createdBy = data["createdBy"] as? String else {
             return nil
         }
@@ -96,7 +96,7 @@ struct TaskTag: Identifiable, Codable, Hashable, Equatable {
             name: name,
             color: color,
             emoji: data["emoji"] as? String,
-            familyId: familyId,
+            projectId: projectId,
             createdBy: createdBy
         )
         
@@ -201,6 +201,7 @@ enum TagError: Error, LocalizedError {
     case updateFailed(String)
     case deletionFailed(String)
     case loadingFailed(String)
+    case invalidData
     
     var errorDescription: String? {
         switch self {
@@ -218,6 +219,8 @@ enum TagError: Error, LocalizedError {
             return "タグの削除に失敗しました: \(message)"
         case .loadingFailed(let message):
             return "タグの読み込みに失敗しました: \(message)"
+        case .invalidData:
+            return "必要なデータが不足しています（projectIdなど）"
         }
     }
 }

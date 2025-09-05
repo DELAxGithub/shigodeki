@@ -15,7 +15,9 @@ struct TagInputView: View {
     @Binding var selectedTags: [String]
     
     let availableTags: [TaskTag]
-    let familyId: String
+    let projectId: String
+    let ownerId: String
+    let ownerType: ProjectOwnerType
     let createdBy: String
     let onTagCreated: (TaskTag) -> Void
     
@@ -117,7 +119,7 @@ struct TagInputView: View {
         .sheet(isPresented: $showingCreateTag) {
             CreateTagView(
                 initialName: searchText,
-                familyId: familyId,
+                projectId: projectId,
                 createdBy: createdBy,
                 onTagCreated: { newTag in
                     onTagCreated(newTag)
@@ -157,13 +159,13 @@ struct CreateTagView: View {
     @State private var isCreating = false
     @State private var errorMessage: String?
     
-    let familyId: String
+    let projectId: String
     let createdBy: String
     let onTagCreated: (TaskTag) -> Void
     
-    init(initialName: String = "", familyId: String, createdBy: String, onTagCreated: @escaping (TaskTag) -> Void) {
+    init(initialName: String = "", projectId: String, createdBy: String, onTagCreated: @escaping (TaskTag) -> Void) {
         self._tagName = State(initialValue: initialName)
-        self.familyId = familyId
+        self.projectId = projectId
         self.createdBy = createdBy
         self.onTagCreated = onTagCreated
     }
@@ -227,7 +229,7 @@ struct CreateTagView: View {
                                     name: tagName.isEmpty ? "タグ名" : tagName,
                                     color: selectedColor,
                                     emoji: emoji.isEmpty ? nil : emoji,
-                                    familyId: familyId,
+                                    projectId: projectId,
                                     createdBy: createdBy
                                 )
                                 
@@ -314,7 +316,7 @@ struct CreateTagView: View {
                     name: trimmedName,
                     color: selectedColor,
                     emoji: emoji.isEmpty ? nil : emoji,
-                    familyId: familyId,
+                    projectId: projectId,
                     createdBy: createdBy
                 )
                 
@@ -323,7 +325,7 @@ struct CreateTagView: View {
                     name: trimmedName,
                     color: selectedColor,
                     emoji: emoji.isEmpty ? nil : emoji,
-                    familyId: familyId,
+                    projectId: projectId,
                     createdBy: createdBy
                 )
                 newTag.id = tagId
@@ -351,15 +353,17 @@ struct CreateTagView: View {
 
 #Preview {
     let sampleTags = [
-        TaskTag(name: "重要", color: "#FF3B30", emoji: "🔥", familyId: "family1", createdBy: "user1"),
-        TaskTag(name: "緊急", color: "#FF9500", emoji: "⚡", familyId: "family1", createdBy: "user1"),
-        TaskTag(name: "会議", color: "#007AFF", emoji: "🗣️", familyId: "family1", createdBy: "user1")
+        TaskTag(name: "重要", color: "#FF3B30", emoji: "🔥", projectId: "project1", createdBy: "user1"),
+        TaskTag(name: "緊急", color: "#FF9500", emoji: "⚡", projectId: "project1", createdBy: "user1"),
+        TaskTag(name: "会議", color: "#007AFF", emoji: "🗣️", projectId: "project1", createdBy: "user1")
     ]
     
     TagInputView(
         selectedTags: .constant(["重要"]),
         availableTags: sampleTags,
-        familyId: "family1",
+        projectId: "project1",
+        ownerId: "family1",
+        ownerType: .family,
         createdBy: "user1",
         onTagCreated: { _ in }
     )

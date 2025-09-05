@@ -14,7 +14,7 @@ import CryptoKit
 @MainActor
 class AuthenticationManager: NSObject, ObservableObject {
     // Singleton instance - accessible from any context
-    nonisolated(unsafe) static let shared = AuthenticationManager()
+    static let shared = AuthenticationManager()
     
     @Published var isAuthenticated = false
     @Published var currentUser: User?
