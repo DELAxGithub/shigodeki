@@ -93,29 +93,30 @@ class FamilyViewModel: ObservableObject {
     }
     
     private func setupAuthenticationObserver() {
-        authManager?.$currentUser
-            .removeDuplicates()
-            .sink { [weak self] user in
+        if let cancellable = FamilyInitializationService.setupAuthenticationObserver(
+            authManager: authManager,
+            userChangeHandler: { [weak self] user in
                 self?.handleUserChange(user)
             }
-            .store(in: &cancellables)
+        ) {
+            cancellables.insert(cancellable)
+        }
     }
     
     /// **【重要】認証状態変化ハンドラー**
     /// ViewModelが自律的に認証状態を監視し、適切なタイミングでデータロードを実行
     private func handleUserChange(_ user: User?) {
-        if let user = user, let userId = user.id {
-            print("🔄 FamilyViewModel: 認証ユーザー変更を検知。ユーザーID: \(userId)。データロードを開始します。")
-            Task {
-                // Managerがまだ注入されていない場合は待機する
-                await setupFamilyManagerIfNeeded()
-                await loadFamilies(for: userId)
+        FamilyInitializationService.handleUserChange(
+            user: user,
+            familyManager: familyManager,
+            families: &families,
+            setupFamilyManagerCallback: { [weak self] in
+                await self?.setupFamilyManagerIfNeeded()
+            },
+            loadFamiliesCallback: { [weak self] userId in
+                await self?.loadFamilies(for: userId)
             }
-        } else {
-            print("🔄 FamilyViewModel: ユーザーがサインアウトしました。データをクリアします。")
-            self.families = []
-            self.familyManager?.stopListeningToFamilies()
-        }
+        )
     }
     
     // MARK: - Access to Managers for Views that need it
@@ -133,54 +134,36 @@ class FamilyViewModel: ObservableObject {
             return
         }
         
-        // familyManagerのfamiliesを自身のfamiliesに繋ぎ込む
-        familyManager.$families
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] families in
-                print("🔄 FamilyViewModel: Families updated to \(families.count)")
-                print("📋 FamilyViewModel: Family names: \(families.map { $0.name })")
+        let newCancellables = FamilyInitializationService.setupBindings(
+            familyManager: familyManager,
+            familiesBinding: { [weak self] families in
                 self?.families = families
-                self?.updateEmptyState()
-            }
-            .store(in: &cancellables)
-
-        // familyManagerのisLoadingを自身のisLoadingに繋ぎ込む
-        familyManager.$isLoading
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] isLoading in
+            },
+            isLoadingBinding: { [weak self] isLoading in
                 self?.isLoading = isLoading
-                self?.updateEmptyState()
-            }
-            .store(in: &cancellables)
-        
-        // familyManagerのerrorMessageを自身のerrorに変換して繋ぎ込む
-        familyManager.$errorMessage
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] errorMessage in
+            },
+            errorBinding: { [weak self] errorMessage in
                 if let errorMessage = errorMessage {
                     self?.error = FirebaseError.operationFailed(errorMessage)
                 } else {
                     self?.error = nil
                 }
+            },
+            updateEmptyStateCallback: { [weak self] in
+                self?.updateEmptyState()
             }
-            .store(in: &cancellables)
-            
-        print("🔗 FamilyViewModel: Manager bindingsが確立されました")
+        )
+        
+        for cancellable in newCancellables {
+            cancellables.insert(cancellable)
+        }
     }
     
     private func loadInitialData() async {
-        guard let authManager = authManager,
-              let familyManager = familyManager,
-              let userId = authManager.currentUser?.id else {
-            print("⚠️ FamilyViewModel: loadInitialData() - 必要なManagerまたはユーザーIDが不足")
-            return
-        }
-        
-        print("🔄 FamilyViewModel: 初期データ読み込み開始 - User: \(userId)")
-        
-        // 家族データの読み込みを開始
-        familyManager.startListeningToFamilies(userId: userId)
-        print("✨ FamilyViewModel: 家族データのリスニングを開始")
+        await FamilyInitializationService.loadInitialData(
+            authManager: authManager,
+            familyManager: familyManager
+        )
     }
     
     private func updateEmptyState() {
@@ -188,201 +171,75 @@ class FamilyViewModel: ObservableObject {
         publishedState.isLoading = isLoading
         publishedState.families = families
         
-        FamilyViewModelState.updateEmptyState(&publishedState, authManager: authManager)
+        FamilyStateService.updateEmptyState(&publishedState, authManager: authManager)
         shouldShowEmptyState = publishedState.shouldShowEmptyState
     }
     
     // MARK: - Public Interface
     
     func onAppear() async {
-        #if DEBUG
-        print("📱 FamilyViewModel: onAppear triggered")
-        #endif
-        // 認証状態の変更によって自動的にロードされるため、ここでの明示的なロードは不要
+        FamilyStateService.onAppear()
     }
     
     func onDisappear() {
-        guard let familyManager = familyManager else { return }
-        
-        #if DEBUG
-        print("👋 FamilyViewModel: Disappearing, cleaning up listeners")
-        #endif
-        familyManager.stopListeningToFamilies()
+        FamilyStateService.onDisappear(familyManager: familyManager)
     }
     
     func createFamily(name: String) async -> Bool {
-        guard let authManager = authManager,
-              let familyManager = familyManager else {
+        guard let authManager = authManager, let familyManager = familyManager,
+              let userId = authManager.currentUser?.id else {
             error = FirebaseError.operationFailed("システムが準備できていません")
             return false
         }
         
-        guard let userId = authManager.currentUser?.id else {
-            error = FirebaseError.operationFailed("ユーザーが認証されていません")
-            return false
-        }
+        var operationState = FamilyOperationService.OperationState()
+        operationState.families = families
+        operationState.showCreateSuccess = showCreateSuccess
+        operationState.showCreateProcessing = showCreateProcessing
+        operationState.processingMessage = processingMessage
+        operationState.newFamilyInvitationCode = newFamilyInvitationCode
         
-        // Duplicate prevention checks
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let result = await FamilyOperationService.createFamily(
+            name: name, userId: userId, familyManager: familyManager,
+            privateState: &privateState, operationState: &operationState,
+            isCreatingFamily: &isCreatingFamily, error: &error
+        )
         
-        if FamilyOperationService.shouldBlockCreateRequest(
-            trimmedName: trimmedName,
-            userId: userId,
-            activeRequests: privateState.activeCreateRequests,
-            lastRequest: privateState.lastCreateRequest
-        ) {
-            return false
-        }
+        families = operationState.families
+        showCreateSuccess = operationState.showCreateSuccess
+        showCreateProcessing = operationState.showCreateProcessing
+        processingMessage = operationState.processingMessage
+        newFamilyInvitationCode = operationState.newFamilyInvitationCode
         
-        // Track this request
-        let requestKey = FamilyOperationService.createRequestKey(userId: userId, familyName: trimmedName)
-        privateState.activeCreateRequests.insert(requestKey)
-        privateState.lastCreateRequest = (name: trimmedName, timestamp: Date())
-        
-        defer {
-            // Always clean up the active request tracking
-            privateState.activeCreateRequests.remove(requestKey)
-        }
-        
-        // 🚨 CTO修正: 楽観的更新 (Optimistic Update)
-        let optimisticFamily = FamilyOperationService.createOptimisticFamily(name: trimmedName, userId: userId)
-        let temporaryId = optimisticFamily.id!
-        
-        await MainActor.run {
-            // @Publishedなfamilies配列に直接追加することで、UIが即座に更新される
-            families.insert(optimisticFamily, at: 0)
-            print("✅ [OPTIMISTIC] FamilyViewModel: Added temporary family '\(trimmedName)' to UI.")
-            
-            // 成功を即座に表示
-            showCreateSuccess = true
-            processingMessage = "家族グループが作成されました！"
-        }
-        
-        isCreatingFamily = true
-        defer { isCreatingFamily = false }
-        
-        do {
-            print("🔥 [FIREBASE] FamilyViewModel: Starting Firebase createFamily operation for '\(trimmedName)'")
-            let familyId = try await familyManager.createFamily(name: trimmedName, creatorUserId: userId)
-            print("✅ [SUCCESS] FamilyViewModel: Firebase operation for createFamily completed successfully. ID: \(familyId)")
-            
-            // Get the invitation code
-            let invitationCode = FamilyOperationService.generateInvitationCode(from: familyId)
-            
-            await MainActor.run {
-                newFamilyInvitationCode = invitationCode
-                print("✅ [OPTIMISTIC] FamilyViewModel: Firebase confirmed family creation - ID: \(familyId)")
-                
-                // 🚨 CTO修正: 固定遅延を完全に撤廃。
-                // Firestoreリスナーが本物のデータを受信し、UIは自動的に更新される。
-                // ユーザーが「OK」を押したタイミングで画面を閉じる。
-            }
-            
-            return true
-            
-        } catch let error as NSError where error.domain == "FIRFirestoreErrorDomain" {
-            // 🚨 CTO修正: 楽観的更新のロールバック
-            await MainActor.run {
-                FamilyErrorHandler.performOptimisticRollback(
-                    families: &families,
-                    temporaryId: temporaryId,
-                    familyName: trimmedName,
-                    showCreateSuccess: &showCreateSuccess,
-                    showCreateProcessing: &showCreateProcessing,
-                    processingMessage: &processingMessage
-                )
-                
-                self.error = FamilyErrorHandler.handleFirestoreError(error)
-            }
-            return false
-            
-        } catch let error as NSError {
-            // 🚨 CTO修正: 楽観的更新のロールバック
-            await MainActor.run {
-                FamilyErrorHandler.performOptimisticRollback(
-                    families: &families,
-                    temporaryId: temporaryId,
-                    familyName: trimmedName,
-                    showCreateSuccess: &showCreateSuccess,
-                    showCreateProcessing: &showCreateProcessing,
-                    processingMessage: &processingMessage
-                )
-                
-                self.error = FamilyErrorHandler.handleNSError(error)
-            }
-            return false
-            
-        } catch {
-            // 🚨 CTO修正: 楽観的更新のロールバック
-            await MainActor.run {
-                FamilyErrorHandler.performOptimisticRollback(
-                    families: &families,
-                    temporaryId: temporaryId,
-                    familyName: trimmedName,
-                    showCreateSuccess: &showCreateSuccess,
-                    showCreateProcessing: &showCreateProcessing,
-                    processingMessage: &processingMessage
-                )
-                
-                self.error = FamilyErrorHandler.handleUnknownError(error)
-            }
-            return false
-        }
+        return result
     }
     
     func joinFamily(invitationCode: String) async -> Bool {
-        guard let authManager = authManager,
-              let familyManager = familyManager else {
+        guard let authManager = authManager, let familyManager = familyManager,
+              let userId = authManager.currentUser?.id else {
             error = FirebaseError.operationFailed("システムが準備できていません")
             return false
         }
         
-        guard let userId = authManager.currentUser?.id else {
-            error = FirebaseError.operationFailed("ユーザーが認証されていません")
-            return false
-        }
+        var operationState = FamilyOperationService.OperationState()
+        operationState.processingMessage = processingMessage
+        operationState.showJoinProcessing = showJoinProcessing
+        operationState.joinSuccessMessage = joinSuccessMessage
+        operationState.showJoinSuccess = showJoinSuccess
         
-        // 🚨 CTO修正: 楽観的更新パターンの適用
-        // 500ms遅延を撤廃し、即座に楽観的な参加状態を表示
-        await MainActor.run {
-            processingMessage = "家族グループに参加中..."
-            showJoinProcessing = true
-            print("🔄 [OPTIMISTIC] showJoinProcessing set to true")
-        }
+        let result = await FamilyOperationService.joinFamily(
+            invitationCode: invitationCode, userId: userId,
+            familyManager: familyManager, authManager: authManager,
+            operationState: &operationState, isJoiningFamily: &isJoiningFamily,
+            error: &error
+        )
         
-        isJoiningFamily = true
-        defer { isJoiningFamily = false }
+        processingMessage = operationState.processingMessage
+        showJoinProcessing = operationState.showJoinProcessing
+        joinSuccessMessage = operationState.joinSuccessMessage
+        showJoinSuccess = operationState.showJoinSuccess
         
-        do {
-            // Issue #43: Use optimistic updates for immediate family list reflection
-            let familyName = try await familyManager.joinFamilyWithCode(invitationCode, userId: userId)
-            
-            await MainActor.run {
-                // Switch to success message in the same popup
-                processingMessage = "「\(familyName)」に参加しました！"
-                joinSuccessMessage = "「\(familyName)」に参加しました！"
-                showJoinSuccess = true
-                print("✅ [Issue #43] FamilyViewModel: Successfully joined family: \(familyName) (optimistic)")
-                print("✅ [Debug] showJoinSuccess set to true, showJoinProcessing: \(showJoinProcessing)")
-                
-                // CRUCIAL: Refresh Firebase data in background immediately after success
-                // This ensures the family appears in the list when user presses OK
-                if let userId = authManager.currentUser?.id {
-                    print("🔄 [Background] Refreshing Firebase listener after family join")
-                    familyManager.startListeningToFamilies(userId: userId)
-                }
-            }
-            
-            return true
-            
-        } catch {
-            await MainActor.run {
-                showJoinProcessing = false
-                self.error = FirebaseError.from(error)
-                print("❌ FamilyViewModel: Error joining family: \(error)")
-            }
-            return false
-        }
+        return result
     }
     
     func resetSuccessStates() {
@@ -397,7 +254,7 @@ class FamilyViewModel: ObservableObject {
         publishedState.showJoinProcessing = showJoinProcessing
         publishedState.processingMessage = processingMessage
         
-        FamilyViewModelState.resetSuccessStates(&publishedState)
+        FamilyStateService.resetSuccessStates(&publishedState)
         
         shouldDismissCreateSheet = publishedState.shouldDismissCreateSheet
         showJoinSuccess = publishedState.showJoinSuccess
@@ -411,56 +268,39 @@ class FamilyViewModel: ObservableObject {
     }
     
     func dismissCreateSheetWithReload() {
-        shouldDismissCreateSheet = true
-        // Firebase refresh is already done in background during success message
-        print("✅ [UI] Dismissing create sheet - Firebase data already refreshed")
+        shouldDismissCreateSheet = FamilyStateService.dismissCreateSheetWithReload()
     }
     
     func dismissJoinViewWithReload() {
-        // Firebase refresh is already done in background during success message  
-        print("✅ [UI] Dismissing join view - Firebase data already refreshed")
+        FamilyStateService.dismissJoinViewWithReload()
     }
     
     // MARK: - Private Business Logic
     
     private func setupFamilyManagerIfNeeded() async {
-        guard self.privateState.familyManager == nil else { return }
-        print("⏳ FamilyViewModel: FamilyManagerが未注入のため、SharedManagerStoreから取得します。")
-        self.privateState.familyManager = await SharedManagerStore.shared.getFamilyManager()
-        self.familyManager = privateState.familyManager
-        setupBindings() // Managerが注入されたので、バインディングを再設定
-        self.isInitialized = true
-        print("✅ FamilyViewModel: FamilyManagerの注入が完了しました。")
+        await FamilyInitializationService.setupFamilyManagerIfNeeded(
+            privateState: &privateState,
+            familyManager: &familyManager,
+            isInitialized: &isInitialized,
+            setupBindingsCallback: { [weak self] in
+                self?.setupBindings()
+            }
+        )
     }
     
     private func loadFamilies(for userId: String) async {
-        guard let familyManager = self.privateState.familyManager else {
-            print("⚠️ FamilyViewModel: Manager not available for loadFamilies")
-            return
-        }
-        
-        print("👤 FamilyViewModel: 家族データの読み込みを開始 - User: \(userId)")
-        
-        // Start real-time listening instead of just loading
-        familyManager.startListeningToFamilies(userId: userId)
-        print("✨ FamilyViewModel: Started listening to families for user")
+        await FamilyInitializationService.loadFamilies(for: userId, privateState: privateState)
     }
     
     // MARK: - Proxy Methods
     // FamilyManagerのメソッドをそのまま委譲するプロキシメソッド
     
     func removeAllListeners() {
-        guard let familyManager = familyManager else { return }
-        familyManager.stopListeningToFamilies()
+        FamilyStateService.removeAllListeners(familyManager: familyManager)
     }
     
     func clearError() {
-        guard let familyManager = familyManager else { return }
-        familyManager.errorMessage = nil
-        error = nil
+        FamilyStateService.clearError(familyManager: familyManager, error: &error)
     }
     
-    // MARK: - DEBUG: Test methods removed
-    // 🚨 CTO修正: デバッグメソッドを削除 - 2秒遅延の不適切なテストメソッドを撤廃
-    // 本番コードにテスト用の固定遅延を含めることは、パフォーマンス劣化の原因となるため禁止
 }
