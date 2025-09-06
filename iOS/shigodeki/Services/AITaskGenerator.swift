@@ -33,8 +33,8 @@ final class AITaskGenerator: ObservableObject {
         progressMessage = "Generating intelligent task suggestions..."
         
         do {
-            let enhancedPrompt = buildEnhancedPrompt(userPrompt: prompt, projectType: projectType)
-            let client = getClient(for: selectedProvider)
+            let enhancedPrompt = AITaskPromptBuilder.buildEnhancedPrompt(userPrompt: prompt, projectType: projectType)
+            let client = AIClientRouter.getClient(for: selectedProvider)
             
             progressMessage = "Connecting to \(selectedProvider.displayName)..."
             
@@ -72,7 +72,7 @@ final class AITaskGenerator: ObservableObject {
         updateAvailableProviders()
         guard !availableProviders.isEmpty else { return nil }
         
-        let prompt = buildTaskDetailPrompt(for: task)
+        let prompt = AITaskPromptBuilder.buildTaskDetailPrompt(for: task)
         
         do {
             let detailText = try await generateText(prompt: prompt)
@@ -83,25 +83,6 @@ final class AITaskGenerator: ObservableObject {
         }
     }
     
-    private func buildTaskDetailPrompt(for task: ShigodekiTask) -> String {
-        let baseDescription = task.description?.isEmpty == false ? task.description! : "詳細な説明はありません"
-        
-        return """
-        以下のタスクについて、実行可能で詳細な説明を日本語で生成してください：
-
-        タスク名: \(task.title)
-        現在の説明: \(baseDescription)
-
-        以下の要素を含めて、実用的で具体的な詳細を提供してください：
-        1. 実行手順（ステップバイステップ）
-        2. 必要な準備や前提条件
-        3. 完了の判断基準
-        4. 注意点や考慮事項
-        5. 推定所要時間
-
-        結果は実際にタスクを実行する人が参考にできるよう、具体的で実用的な内容にしてください。
-        """
-    }
     
     // Generic text generation method for analysis and other purposes
     func generateText(prompt: String) async throws -> String {
@@ -120,7 +101,7 @@ final class AITaskGenerator: ObservableObject {
         defer { isGenerating = false }
         
         do {
-            let client = getClient(for: selectedProvider)
+            let client = AIClientRouter.getClient(for: selectedProvider)
             
             // Since AIClient only supports task suggestions, we'll adapt the prompt
             // to generate text content structured as a single task description
@@ -161,74 +142,14 @@ final class AITaskGenerator: ObservableObject {
     }
     
     func updateAvailableProviders() {
-        availableProviders = KeychainManager.shared.getConfiguredProviders()
-        
-        // Update selected provider if current one is not available
-        if !availableProviders.contains(selectedProvider) {
-            selectedProvider = availableProviders.first ?? .openAI
-        }
+        let result = AIClientRouter.updateAvailableProviders(currentProvider: selectedProvider)
+        availableProviders = result.providers
+        selectedProvider = result.selected
     }
     
     // MARK: - Private Methods
     
-    private func getClient(for provider: KeychainManager.APIProvider) -> AIClient {
-        switch provider {
-        case .openAI:
-            return OpenAIClient()
-        case .claude:
-            return ClaudeClient()
-        }
-    }
     
-    private func buildEnhancedPrompt(userPrompt: String, projectType: ProjectType?) -> String {
-        var prompt = userPrompt
-        
-        // Add project type context if available
-        if let projectType = projectType {
-            let typeContext = getProjectTypeContext(projectType)
-            prompt = "\(typeContext)\n\nProject request: \(prompt)"
-        }
-        
-        // Add general context for better task generation
-        let generalContext = """
-        
-        Additional context:
-        - This is for a task management app where users organize work into projects, phases, and tasks
-        - Tasks can have subtasks for detailed breakdown
-        - Include time estimates that are realistic and helpful
-        - Consider dependencies between tasks when creating phases
-        - Focus on actionable, specific tasks rather than vague goals
-        """
-        
-        return prompt + generalContext
-    }
-    
-    private func getProjectTypeContext(_ projectType: ProjectType) -> String {
-        switch projectType {
-        case .work:
-            return "This is a work/professional project. Focus on business objectives, deliverables, and professional workflows."
-        case .personal:
-            return "This is a personal project. Consider work-life balance, personal goals, and individual capacity."
-        case .family:
-            return "This is a family project involving multiple family members. Consider coordination, age-appropriate tasks, and family schedules."
-        case .creative:
-            return "This is a creative project. Focus on artistic processes, inspiration phases, and creative milestones."
-        case .learning:
-            return "This is a learning/educational project. Include research phases, practice tasks, and knowledge building steps."
-        case .health:
-            return "This is a health and wellness project. Consider gradual progress, sustainability, and health best practices."
-        case .travel:
-            return "This is a travel project. Include planning phases, booking tasks, and travel logistics."
-        case .home:
-            return "This is a home improvement or household project. Consider practical steps, safety, and maintenance."
-        case .financial:
-            return "This is a financial planning project. Focus on research, analysis, and systematic financial steps."
-        case .social:
-            return "This is a social or community project. Consider group coordination, communication, and social dynamics."
-        case .custom:
-            return "This is a custom project type. Adapt suggestions to be flexible and broadly applicable."
-        }
-    }
 }
 
 // MARK: - Project Type Enum
@@ -303,106 +224,6 @@ extension AITaskGenerator {
     
     /// Convert AI suggestions to Task objects for the app
     func convertSuggestionsToTasks(_ suggestions: AITaskSuggestion, for project: Project) -> [ShigodekiTask] {
-        let taskManager = TaskManager()
-        var tasks: [ShigodekiTask] = []
-        
-        // If we have phases, create tasks within phases
-        if let phases = suggestions.phases {
-            for (phaseIndex, phase) in phases.enumerated() {
-                for (taskIndex, taskSuggestion) in phase.tasks.enumerated() {
-                    let task = createTask(
-                        from: taskSuggestion,
-                        project: project,
-                        phaseIndex: phaseIndex,
-                        taskIndex: taskIndex,
-                        phaseName: phase.name
-                    )
-                    tasks.append(task)
-                }
-            }
-        } else {
-            // Create tasks directly
-            for (index, taskSuggestion) in suggestions.tasks.enumerated() {
-                let task = createTask(
-                    from: taskSuggestion,
-                    project: project,
-                    phaseIndex: nil as Int?,
-                    taskIndex: index,
-                    phaseName: nil as String?
-                )
-                tasks.append(task)
-            }
-        }
-        
-        return tasks
-    }
-    
-    private func createTask(
-        from suggestion: AITaskSuggestion.TaskSuggestion,
-        project: Project,
-        phaseIndex: Int?,
-        taskIndex: Int,
-        phaseName: String?
-    ) -> ShigodekiTask {
-        
-        // We need to create a task with the proper ShigodekiTask initializer
-        // For now, use placeholder values since we'd need proper IDs
-        let task = ShigodekiTask(
-            title: suggestion.title,
-            description: suggestion.description,
-            assignedTo: nil,
-            createdBy: project.ownerId,
-            dueDate: nil,
-            priority: mapPriority(suggestion.priority),
-            listId: "temp-list-id", // Would need proper list creation
-            phaseId: "temp-phase-id", // Would need proper phase creation
-            projectId: project.id ?? "temp-project-id",
-            order: taskIndex
-        )
-        
-        // Set phase if available
-        if let phaseIndex = phaseIndex, let phaseName = phaseName {
-            // This would need to be handled by the calling code
-            // as we'd need to create/reference phases
-        }
-        
-        return task
-    }
-    
-    private func mapPriority(_ aiPriority: AITaskPriority) -> TaskPriority {
-        switch aiPriority {
-        case .low:
-            return .low
-        case .medium:
-            return .medium
-        case .high:
-            return .high
-        case .urgent:
-            return .high // Map urgent to high as our app only has 3 levels
-        }
-    }
-    
-    private func parseEstimatedDuration(_ duration: String) -> TimeInterval? {
-        let lowercased = duration.lowercased()
-        
-        // Simple duration parsing - could be enhanced
-        if lowercased.contains("minute") {
-            let numbers = lowercased.components(separatedBy: CharacterSet.decimalDigits.inverted).compactMap { Int($0) }
-            if let minutes = numbers.first {
-                return TimeInterval(minutes * 60)
-            }
-        } else if lowercased.contains("hour") {
-            let numbers = lowercased.components(separatedBy: CharacterSet.decimalDigits.inverted).compactMap { Double($0) }
-            if let hours = numbers.first {
-                return TimeInterval(hours * 3600)
-            }
-        } else if lowercased.contains("day") {
-            let numbers = lowercased.components(separatedBy: CharacterSet.decimalDigits.inverted).compactMap { Int($0) }
-            if let days = numbers.first {
-                return TimeInterval(days * 86400) // 24 hours
-            }
-        }
-        
-        return nil
+        return AITaskConverter.convertSuggestionsToTasks(suggestions, for: project)
     }
 }
