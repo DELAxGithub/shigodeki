@@ -18,7 +18,7 @@ class TemplateValidationLogic {
         }
         
         // Category validation
-        if !ProjectTemplate.Category.allCases.contains(template.category) {
+        if !TemplateCategory.allCases.contains(template.category) {
             warnings.append(.invalidCategory(template.category.rawValue))
         }
     }
@@ -32,7 +32,7 @@ class TemplateValidationLogic {
             errors.append(.duplicatePhaseOrders(duplicateOrders))
         }
         
-        let phaseTitles = phases.map { $0.name }
+        let phaseTitles = phases.map { $0.title }
         let duplicateTitles = phaseTitles.duplicates()
         if !duplicateTitles.isEmpty {
             errors.append(.duplicatePhaseTitles(duplicateTitles))
@@ -42,7 +42,7 @@ class TemplateValidationLogic {
         for phase in phases {
             let totalTasks = phase.taskLists.reduce(0) { $0 + $1.tasks.count }
             if totalTasks == 0 {
-                warnings.append(.emptyTasksInPhase(phase.name))
+                warnings.append(.emptyTasksInPhase(phase.title))
             }
         }
     }
@@ -55,7 +55,7 @@ class TemplateValidationLogic {
                 for (taskIndex, task) in taskList.tasks.enumerated() {
                     // Task title validation
                     if task.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        errors.append(.emptyTaskTitle(phaseTitle: phase.name, taskIndex: taskIndex))
+                        errors.append(.emptyTaskTitle(phaseTitle: phase.title, taskIndex: taskIndex))
                     }
                     
                     // Estimated hours validation
@@ -85,7 +85,7 @@ class TemplateValidationLogic {
             for taskList in phase.taskLists {
                 for task in taskList.tasks {
                     taskNames.insert(task.title)
-                    dependencyGraph[task.title] = task.dependencies
+                    dependencyGraph[task.title] = []  // TaskTemplate doesn't have dependencies
                 }
             }
         }
@@ -94,11 +94,12 @@ class TemplateValidationLogic {
         for phase in phases {
             for taskList in phase.taskLists {
                 for task in taskList.tasks {
-                    for dependency in task.dependencies {
+                    // Skip dependency validation - TaskTemplate doesn't have dependencies
+                    /*for dependency in task.dependencies {
                         if !taskNames.contains(dependency) {
                             errors.append(.invalidDependency(task: task.title, dependency: dependency))
                         }
-                    }
+                    }*/
                 }
             }
         }

@@ -2,19 +2,28 @@ import SwiftUI
 
 // MARK: - Template Statistics
 
-struct TemplateStats {
+struct TemplatePreviewStats {
     let template: ProjectTemplate
     
     var totalPhases: Int { template.phases.count }
     var totalTasks: Int { template.phases.flatMap { $0.taskLists.flatMap { $0.tasks } }.count }
-    var estimatedHours: Int { template.phases.flatMap { $0.taskLists.flatMap { $0.tasks } }.compactMap { $0.estimatedHours }.reduce(0, +) }
+    var estimatedHours: Int { 
+        template.phases.flatMap { $0.taskLists.flatMap { $0.tasks } }
+            .compactMap { task in 
+                if let hours = task.estimatedHours {
+                    return Int(hours)
+                } else {
+                    return nil
+                }
+            }.reduce(0, +)
+    }
     var averageTasksPerPhase: Int { totalPhases > 0 ? totalTasks / totalPhases : 0 }
 }
 
 // MARK: - Supporting Views
 
 struct PhaseNavigationButton: View {
-    let phase: ProjectPhase
+    let phase: PhaseTemplate
     let index: Int
     let isSelected: Bool
     let action: () -> Void
@@ -33,7 +42,7 @@ struct PhaseNavigationButton: View {
                         .foregroundColor(isSelected ? .white : .secondary)
                 }
                 
-                Text(phase.name)
+                Text(phase.title)
                     .font(.caption)
                     .foregroundColor(isSelected ? .blue : .secondary)
                     .lineLimit(1)
@@ -45,13 +54,13 @@ struct PhaseNavigationButton: View {
 }
 
 struct PhaseDetailView: View {
-    let phase: ProjectPhase
+    let phase: PhaseTemplate
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(phase.name)
+                    Text(phase.title)
                         .font(.headline)
                         .fontWeight(.semibold)
                     
@@ -92,7 +101,7 @@ struct PhaseDetailView: View {
 }
 
 struct TaskListPreview: View {
-    let taskList: TaskList
+    let taskList: TaskListTemplate
     @State private var isExpanded = false
     
     var body: some View {
@@ -263,7 +272,7 @@ struct PriorityIndicator: View {
     
     var body: some View {
         Circle()
-            .fill(priority.color)
+            .fill(priority.displayColor)
             .frame(width: 6, height: 6)
     }
 }
@@ -271,7 +280,7 @@ struct PriorityIndicator: View {
 // MARK: - Extensions
 
 extension TaskPriority {
-    var color: Color {
+    var displayColor: Color {
         switch self {
         case .low: return .green
         case .medium: return .yellow

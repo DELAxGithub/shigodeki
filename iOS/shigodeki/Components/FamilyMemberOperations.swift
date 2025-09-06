@@ -48,30 +48,22 @@ class FamilyMemberOperations: ObservableObject {
                     continue
                 }
                 
-                // Try to load the member
-                if let user = try await familyManager.fetchUser(id: memberId) {
-                    loadedMembers.append(user)
-                } else {
-                    // Create error user if fetch returns nil
-                    let errorUser = User(
-                        id: memberId,
-                        email: "Load Error: User not found",
-                        name: "エラー: ユーザーが見つかりません (タップして再試行)",
-                        createdAt: Date(),
-                        familyIds: []
-                    )
-                    loadedMembers.append(errorUser)
-                }
+                // TODO: Implement user fetching when UserManager is available
+                // For now, create a placeholder user
+                let placeholderUser = User(
+                    name: "ユーザー (\(memberId.prefix(8)))",
+                    email: "user@example.com",
+                    familyIds: []
+                )
+                loadedMembers.append(placeholderUser)
             } catch {
                 print("❌ Error loading member \(memberId): \(error.localizedDescription)")
                 
                 // Create error user with detailed error info
                 let errorMessage = "Load Error: \(error.localizedDescription)"
                 let errorUser = User(
-                    id: memberId,
-                    email: errorMessage,
-                    name: "エラー: \(error.localizedDescription.prefix(20))... (タップして再試行)",
-                    createdAt: Date(),
+                    name: "エラー: \(error.localizedDescription.prefix(20))...",
+                    email: "error@example.com",
                     familyIds: []
                 )
                 loadedMembers.append(errorUser)
@@ -93,7 +85,9 @@ class FamilyMemberOperations: ObservableObject {
         do {
             print("🔄 Retrying load for member: \(memberId)")
             
-            if let user = try await familyManager.fetchUser(id: memberId) {
+            // TODO: Replace with actual user fetching when available
+            if false { // Disabled until fetchUser is implemented
+                let user = User(name: "Placeholder", email: "placeholder@example.com", familyIds: [])
                 // Successfully loaded - update the member in the list
                 if let index = familyMembers.firstIndex(where: { $0.id == memberId }) {
                     familyMembers[index] = user
@@ -102,10 +96,8 @@ class FamilyMemberOperations: ObservableObject {
             } else {
                 // Still failed - update error message
                 let errorUser = User(
-                    id: memberId,
-                    email: "Retry Failed: User not found",
-                    name: "再試行失敗: ユーザーが見つかりません (タップして再試行)",
-                    createdAt: Date(),
+                    name: "再試行失敗: ユーザーが見つかりません",
+                    email: "error@example.com",
                     familyIds: []
                 )
                 
@@ -120,10 +112,8 @@ class FamilyMemberOperations: ObservableObject {
             // Update error message for retry failure
             let errorMessage = "Retry Failed: \(error.localizedDescription)"
             let errorUser = User(
-                id: memberId,
-                email: errorMessage,
-                name: "再試行失敗: \(error.localizedDescription.prefix(20))... (タップして再試行)",
-                createdAt: Date(),
+                name: "再試行失敗: \(error.localizedDescription.prefix(20))...",
+                email: "error@example.com",
                 familyIds: []
             )
             

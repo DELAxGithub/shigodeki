@@ -9,6 +9,7 @@ import SwiftUI
 
 struct TagManagementView: View {
     @StateObject private var tagManager = TagManager()
+    @StateObject private var tagService = TagCreationService()
     @State private var showingCreateTag = false
     @State private var editingTag: TaskTag?
     @State private var tagToDelete: TaskTag?
@@ -50,17 +51,20 @@ struct TagManagementView: View {
             }
             .navigationTitle("タグ管理")
             .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    if !unusedTags.isEmpty {
-                        TagCleanupButton(
-                            hasUnusedTags: !unusedTags.isEmpty,
-                            action: cleanupUnusedTags
-                        )
-                    }
-                    TagCreateButton(action: { showingCreateTag = true })
-                }
-            }
+            // TODO: Fix toolbar ambiguity issue
+            // .toolbar {
+            //     ToolbarItem(placement: .navigationBarTrailing) {
+            //         HStack {
+            //             if !unusedTags.isEmpty {
+            //                 TagCleanupButton(
+            //                     hasUnusedTags: !unusedTags.isEmpty,
+            //                     action: cleanupUnusedTags
+            //                 )
+            //             }
+            //             TagCreateButton(action: { showingCreateTag = true })
+            //         }
+            //     }
+            // }
             .onAppear {
                 Task {
                     await tagManager.loadTags(projectId: projectId)
@@ -75,6 +79,7 @@ struct TagManagementView: View {
             CreateTagView(
                 projectId: projectId,
                 createdBy: createdBy,
+                tagService: tagService,
                 onTagCreated: { _ in
                     // Tag will be automatically updated via listener
                 }

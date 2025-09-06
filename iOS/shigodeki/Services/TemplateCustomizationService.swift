@@ -52,9 +52,9 @@ struct TemplateCustomizationService {
     // MARK: - Phase Customizations
     
     private static func applyPhaseCustomizations(
-        _ phases: [ProjectPhase],
+        _ phases: [PhaseTemplate],
         customizations: ProjectCustomizations
-    ) -> [ProjectPhase] {
+    ) -> [PhaseTemplate] {
         return phases.compactMap { phase in
             // オプショナルタスクのスキップ処理
             let filteredTaskLists = phase.taskLists.map { taskList in
@@ -72,21 +72,21 @@ struct TemplateCustomizationService {
                     return task
                 }
                 
-                return TaskList(
-                    title: taskList.title,
+                return TaskListTemplate(
+                    name: taskList.name,
                     description: taskList.description,
-                    tasks: updatedTasks,
                     color: taskList.color,
-                    isOptional: taskList.isOptional
+                    order: taskList.order,
+                    tasks: updatedTasks
                 )
             }
             
-            return ProjectPhase(
+            return PhaseTemplate(
                 title: phase.title,
                 description: phase.description,
-                taskLists: filteredTaskLists,
+                order: phase.order,
                 estimatedDuration: phase.estimatedDuration,
-                isOptional: phase.isOptional
+                taskLists: filteredTaskLists
             )
         }
     }
@@ -100,7 +100,7 @@ struct TemplateCustomizationService {
     
     // MARK: - High Priority Tasks
     
-    static func getHighPriorityTasks(from template: ProjectTemplate) -> [Task] {
+    static func getHighPriorityTasks(from template: ProjectTemplate) -> [TaskTemplate] {
         return template.phases.flatMap { phase in
             phase.taskLists.flatMap { taskList in
                 taskList.tasks.filter { $0.priority == .high }

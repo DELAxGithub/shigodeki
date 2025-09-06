@@ -2,7 +2,9 @@
 //  TagInputView.swift
 //  shigodeki
 //
-//  Created by Claude on 2025-01-04.
+//  Refactored for CLAUDE.md compliance - Lightweight coordinator view
+//  UI components extracted to TagInputComponents.swift
+//  Business logic extracted to TagCreationService.swift
 //
 
 import SwiftUI
@@ -21,21 +23,16 @@ struct TagInputView: View {
     let createdBy: String
     let onTagCreated: (TaskTag) -> Void
     
+    @StateObject private var tagService = TagCreationService()
+    
     // MARK: - Computed Properties
     
     var filteredTags: [TaskTag] {
-        if searchText.isEmpty {
-            return availableTags.sorted { $0.usageCount > $1.usageCount }
-        }
-        return availableTags.filter { 
-            $0.name.localizedCaseInsensitiveContains(searchText)
-        }.sorted { $0.usageCount > $1.usageCount }
+        tagService.filterTags(availableTags, searchText: searchText)
     }
     
     var canCreateTag: Bool {
-        !searchText.isEmpty && !availableTags.contains { 
-            $0.name.lowercased() == searchText.lowercased() 
-        }
+        tagService.canCreateTag(searchText: searchText, availableTags: availableTags)
     }
     
     // MARK: - Body
@@ -49,87 +46,29 @@ struct TagInputView: View {
                 .accessibilityHint("タグ名を入力して検索するか、新しいタグを作成します")
             
             // Selected Tags Display
-            if !selectedTags.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("選択中のタグ")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(selectedTags, id: \.self) { tagName in
-                                // Find the full tag info or use simple name
-                                let tagMaster = availableTags.first { $0.name == tagName }
-                                
-                                if let tag = tagMaster {
-                                    TagChip(tag: tag, isSelected: true) {
-                                        removeTag(tagName)
-                                    }
-                                } else {
-                                    TagChip(tagName: tagName, isSelected: true) {
-                                        removeTag(tagName)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 1) // Prevent clipping
-                    }
-                }
-            }
+            SelectedTagsDisplayView(
+                selectedTags: selectedTags,
+                availableTags: availableTags,
+                onRemoveTag: removeTag
+            )
             
             // Available Tags & Create Option
-            ScrollView {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 8) {
-                    
-                    // UX Improvement: Show create option at top when applicable
-                    if canCreateTag {
-                        Button(action: {
-                            showingCreateTag = true
-                        }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.caption2)
-                                Text("\"\(searchText)\"を作成")
-                                    .font(.caption)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                            }
-                            .foregroundColor(.accentColor)
-                            .frame(maxWidth: .infinity, minHeight: 32)
-                            .background(Color.accentColor.opacity(0.1))
-                            .cornerRadius(8)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("新しいタグ「\(searchText)」を作成")
-                    }
-                    
-                    // Existing tags
-                    ForEach(filteredTags) { tag in
-                        TagChip(
-                            tag: tag,
-                            isSelected: selectedTags.contains(tag.name)
-                        ) {
-                            toggleTag(tag.name)
-                        }
-                    }
-                }
-                .padding(.horizontal, 1) // Prevent clipping
-            }
+            AvailableTagsGridView(
+                filteredTags: filteredTags,
+                selectedTags: selectedTags,
+                searchText: searchText,
+                canCreateTag: canCreateTag,
+                onToggleTag: toggleTag,
+                onShowCreateTag: { showingCreateTag = true }
+            )
         }
         .sheet(isPresented: $showingCreateTag) {
             CreateTagView(
                 initialName: searchText,
                 projectId: projectId,
                 createdBy: createdBy,
-                onTagCreated: { newTag in
-                    onTagCreated(newTag)
-                    // Auto-select the newly created tag
-                    if !selectedTags.contains(newTag.name) {
-                        selectedTags.append(newTag.name)
-                    }
-                    // Clear search to show all tags again
-                    searchText = ""
-                }
+                tagService: tagService,
+                onTagCreated: handleTagCreated
             )
         }
     }
@@ -137,15 +76,17 @@ struct TagInputView: View {
     // MARK: - Helper Methods
     
     private func toggleTag(_ tagName: String) {
-        if let index = selectedTags.firstIndex(of: tagName) {
-            selectedTags.remove(at: index)
-        } else {
-            selectedTags.append(tagName)
-        }
+        tagService.toggleTagSelection(tagName, in: &selectedTags)
     }
     
     private func removeTag(_ tagName: String) {
-        selectedTags.removeAll { $0 == tagName }
+        tagService.removeTagFromSelection(tagName, from: &selectedTags)
+    }
+    
+    private func handleTagCreated(_ newTag: TaskTag) {
+        onTagCreated(newTag)
+        tagService.addTagToSelection(newTag.name, to: &selectedTags)
+        searchText = ""
     }
 }
 
@@ -156,17 +97,17 @@ struct CreateTagView: View {
     @State private var tagName: String
     @State private var selectedColor: String = TaskTag.randomColor()
     @State private var emoji: String = ""
-    @State private var isCreating = false
-    @State private var errorMessage: String?
     
     let projectId: String
     let createdBy: String
+    let tagService: TagCreationService
     let onTagCreated: (TaskTag) -> Void
     
-    init(initialName: String = "", projectId: String, createdBy: String, onTagCreated: @escaping (TaskTag) -> Void) {
+    init(initialName: String = "", projectId: String, createdBy: String, tagService: TagCreationService, onTagCreated: @escaping (TaskTag) -> Void) {
         self._tagName = State(initialValue: initialName)
         self.projectId = projectId
         self.createdBy = createdBy
+        self.tagService = tagService
         self.onTagCreated = onTagCreated
     }
     
@@ -174,82 +115,18 @@ struct CreateTagView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        // Tag Name
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("タグ名")
-                                .font(.headline)
-                            
-                            TextField("例: 重要", text: $tagName)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.body)
-                        }
-                        
-                        // Emoji (Optional)
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("絵文字（任意）")
-                                .font(.headline)
-                            
-                            TextField("🔥", text: $emoji)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.body)
-                        }
-                        
-                        // Color Selection
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("色")
-                                .font(.headline)
-                            
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 12) {
-                                ForEach(TaskTag.defaultColors, id: \.self) { color in
-                                    Button(action: {
-                                        selectedColor = color
-                                    }) {
-                                        Circle()
-                                            .fill(Color(hex: color) ?? Color.accentColor)
-                                            .frame(width: 40, height: 40)
-                                            .overlay(
-                                                Circle()
-                                                    .stroke(Color.primary, lineWidth: selectedColor == color ? 3 : 0)
-                                            )
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("色を選択: \(color)")
-                                }
-                            }
-                        }
-                        
-                        // Preview
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("プレビュー")
-                                .font(.headline)
-                            
-                            HStack {
-                                let previewTag = TaskTag(
-                                    name: tagName.isEmpty ? "タグ名" : tagName,
-                                    color: selectedColor,
-                                    emoji: emoji.isEmpty ? nil : emoji,
-                                    projectId: projectId,
-                                    createdBy: createdBy
-                                )
-                                
-                                TagChip(tag: previewTag, isSelected: false) {
-                                    // No action in preview
-                                }
-                                
-                                TagChip(tag: previewTag, isSelected: true) {
-                                    // No action in preview
-                                }
-                                
-                                Spacer()
-                            }
-                        }
-                    }
+                    CreateTagFormContent(
+                        tagName: $tagName,
+                        emoji: $emoji,
+                        selectedColor: $selectedColor,
+                        projectId: projectId,
+                        createdBy: createdBy
+                    )
                     .padding(.horizontal)
                     .padding(.top, 16)
                     
                     // Error Message
-                    if let errorMessage = errorMessage {
+                    if let errorMessage = tagService.errorMessage {
                         Text(errorMessage)
                             .foregroundColor(.red)
                             .padding(.horizontal)
@@ -259,23 +136,11 @@ struct CreateTagView: View {
                     
                     // Create Button
                     VStack(spacing: 16) {
-                        Button(action: createTag) {
-                            HStack {
-                                if isCreating {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                        .padding(.trailing, 4)
-                                }
-                                Text(isCreating ? "作成中..." : "タグを作成")
-                            }
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(tagName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray : Color.blue)
-                            .cornerRadius(12)
-                        }
-                        .disabled(tagName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreating)
+                        CreateTagActionButton(
+                            tagName: tagName,
+                            isCreating: tagService.isCreating,
+                            onCreateTag: createTag
+                        )
                         
                         Button("キャンセル") {
                             dismiss()
@@ -300,50 +165,19 @@ struct CreateTagView: View {
     }
     
     private func createTag() {
-        let trimmedName = tagName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else {
-            errorMessage = "タグ名を入力してください"
-            return
-        }
-        
-        isCreating = true
-        errorMessage = nil
-        
         Task {
             do {
-                let tagManager = TagManager()
-                let tagId = try await tagManager.createTag(
-                    name: trimmedName,
+                let newTag = try await tagService.createTag(
+                    name: tagName,
                     color: selectedColor,
-                    emoji: emoji.isEmpty ? nil : emoji,
+                    emoji: emoji,
                     projectId: projectId,
                     createdBy: createdBy
                 )
-                
-                // Create the tag object to pass back
-                var newTag = TaskTag(
-                    name: trimmedName,
-                    color: selectedColor,
-                    emoji: emoji.isEmpty ? nil : emoji,
-                    projectId: projectId,
-                    createdBy: createdBy
-                )
-                newTag.id = tagId
-                
-                await MainActor.run {
-                    onTagCreated(newTag)
-                    dismiss()
-                }
-                
+                onTagCreated(newTag)
+                dismiss()
             } catch {
-                await MainActor.run {
-                    isCreating = false
-                    if let tagError = error as? TagError {
-                        errorMessage = tagError.errorDescription
-                    } else {
-                        errorMessage = "タグの作成に失敗しました"
-                    }
-                }
+                // Error handling is managed by tagService
             }
         }
     }

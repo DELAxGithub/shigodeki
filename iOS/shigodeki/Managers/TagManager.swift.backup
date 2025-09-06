@@ -1,0 +1,498 @@
+//
+//  TagManager.swift
+//  shigodeki
+//
+//  Refactored for CLAUDE.md compliance - Lightweight coordinator
+//  Services extracted to TagCRUDService.swift, TagUsageService.swift, TagDataService.swift
+//
+
+import Foundation
+import FirebaseFirestore
+import FirebaseAuth
+
+@MainActor
+class TagManager: ObservableObject {
+    @Published var tags: [TaskTag] = []
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    
+    // MARK: - Service Dependencies
+    
+    private let crudService = TagCRUDService()
+    private let usageService = TagUsageService()
+    private let dataService = TagDataService()
+    
+    // MARK: - Lifecycle
+    
+    deinit {
+        dataService.stopListening()
+    }
+    
+    func stopListening() {
+        dataService.stopListening()
+    }
+    
+    // MARK: - State Management
+    
+    private func updateLoadingState() {
+        isLoading = dataService.isLoading
+        errorMessage = dataService.errorMessage
+    }
+    
+    // MARK: - Tag CRUD Operations
+    
+    func createTag(name: String, color: String? = nil, emoji: String? = nil, projectId: String, createdBy: String) async throws -> String {
+        isLoading = true
+        errorMessage = nil
+
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !projectId.isEmpty else {
+            errorMessage = "projectId is required."
+            throw TagError.invalidData
+        }
+        
+        defer { isLoading = false }
+        
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            throw TagError.invalidName
+        }
+        
+        // Check for duplicate names in the same family
+        if tags.contains(where: { $0.name.lowercased() == trimmedName.lowercased() && $0.projectId == projectId }) {
+            throw TagError.duplicateName
+        }
+        
+        let tag = TaskTag(
+            name: trimmedName,
+            color: color ?? TaskTag.randomColor(),
+            emoji: emoji,
+            projectId: projectId,
+            createdBy: createdBy
+        )
+        
+        let tagData = tag.toFirestoreData()
+        
+        do {
+            let collection = self.getTagCollection(projectId: projectId)
+            let tagRef = try await collection.addDocument(data: tagData)
+            
+            print("Tag created successfully with ID: \(tagRef.documentID)")
+            return tagRef.documentID
+            
+        } catch {
+            print("Error creating tag: \(error)")
+            errorMessage = "タグの作成に失敗しました"
+            throw TagError.creationFailed(error.localizedDescription)
+        }
+    }
+    
+    func updateTag(_ tag: TaskTag, name: String? = nil, color: String? = nil, emoji: String? = nil) async throws {
+        guard let tagId = tag.id, !tag.projectId.isEmpty else {
+            throw TagError.notFound
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        
+        var updateData: [String: Any] = [:]
+        
+        if let newName = name {
+            let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedName.isEmpty else {
+                throw TagError.invalidName
+            }
+            
+            // Check for duplicate names (excluding current tag)
+            if tags.contains(where: { $0.name.lowercased() == trimmedName.lowercased() && $0.projectId == tag.projectId && $0.id != tagId }) {
+                throw TagError.duplicateName
+            }
+            
+            updateData["name"] = trimmedName
+        }
+        
+        if let newColor = color {
+            updateData["color"] = newColor
+        }
+        
+        if let newEmoji = emoji {
+            updateData["emoji"] = newEmoji
+        }
+        
+        // Update displayName only when name or emoji changes
+        // Only update if we're actually changing name or emoji to prevent duplication
+        if name != nil || emoji != nil {
+            let finalName = name ?? tag.name
+            let finalEmoji = emoji ?? tag.emoji
+            // Generate new displayName based on the updated values
+            updateData["displayName"] = finalEmoji != nil ? "\(finalEmoji!) \(finalName)" : finalName
+        }
+        
+        guard !updateData.isEmpty else { return }
+        
+        do {
+            let collection = self.getTagCollection(projectId: tag.projectId)
+            try await self.getTagCollection(projectId: tag.projectId).document(tagId)
+                .updateData(updateData)
+            
+            print("Tag updated successfully")
+            
+        } catch {
+            print("Error updating tag: \(error)")
+            errorMessage = "タグの更新に失敗しました"
+            throw TagError.updateFailed(error.localizedDescription)
+        }
+    }
+    
+    func deleteTag(_ tag: TaskTag) async throws {
+        guard let tagId = tag.id, !tag.projectId.isEmpty else {
+            throw TagError.notFound
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        
+        do {
+            // Remove tag from all tasks that use it
+            if tag.usageCount > 0 {
+                try await removeTagFromAllTasks(tagName: tag.name, projectId: tag.projectId)
+            }
+            
+            // Delete the tag master
+            let collection = self.getTagCollection(projectId: tag.projectId)
+            try await collection.document(tagId)
+                .delete()
+            
+            print("Tag deleted successfully")
+            
+        } catch {
+            print("Error deleting tag: \(error)")
+            errorMessage = "タグの削除に失敗しました"
+            throw TagError.deletionFailed(error.localizedDescription)
+        }
+    }
+    
+    // MARK: - Usage Tracking
+    
+    func incrementUsage(for tagName: String, projectId: String) async {
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !projectId.isEmpty else {
+            print("❌ TagManager.incrementUsage: Invalid or empty familyId provided.")
+            return
+        }
+
+        guard let tag = tags.first(where: { $0.name == tagName && $0.projectId == projectId }),
+              let tagId = tag.id else {
+            return
+        }
+        
+        let updateData: [String: Any] = [
+            "usageCount": FieldValue.increment(Int64(1)),
+            "lastUsedAt": FieldValue.serverTimestamp()
+        ]
+        
+        do {
+            let collection = self.getTagCollection(projectId: projectId)
+            try await collection.document(tagId)
+                .updateData(updateData)
+        } catch {
+            print("Error incrementing tag usage: \(error)")
+        }
+    }
+    
+    func decrementUsage(for tagName: String, projectId: String) async {
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !projectId.isEmpty else {
+            print("❌ TagManager.decrementUsage: Invalid or empty familyId provided.")
+            return
+        }
+
+        guard let tag = tags.first(where: { $0.name == tagName && $0.projectId == projectId }),
+              let tagId = tag.id,
+              tag.usageCount > 0 else {
+            return
+        }
+        
+        let updateData: [String: Any] = [
+            "usageCount": FieldValue.increment(Int64(-1))
+        ]
+        
+        do {
+            let collection = self.getTagCollection(projectId: projectId)
+            try await collection.document(tagId)
+                .updateData(updateData)
+        } catch {
+            print("Error decrementing tag usage: \(error)")
+        }
+    }
+    
+    func updateUsageCounts(projectId: String) async {
+        isLoading = true
+
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !projectId.isEmpty else {
+            print("❌ TagManager.updateUsageCounts: Invalid or empty familyId provided.")
+            isLoading = false
+            return
+        }
+        defer { isLoading = false }
+        
+        do {
+            // Get all tasks for the family
+            let tasksSnapshot = try await db.collectionGroup("tasks")
+                .whereField("projectId", isEqualTo: projectId)
+                .getDocuments()
+            
+            // Count tag usage
+            var tagUsage: [String: Int] = [:]
+            
+            for document in tasksSnapshot.documents {
+                if let tags = document.data()["tags"] as? [String] {
+                    for tag in tags {
+                        tagUsage[tag, default: 0] += 1
+                    }
+                }
+            }
+            
+            // Update tag masters with actual usage counts
+            for tag in self.tags.filter({ $0.projectId == projectId }) {
+                guard let tagId = tag.id else { continue }
+                
+                let actualCount = tagUsage[tag.name] ?? 0
+                if actualCount != tag.usageCount {
+                    let collection = self.getTagCollection(projectId: projectId)
+                    try await collection.document(tagId)
+                        .updateData(["usageCount": actualCount])
+                }
+            }
+            
+        } catch {
+            print("Error updating tag usage counts: \(error)")
+        }
+    }
+    
+    // MARK: - Data Loading
+    
+    func loadTags(projectId: String) async {
+        isLoading = true
+        errorMessage = nil
+
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !projectId.isEmpty else {
+            print("❌ TagManager.loadTags: Invalid or empty familyId provided.")
+            isLoading = false
+            return
+        }
+        
+        do {
+            let collection = self.getTagCollection(projectId: projectId)
+            let tagsSnapshot = try await self.getTagCollection(projectId: projectId)
+                .order(by: "usageCount", descending: true)
+                .order(by: "name")
+                .getDocuments()
+            
+            var loadedTags: [TaskTag] = []
+            
+            for document in tagsSnapshot.documents {
+                if let tag = TaskTag.fromFirestoreData(document.data(), documentId: document.documentID) {
+                    loadedTags.append(tag)
+                }
+            }
+            
+            tags = loadedTags
+            
+        } catch {
+            print("Error loading tags with composite index: \(error)")
+            
+            // Fallback to simple query without ordering if composite index doesn't exist
+            do {
+                print("Attempting fallback query without ordering...")
+                let fallbackCollection = self.getTagCollection(projectId: projectId)
+                let tagsSnapshot = try await self.getTagCollection(projectId: projectId)
+                    .getDocuments()
+                
+                var loadedTags: [TaskTag] = []
+                
+                for document in tagsSnapshot.documents {
+                    if let tag = TaskTag.fromFirestoreData(document.data(), documentId: document.documentID) {
+                        loadedTags.append(tag)
+                    }
+                }
+                
+                // Sort locally if Firestore sorting failed
+                tags = loadedTags.sorted { tag1, tag2 in
+                    if tag1.usageCount == tag2.usageCount {
+                        return tag1.name < tag2.name
+                    }
+                    return tag1.usageCount > tag2.usageCount
+                }
+                
+                print("Fallback query succeeded. Please create the composite index for better performance.")
+                
+            } catch {
+                print("Error with fallback query: \(error)")
+                errorMessage = "タグの読み込みに失敗しました。インデックスの作成が必要です。"
+            }
+        }
+        
+        isLoading = false
+    }
+    
+    func startListening(projectId: String) {
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !projectId.isEmpty else {
+            print("❌ TagManager.startListening: Invalid or empty familyId provided.")
+            return
+        }
+
+        stopListening()
+        
+        let collection = self.getTagCollection(projectId: projectId)
+        
+        // Try composite index query first
+        tagsListener = collection
+            .order(by: "usageCount", descending: true)
+            .order(by: "name")
+            .addSnapshotListener { [weak self] querySnapshot, error in
+                
+                Task { @MainActor in
+                    guard let self = self else { return }
+                    
+                    if let error = error {
+                        print("Error listening to tags with composite index: \(error)")
+                        
+                        // Try fallback listener without ordering
+                        self.startFallbackListening(projectId: projectId)
+                        return
+                    }
+                    
+                    guard let snapshot = querySnapshot else { return }
+                    
+                    var updatedTags: [TaskTag] = []
+                    
+                    for document in snapshot.documents {
+                        if let tag = TaskTag.fromFirestoreData(document.data(), documentId: document.documentID) {
+                            updatedTags.append(tag)
+                        }
+                    }
+                    
+                    self.tags = updatedTags
+                }
+            }
+    }
+    
+    private func startFallbackListening(projectId: String) {
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !projectId.isEmpty else {
+            print("❌ TagManager.startFallbackListening: Invalid or empty familyId provided.")
+            return
+        }
+
+        stopListening()
+        
+        let collection = self.getTagCollection(projectId: projectId)
+        print("Starting fallback listener without ordering...")
+        tagsListener = collection
+            .addSnapshotListener { [weak self] querySnapshot, error in
+                
+                Task { @MainActor in
+                    guard let self = self else { return }
+                    
+                    if let error = error {
+                        print("Error with fallback listener: \(error)")
+                        self.errorMessage = "タグの同期に失敗しました"
+                        return
+                    }
+                    
+                    guard let snapshot = querySnapshot else { return }
+                    
+                    var updatedTags: [TaskTag] = []
+                    
+                    for document in snapshot.documents {
+                        if let tag = TaskTag.fromFirestoreData(document.data(), documentId: document.documentID) {
+                            updatedTags.append(tag)
+                        }
+                    }
+                    
+                    // Sort locally
+                    self.tags = updatedTags.sorted { tag1, tag2 in
+                        if tag1.usageCount == tag2.usageCount {
+                            return tag1.name < tag2.name
+                        }
+                        return tag1.usageCount > tag2.usageCount
+                    }
+                }
+            }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func removeTagFromAllTasks(tagName: String, projectId: String) async throws {
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !projectId.isEmpty else {
+            print("❌ TagManager.removeTagFromAllTasks: Invalid or empty familyId provided.")
+            return
+        }
+
+        // Query all tasks that contain this tag
+        let tasksSnapshot = try await db.collectionGroup("tasks")
+            .whereField("projectId", isEqualTo: projectId)
+            .whereField("tags", arrayContains: tagName)
+            .getDocuments()
+        
+        // Remove tag from each task
+        let batch = db.batch()
+        
+        for document in tasksSnapshot.documents {
+            let taskRef = document.reference
+            batch.updateData(["tags": FieldValue.arrayRemove([tagName])], forDocument: taskRef)
+        }
+        
+        try await batch.commit()
+    }
+    
+    // MARK: - Utility Methods
+    
+    func getTagsForProject(_ projectId: String) -> [TaskTag] {
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !projectId.isEmpty else {
+            print("❌ TagManager.getTagsForFamily: Invalid or empty familyId provided.")
+            return []
+        }
+        return tags.filter { $0.projectId == projectId }
+    }
+    
+    func getTag(name: String, projectId: String) -> TaskTag? {
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !projectId.isEmpty else {
+            print("❌ TagManager.getTag: Invalid or empty familyId provided.")
+            return nil
+        }
+        return tags.first { $0.name == name && $0.projectId == projectId }
+    }
+    
+    func getUnusedTags(projectId: String) -> [TaskTag] {
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !projectId.isEmpty else {
+            print("❌ TagManager.getUnusedTags: Invalid or empty familyId provided.")
+            return []
+        }
+        return tags.filter { $0.projectId == projectId && $0.isUnused }
+    }
+    
+    func cleanupUnusedTags(projectId: String) async throws {
+        // 🚨 クラッシュ対策: IDが空文字の場合、Firestoreがクラッシュするため早期リターン
+        guard !projectId.isEmpty else {
+            print("❌ TagManager.cleanupUnusedTags: Invalid or empty familyId provided.")
+            return
+        }
+
+        let unusedTags = getUnusedTags(projectId: projectId)
+        
+        for tag in unusedTags {
+            try await deleteTag(tag)
+        }
+    }
+}

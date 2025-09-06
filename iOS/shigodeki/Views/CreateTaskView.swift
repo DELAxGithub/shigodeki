@@ -2,7 +2,8 @@
 //  CreateTaskView.swift
 //  shigodeki
 //
-//  Created by Claude on 2025-08-28.
+//  Refactored for CLAUDE.md compliance - UI components extracted
+//  Core view structure for task creation form
 //
 
 import SwiftUI
@@ -15,186 +16,56 @@ struct CreateTaskView: View {
     @State private var selectedAssignee: String?
     @State private var dueDate: Date = Date()
     @State private var hasDueDate: Bool = false
-    @State private var isCreating = false
-    @State private var showSuccess = false
-    
-    // Tag-related state
-    @StateObject private var tagManager = TagManager()
     @State private var selectedTags: [String] = []
+    
+    // Services
+    @StateObject private var tagManager = TagManager()
+    @StateObject private var creationService: TaskCreationService
     
     let taskList: TaskList
     let family: Family
-    let taskManager: TaskManager
     let creatorUserId: String
     let familyMembers: [User]
     
+    init(
+        taskList: TaskList,
+        family: Family,
+        taskManager: TaskManager,
+        creatorUserId: String,
+        familyMembers: [User]
+    ) {
+        self.taskList = taskList
+        self.family = family
+        self.creatorUserId = creatorUserId
+        self.familyMembers = familyMembers
+        
+        // Initialize service with dependencies
+        self._creationService = StateObject(
+            wrappedValue: TaskCreationService(
+                taskManager: taskManager,
+                tagManager: TagManager()
+            )
+        )
+    }
+    
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        // Task Title
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("タスク名")
-                                .font(.headline)
-                            
-                            TextField("例: 掃除機をかける", text: $title)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.body)
-                        }
-                        
-                        // Task Description
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("詳細（任意）")
-                                .font(.headline)
-                            
-                            TextField("詳しい説明を入力...", text: $description, axis: .vertical)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.body)
-                                .lineLimit(3...6)
-                        }
-                        
-                        // Priority
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("優先度")
-                                .font(.headline)
-                            
-                            HStack(spacing: 16) {
-                                ForEach(TaskPriority.allCases, id: \.self) { priority in
-                                    Button(action: {
-                                        selectedPriority = priority
-                                    }) {
-                                        HStack {
-                                            Circle()
-                                                .fill(priority.swiftUIColor)
-                                                .frame(width: 12, height: 12)
-                                            Text(priority.displayName)
-                                                .font(.subheadline)
-                                        }
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 8)
-                                        .background(selectedPriority == priority ? Color.blue.opacity(0.2) : Color(.systemGray6))
-                                        .cornerRadius(20)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                        
-                        // Due Date
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("期限")
-                                    .font(.headline)
-                                
-                                Spacer()
-                                
-                                Toggle("", isOn: $hasDueDate)
-                            }
-                            
-                            if hasDueDate {
-                                DatePicker("期限日", selection: $dueDate, displayedComponents: .date)
-                                    .datePickerStyle(.compact)
-                            }
-                        }
-                        
-                        // Tags
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("タグ（任意）")
-                                .font(.headline)
-                            
-                            TagInputView(
-                                selectedTags: $selectedTags,
-                                availableTags: tagManager.tags.filter { $0.projectId == taskList.projectId },
-                                projectId: taskList.projectId,
-                                createdBy: creatorUserId,
-                                onTagCreated: { newTag in
-                                    // Tag will be automatically updated via listener
-                                }
-                            )
-                            .frame(maxHeight: 200)
-                        }
-                        
-                        // Assignee
-                        if familyMembers.count > 1 {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("担当者（任意）")
-                                    .font(.headline)
-                                
-                                VStack(spacing: 8) {
-                                    Button(action: {
-                                        selectedAssignee = nil
-                                    }) {
-                                        HStack {
-                                            Image(systemName: selectedAssignee == nil ? "checkmark.circle.fill" : "circle")
-                                                .foregroundColor(selectedAssignee == nil ? .blue : .gray)
-                                            Text("未割り当て")
-                                                .font(.subheadline)
-                                            Spacer()
-                                        }
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 8)
-                                        .background(Color(.systemGray6))
-                                        .cornerRadius(8)
-                                    }
-                                    .buttonStyle(.plain)
-                                    
-                                    ForEach(familyMembers, id: \.id) { member in
-                                        Button(action: {
-                                            selectedAssignee = member.id
-                                        }) {
-                                            HStack {
-                                                Image(systemName: selectedAssignee == member.id ? "checkmark.circle.fill" : "circle")
-                                                    .foregroundColor(selectedAssignee == member.id ? .blue : .gray)
-                                                Text(member.name)
-                                                    .font(.subheadline)
-                                                Spacer()
-                                            }
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
-                                            .background(Color(.systemGray6))
-                                            .cornerRadius(8)
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 16)
-                    
-                    Spacer(minLength: 32)
-                    
-                    VStack(spacing: 16) {
-                        Button(action: createTask) {
-                            HStack {
-                                if isCreating {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                        .padding(.trailing, 4)
-                                }
-                                Text(isCreating ? "作成中..." : "タスクを作成")
-                            }
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(title.isEmpty ? Color.gray : Color.blue)
-                            .cornerRadius(12)
-                        }
-                        .disabled(title.isEmpty || isCreating)
-                        
-                        Button("キャンセル") {
-                            dismiss()
-                        }
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 32)
-                }
-            }
+            CreateTaskFormContent(
+                title: $title,
+                description: $description,
+                selectedPriority: $selectedPriority,
+                selectedAssignee: $selectedAssignee,
+                dueDate: $dueDate,
+                hasDueDate: $hasDueDate,
+                selectedTags: $selectedTags,
+                taskList: taskList,
+                familyMembers: familyMembers,
+                creatorUserId: creatorUserId,
+                tagManager: tagManager,
+                isCreating: creationService.isCreating,
+                onCreateTask: createTask,
+                onCancel: { dismiss() }
+            )
             .navigationTitle("タスク作成")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -204,61 +75,44 @@ struct CreateTaskView: View {
                     }
                 }
             }
-            .alert("タスク作成完了", isPresented: $showSuccess) {
-                Button("OK") {
-                    dismiss()
-                }
-            } message: {
-                Text("タスク「\(title)」が作成されました。")
+        }
+        .alert("タスク作成完了", isPresented: $creationService.showSuccess) {
+            Button("OK") {
+                dismiss()
             }
-            .onAppear {
-                Task {
-                    guard !taskList.projectId.isEmpty else { return }
-                    await tagManager.loadTags(projectId: taskList.projectId)
-                    tagManager.startListening(projectId: taskList.projectId)
-                }
-            }
-            .onDisappear {
-                tagManager.stopListening()
-            }
+        } message: {
+            Text("タスク「\(title)」が作成されました。")
+        }
+        .alert("エラー", isPresented: Binding<Bool>(
+            get: { creationService.errorMessage != nil },
+            set: { _ in creationService.errorMessage = nil }
+        )) {
+            Button("OK") {}
+        } message: {
+            Text(creationService.errorMessage ?? "")
+        }
+        .task {
+            await creationService.loadTags(projectId: taskList.projectId)
+        }
+        .onDisappear {
+            creationService.stopTagListening()
         }
     }
     
     private func createTask() {
-        guard let taskListId = taskList.id, let familyId = family.id else { return }
-        
-        isCreating = true
-        
-        Task.detached {
-            do {
-                let taskId = try await taskManager.createTask(
-                    title: title,
-                    description: description.isEmpty ? nil : description,
-                    taskListId: taskListId,
-                    familyId: familyId,
-                    creatorUserId: creatorUserId,
-                    assignedTo: selectedAssignee,
-                    dueDate: hasDueDate ? dueDate : nil,
-                    priority: selectedPriority,
-                    tags: selectedTags
-                )
-                
-                // Update tag usage counts
-                if !selectedTags.isEmpty {
-                    for tagName in selectedTags {
-                        await tagManager.incrementUsage(for: tagName, projectId: taskList.projectId)
-                    }
-                }
-                await MainActor.run {
-                    isCreating = false
-                    showSuccess = true
-                }
-            } catch {
-                await MainActor.run {
-                    isCreating = false
-                }
-                print("Error creating task: \(error)")
-            }
+        Task {
+            await creationService.createTask(
+                title: title,
+                description: description,
+                taskList: taskList,
+                family: family,
+                creatorUserId: creatorUserId,
+                selectedAssignee: selectedAssignee,
+                dueDate: dueDate,
+                hasDueDate: hasDueDate,
+                selectedPriority: selectedPriority,
+                selectedTags: selectedTags
+            )
         }
     }
 }

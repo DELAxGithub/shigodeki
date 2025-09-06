@@ -38,7 +38,7 @@ class TemplateFilterService {
             filteredTemplates = filteredTemplates.filter { template in
                 template.name.localizedCaseInsensitiveContains(searchText) ||
                 template.description?.localizedCaseInsensitiveContains(searchText) == true ||
-                template.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
+                template.metadata.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
             }
         }
         
@@ -50,13 +50,13 @@ class TemplateFilterService {
             filteredTemplates.sort { $0.category.displayName < $1.category.displayName }
         case .difficulty:
             filteredTemplates.sort { 
-                let stars1 = $0.difficulty?.stars ?? 0
-                let stars2 = $1.difficulty?.stars ?? 0
+                let stars1 = $0.metadata.difficulty.stars
+                let stars2 = $1.metadata.difficulty.stars
                 return stars1 < stars2
             }
         case .recent:
             filteredTemplates.sort { 
-                $0.updatedAt > $1.updatedAt
+                $0.metadata.createdAt > $1.metadata.createdAt
             }
         }
         

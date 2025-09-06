@@ -228,86 +228,8 @@ struct OptimizedList<Item: Identifiable, ItemView: View>: View {
     }
 }
 
-// MARK: - Performance Monitoring
 
-class PerformanceMonitor: ObservableObject {
-    static let shared = PerformanceMonitor()
-    
-    @Published var metrics: PerformanceMetrics = PerformanceMetrics()
-    
-    private var frameTimer: Timer?
-    private var lastFrameTime: CFTimeInterval = 0
-    private var frameCount = 0
-    
-    private init() {
-        startMonitoring()
-    }
-    
-    private func startMonitoring() {
-        frameTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.updateMetrics()
-        }
-    }
-    
-    private func updateMetrics() {
-        let currentTime = CACurrentMediaTime()
-        let deltaTime = currentTime - lastFrameTime
-        
-        if deltaTime > 0 {
-            let fps = 1.0 / deltaTime
-            metrics.currentFPS = min(fps, 60.0)
-        }
-        
-        lastFrameTime = currentTime
-        
-        // Memory usage
-        var info = mach_task_basic_info()
-        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size)/4
-        
-        let kerr: kern_return_t = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
-                task_info(mach_task_self_,
-                         task_flavor_t(MACH_TASK_BASIC_INFO),
-                         $0,
-                         &count)
-            }
-        }
-        
-        if kerr == KERN_SUCCESS {
-            metrics.memoryUsageMB = Double(info.resident_size) / 1024.0 / 1024.0
-        }
-    }
-    
-    deinit {
-        frameTimer?.invalidate()
-    }
-}
 
-struct PerformanceMetrics {
-    var currentFPS: Double = 60.0
-    var memoryUsageMB: Double = 0.0
-    var isPerformanceGood: Bool {
-        return currentFPS > 55.0 && memoryUsageMB < 150.0
-    }
-}
-
-// MARK: - Debounced Search
-
-class DebouncedSearch: ObservableObject {
-    @Published var searchText = ""
-    @Published var debouncedSearchText = ""
-    
-    private var cancellables = Set<AnyCancellable>()
-    
-    init(debounceTime: TimeInterval = 0.5) {
-        $searchText
-            .debounce(for: .seconds(debounceTime), scheduler: DispatchQueue.main)
-            .sink { [weak self] value in
-                self?.debouncedSearchText = value
-            }
-            .store(in: &cancellables)
-    }
-}
 
 // MARK: - View Extensions for Performance
 
@@ -347,17 +269,6 @@ struct VisibilityPreferenceKey: PreferenceKey {
     }
 }
 
-// MARK: - Memory Management
-
-extension View {
-    func onMemoryWarning(perform action: @escaping () -> Void) -> some View {
-        self.onReceive(
-            NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)
-        ) { _ in
-            action()
-        }
-    }
-}
 
 // MARK: - Caching Manager
 

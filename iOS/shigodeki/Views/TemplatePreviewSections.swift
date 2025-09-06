@@ -44,8 +44,8 @@ struct TemplateHeaderSection: View {
                             )
                             .foregroundColor(template.category.color)
                         
-                        if !template.tags.isEmpty {
-                            ForEach(template.tags.prefix(2), id: \.self) { tag in
+                        if !template.metadata.tags.isEmpty {
+                            ForEach(template.metadata.tags.prefix(2), id: \.self) { tag in
                                 Text(tag)
                                     .font(.caption)
                                     .padding(.horizontal, 6)
@@ -57,8 +57,8 @@ struct TemplateHeaderSection: View {
                                     .foregroundColor(.secondary)
                             }
                             
-                            if template.tags.count > 2 {
-                                Text("+\(template.tags.count - 2)")
+                            if template.metadata.tags.count > 2 {
+                                Text("+\(template.metadata.tags.count - 2)")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -107,14 +107,14 @@ struct TemplateStatisticsSection: View {
                 
                 StatCard(
                     title: "推定時間",
-                    value: stats.estimatedHours > 0 ? "\(stats.estimatedHours)h" : "未設定",
+                    value: stats.estimatedCompletionHours > 0 ? "\(Int(stats.estimatedCompletionHours))h" : "未設定",
                     icon: "clock",
                     color: .orange
                 )
                 
                 StatCard(
                     title: "平均タスク/フェーズ",
-                    value: "\(stats.averageTasksPerPhase)",
+                    value: "\(String(format: "%.1f", stats.averagePhaseComplexity))",
                     icon: "chart.bar",
                     color: .purple
                 )
@@ -185,17 +185,17 @@ struct TemplateDetailsSection: View {
             VStack(spacing: 12) {
                 DetailRow(
                     title: "難易度",
-                    value: template.difficulty?.displayName ?? "未設定",
+                    value: template.metadata.difficulty.displayName,
                     icon: "gauge"
                 )
                 
                 DetailRow(
                     title: "対象者",
-                    value: template.targetAudience?.displayName ?? "未設定",
+                    value: template.metadata.targetAudience ?? "未設定",
                     icon: "person.2"
                 )
                 
-                if let duration = template.estimatedDuration {
+                if let duration = template.metadata.estimatedDuration {
                     DetailRow(
                         title: "推定期間",
                         value: duration,
@@ -203,7 +203,7 @@ struct TemplateDetailsSection: View {
                     )
                 }
                 
-                if !template.requiredSkills.isEmpty {
+                if let skills = template.metadata.requiredSkills, !skills.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Image(systemName: "star")
@@ -219,7 +219,7 @@ struct TemplateDetailsSection: View {
                             GridItem(.flexible()),
                             GridItem(.flexible())
                         ], spacing: 8) {
-                            ForEach(template.requiredSkills, id: \.self) { skill in
+                            ForEach(skills, id: \.self) { skill in
                                 Text(skill)
                                     .font(.caption)
                                     .padding(.horizontal, 8)
@@ -235,14 +235,14 @@ struct TemplateDetailsSection: View {
                     }
                 }
                 
-                if !template.tools.isEmpty {
+                if !template.metadata.tags.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Image(systemName: "wrench.and.screwdriver")
                                 .frame(width: 20)
                                 .foregroundColor(.blue)
                             
-                            Text("推奨ツール")
+                            Text("タグ")
                                 .font(.subheadline)
                                 .foregroundColor(.primary)
                         }
@@ -251,7 +251,7 @@ struct TemplateDetailsSection: View {
                             GridItem(.flexible()),
                             GridItem(.flexible())
                         ], spacing: 8) {
-                            ForEach(template.tools, id: \.self) { tool in
+                            ForEach(template.metadata.tags, id: \.self) { tool in
                                 Text(tool)
                                     .font(.caption)
                                     .padding(.horizontal, 8)
@@ -288,13 +288,10 @@ struct TemplateMetadataSection: View {
                 .fontWeight(.semibold)
             
             VStack(spacing: 8) {
-                MetadataRow(title: "作成日", value: formatDate(template.createdAt))
-                MetadataRow(title: "最終更新", value: formatDate(template.updatedAt))
+                MetadataRow(title: "作成日", value: template.metadata.createdAt)
                 MetadataRow(title: "バージョン", value: template.version)
                 
-                if let author = template.author {
-                    MetadataRow(title: "作成者", value: author)
-                }
+                MetadataRow(title: "作成者", value: template.metadata.author)
             }
             .padding()
             .background(

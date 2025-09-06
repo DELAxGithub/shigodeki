@@ -47,59 +47,65 @@ class TemplateValidationHelpers {
         return nil
     }
     
-    static func convertLegacyForValidation(_ legacy: LegacyJSONTemplate) throws -> ProjectTemplate {
+    static func convertLegacyForValidation(_ legacy: ValidationHelperLegacyTemplate) throws -> ProjectTemplate {
         // Create a basic ProjectTemplate from legacy format
         var phases: [PhaseTemplate] = []
         
         if let legacyPhases = legacy.phases {
             for (index, legacyPhase) in legacyPhases.enumerated() {
                 var phase = PhaseTemplate(
-                    name: legacyPhase.name ?? "Phase \(index + 1)",
+                    title: legacyPhase.name ?? "Phase \(index + 1)",
                     description: legacyPhase.description,
                     order: index
                 )
                 
                 // Convert legacy tasks if they exist
+                var taskLists: [TaskListTemplate] = []
                 if let legacyTasks = legacyPhase.tasks {
-                    var taskLists: [TaskListTemplate] = []
-                    let defaultList = TaskListTemplate(name: "Tasks", color: .blue, order: 0)
-                    
                     var tasks: [TaskTemplate] = []
                     for (taskIndex, legacyTask) in legacyTasks.enumerated() {
                         let task = TaskTemplate(
                             title: legacyTask.name ?? "Task \(taskIndex + 1)",
                             description: legacyTask.description,
-                            estimatedHours: legacyTask.estimatedHours,
                             priority: TaskPriority(rawValue: legacyTask.priority ?? "medium") ?? .medium,
-                            dependencies: legacyTask.dependencies ?? [],
-                            order: taskIndex
+                            estimatedHours: legacyTask.estimatedHours != nil ? Double(legacyTask.estimatedHours!) : nil,
+                            dependsOn: legacyTask.dependencies ?? []
                         )
                         tasks.append(task)
                     }
                     
-                    var taskList = defaultList
-                    taskList.tasks = tasks
+                    let taskList = TaskListTemplate(name: "Tasks", color: .blue, order: 0, tasks: tasks)
                     taskLists.append(taskList)
-                    phase.taskLists = taskLists
                 }
+                
+                // Create phase with the taskLists
+                phase = PhaseTemplate(
+                    title: legacyPhase.name ?? "Phase \(index + 1)",
+                    description: legacyPhase.description,
+                    order: index,
+                    taskLists: taskLists
+                )
                 
                 phases.append(phase)
             }
         }
         
+        let metadata = TemplateMetadata(
+            author: legacy.author ?? "Unknown",
+            estimatedDuration: legacy.estimatedDuration,
+            difficulty: TemplateDifficulty.intermediate, // Default to intermediate
+            tags: legacy.tags ?? [],
+            language: "ja", // Default language
+            requiredSkills: legacy.requiredSkills,
+            targetAudience: legacy.targetAudience
+        )
+        
         return ProjectTemplate(
             name: legacy.name ?? "Untitled Template",
             description: legacy.description,
-            category: ProjectTemplate.Category(rawValue: legacy.category ?? "other") ?? .other,
+            category: TemplateCategory.other, // Default category
             phases: phases,
-            version: legacy.version ?? "1.0",
-            tags: legacy.tags ?? [],
-            author: legacy.author,
-            estimatedDuration: legacy.estimatedDuration,
-            difficulty: ProjectTemplate.Difficulty(rawValue: legacy.difficulty ?? "medium") ?? .medium,
-            targetAudience: ProjectTemplate.TargetAudience(rawValue: legacy.targetAudience ?? "general") ?? .general,
-            requiredSkills: legacy.requiredSkills ?? [],
-            tools: legacy.tools ?? []
+            metadata: metadata
         )
     }
 }
@@ -125,7 +131,7 @@ extension Array where Element: Hashable {
 
 // MARK: - Legacy JSON Support
 
-struct LegacyJSONTemplate: Codable {
+struct ValidationHelperLegacyTemplate: Codable {
     let name: String?
     let description: String?
     let category: String?

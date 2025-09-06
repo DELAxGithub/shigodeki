@@ -10,6 +10,7 @@ import Foundation
 
 /// Main coordinator for all built-in project templates
 /// Delegates to specialized template classes for better organization
+@MainActor
 class BuiltInTemplates {
     
     static var allTemplates: [ProjectTemplate] {

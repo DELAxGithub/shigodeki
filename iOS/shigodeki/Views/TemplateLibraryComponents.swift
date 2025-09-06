@@ -68,9 +68,7 @@ struct TemplateCard: View {
                         
                         Spacer()
                         
-                        if let difficulty = template.difficulty {
-                            DifficultyBadge(difficulty: difficulty)
-                        }
+                        DifficultyBadge(difficulty: template.metadata.difficulty)
                     }
                     
                     if let description = template.description {
@@ -92,15 +90,16 @@ struct TemplateCard: View {
                 
                 StatItem(
                     icon: "checkmark.circle",
-                    value: "\(template.totalTasks)",
+                    value: "\(template.phases.flatMap { $0.taskLists.flatMap { $0.tasks } }.count)",
                     label: "tasks",
                     color: .green
                 )
                 
-                if template.estimatedTotalHours > 0 {
+                let estimatedHours = template.phases.flatMap { $0.taskLists.flatMap { $0.tasks } }.compactMap { $0.estimatedHours }.reduce(0, +)
+                if estimatedHours > 0 {
                     StatItem(
                         icon: "clock",
-                        value: "\(template.estimatedTotalHours)h",
+                        value: "\(estimatedHours)h",
                         label: "time",
                         color: .orange
                     )
@@ -109,10 +108,10 @@ struct TemplateCard: View {
                 Spacer()
             }
             
-            if !template.tags.isEmpty {
+            if !template.metadata.tags.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(template.tags.prefix(3), id: \.self) { tag in
+                        ForEach(template.metadata.tags.prefix(3), id: \.self) { tag in
                             Text(tag)
                                 .font(.caption)
                                 .padding(.horizontal, 8)
@@ -124,8 +123,8 @@ struct TemplateCard: View {
                                 .foregroundColor(.secondary)
                         }
                         
-                        if template.tags.count > 3 {
-                            Text("+\(template.tags.count - 3)")
+                        if template.metadata.tags.count > 3 {
+                            Text("+\(template.metadata.tags.count - 3)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -180,7 +179,7 @@ struct StatItem: View {
 }
 
 struct DifficultyBadge: View {
-    let difficulty: ProjectTemplate.Difficulty
+    let difficulty: TemplateDifficulty
     
     var body: some View {
         HStack(spacing: 2) {

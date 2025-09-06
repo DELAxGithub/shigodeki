@@ -103,19 +103,22 @@ struct SelectedTemplateCard: View {
                 StatItem(
                     icon: "list.bullet",
                     value: "\(stats.totalPhases)",
-                    label: "フェーズ"
+                    label: "フェーズ",
+                    color: .blue
                 )
                 
                 StatItem(
                     icon: "checkmark.square",
                     value: "\(stats.totalTasks)",
-                    label: "タスク"
+                    label: "タスク",
+                    color: .green
                 )
                 
                 StatItem(
                     icon: "clock",
                     value: stats.completionTimeRange,
-                    label: "期間"
+                    label: "期間",
+                    color: .orange
                 )
                 
                 Spacer()

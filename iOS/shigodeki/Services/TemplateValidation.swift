@@ -91,7 +91,7 @@ class TemplateValidator: ObservableObject {
             }
             
             // Try legacy format
-            let legacy = try JSONDecoder().decode(LegacyJSONTemplate.self, from: jsonData)
+            let legacy = try JSONDecoder().decode(ValidationHelperLegacyTemplate.self, from: jsonData)
             let convertedTemplate = try TemplateValidationHelpers.convertLegacyForValidation(legacy)
             
             var result = await validate(convertedTemplate)
@@ -99,7 +99,7 @@ class TemplateValidator: ObservableObject {
             // Add version warning for legacy format
             var warnings = result.warnings
             if let version = legacy.version, version != "2.0" {
-                warnings.append(.unsupportedVersion(version))
+                warnings.append(ValidationError.unsupportedVersion(version))
             }
             
             let updatedResult = ValidationResult(

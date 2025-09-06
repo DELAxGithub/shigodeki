@@ -56,12 +56,9 @@ struct TemplatePreviewView: View {
             projectName = template.name
         }
         .sheet(isPresented: $showCustomizationSheet) {
-            TemplateCustomizationView(
+            TemplateEditorView(
                 template: template,
-                projectName: $projectName,
-                customizations: $customizations,
-                isPresented: $showCustomizationSheet,
-                onConfirm: { customizedTemplate in
+                onSave: { customizedTemplate in
                     onSelect(customizedTemplate)
                     isPresented = false
                 }
@@ -81,8 +78,8 @@ struct TemplatePreviewView: View {
 }
 
 #Preview {
-    @State var isPresented = true
-    return TemplatePreviewView(
+    @Previewable @State var isPresented = true
+    TemplatePreviewView(
         template: ProjectTemplate.sampleTemplate,
         isPresented: $isPresented
     ) { _ in

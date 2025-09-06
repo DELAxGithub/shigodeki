@@ -80,17 +80,13 @@ class FamilyViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     // --- Private Business Logic State ---
-    // Currently minimal, but ready for expansion
-    
-    // Duplicate prevention
-    private var activeCreateRequests: Set<String> = []
-    private var lastCreateRequest: (name: String, timestamp: Date)?
-    private let duplicatePreventionWindow: TimeInterval = 2.0
+    private var privateState = FamilyViewModelState.PrivateState()
 
     /// **【重要】同期イニシャライザ**  
     /// Viewの生成と同時に、依存関係なしで即座にインスタンス化される。
     init(authManager: AuthenticationManager = AuthenticationManager.shared) {
         print("⚡ FamilyViewModel: 同期初期化開始")
+        self.privateState.authManager = authManager
         self.authManager = authManager
         setupAuthenticationObserver()
         print("✅ FamilyViewModel: 同期初期化完了 - 認証状態の監視を開始")
@@ -188,16 +184,12 @@ class FamilyViewModel: ObservableObject {
     }
     
     private func updateEmptyState() {
-        // Manager注入前は常にfalse
-        guard let authManager = authManager else {
-            shouldShowEmptyState = false
-            return
-        }
+        var publishedState = FamilyViewModelState.PublishedState()
+        publishedState.isLoading = isLoading
+        publishedState.families = families
         
-        // Empty state logic: show when not loading and no families exist
-        let newEmptyState = !isLoading && families.isEmpty && authManager.currentUser?.id != nil
-        print("🔍 [DEBUG] updateEmptyState: loading=\(isLoading), familiesEmpty=\(families.isEmpty), userId=\(authManager.currentUser?.id ?? "nil") → shouldShowEmptyState=\(newEmptyState)")
-        shouldShowEmptyState = newEmptyState
+        FamilyViewModelState.updateEmptyState(&publishedState, authManager: authManager)
+        shouldShowEmptyState = publishedState.shouldShowEmptyState
     }
     
     // MARK: - Public Interface
@@ -232,40 +224,29 @@ class FamilyViewModel: ObservableObject {
         
         // Duplicate prevention checks
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let requestKey = "\(userId)_\(trimmedName)"
         
-        // Check for active requests with same key
-        if activeCreateRequests.contains(requestKey) {
-            print("🛑 [DUPLICATE] FamilyViewModel: Ignoring duplicate create request for family: '\(trimmedName)'")
-            return false
-        }
-        
-        // Check for recent duplicate requests (within 2 seconds with same name)
-        if let lastRequest = lastCreateRequest,
-           lastRequest.name == trimmedName,
-           Date().timeIntervalSince(lastRequest.timestamp) < duplicatePreventionWindow {
-            print("🛑 [DUPLICATE] FamilyViewModel: Ignoring rapid duplicate create request for family: '\(trimmedName)' (within \(duplicatePreventionWindow)s)")
+        if FamilyOperationService.shouldBlockCreateRequest(
+            trimmedName: trimmedName,
+            userId: userId,
+            activeRequests: privateState.activeCreateRequests,
+            lastRequest: privateState.lastCreateRequest
+        ) {
             return false
         }
         
         // Track this request
-        activeCreateRequests.insert(requestKey)
-        lastCreateRequest = (name: trimmedName, timestamp: Date())
+        let requestKey = FamilyOperationService.createRequestKey(userId: userId, familyName: trimmedName)
+        privateState.activeCreateRequests.insert(requestKey)
+        privateState.lastCreateRequest = (name: trimmedName, timestamp: Date())
         
         defer {
             // Always clean up the active request tracking
-            activeCreateRequests.remove(requestKey)
+            privateState.activeCreateRequests.remove(requestKey)
         }
         
         // 🚨 CTO修正: 楽観的更新 (Optimistic Update)
-        // サーバーへの書き込みを待たずに、まずローカルで仮のオブジェクトを作成してUIに即時反映させる
-        let temporaryId = UUID().uuidString // 仮のID
-        var optimisticFamily = Family(
-            name: trimmedName,
-            members: [userId]
-        )
-        optimisticFamily.id = temporaryId
-        optimisticFamily.createdAt = Date()
+        let optimisticFamily = FamilyOperationService.createOptimisticFamily(name: trimmedName, userId: userId)
+        let temporaryId = optimisticFamily.id!
         
         await MainActor.run {
             // @Publishedなfamilies配列に直接追加することで、UIが即座に更新される
@@ -285,8 +266,8 @@ class FamilyViewModel: ObservableObject {
             let familyId = try await familyManager.createFamily(name: trimmedName, creatorUserId: userId)
             print("✅ [SUCCESS] FamilyViewModel: Firebase operation for createFamily completed successfully. ID: \(familyId)")
             
-            // Get the invitation code - for now we'll generate a simple one
-            let invitationCode = "INV\(String(familyId.suffix(6)))"
+            // Get the invitation code
+            let invitationCode = FamilyOperationService.generateInvitationCode(from: familyId)
             
             await MainActor.run {
                 newFamilyInvitationCode = invitationCode
@@ -302,74 +283,48 @@ class FamilyViewModel: ObservableObject {
         } catch let error as NSError where error.domain == "FIRFirestoreErrorDomain" {
             // 🚨 CTO修正: 楽観的更新のロールバック
             await MainActor.run {
-                print("🛑 [ROLLBACK] FamilyViewModel: Removing temporary family '\(trimmedName)' due to Firebase error.")
-                families.removeAll { $0.id == temporaryId }
-                showCreateSuccess = false
-                showCreateProcessing = false
-                processingMessage = ""
-            }
-            
-            print("🛑 [FATAL] FamilyViewModel: Firestore error during createFamily. Code: \(error.code)")
-            print("🛑 [FATAL] Firestore Error Domain: \(error.domain)")
-            print("🛑 [FATAL] Firestore Error Description: \(error.localizedDescription)")
-            print("🛑 [FATAL] Firestore Error UserInfo: \(error.userInfo)")
-            
-            // FirestoreErrorCode specific logging
-            switch error.code {
-            case 7: // PERMISSION_DENIED
-                print("🛑 [FATAL] PERMISSION_DENIED: Check Firestore Security Rules")
-            case 14: // UNAVAILABLE  
-                print("🛑 [FATAL] UNAVAILABLE: Firebase service temporarily unavailable")
-            case 4: // DEADLINE_EXCEEDED
-                print("🛑 [FATAL] DEADLINE_EXCEEDED: Request timed out")
-            case 5: // NOT_FOUND
-                print("🛑 [FATAL] NOT_FOUND: Document or collection not found")
-            default:
-                print("🛑 [FATAL] Unknown Firestore error code: \(error.code)")
-            }
-            
-            await MainActor.run {
-                self.error = FirebaseError.from(error)
+                FamilyErrorHandler.performOptimisticRollback(
+                    families: &families,
+                    temporaryId: temporaryId,
+                    familyName: trimmedName,
+                    showCreateSuccess: &showCreateSuccess,
+                    showCreateProcessing: &showCreateProcessing,
+                    processingMessage: &processingMessage
+                )
+                
+                self.error = FamilyErrorHandler.handleFirestoreError(error)
             }
             return false
             
         } catch let error as NSError {
             // 🚨 CTO修正: 楽観的更新のロールバック
             await MainActor.run {
-                print("🛑 [ROLLBACK] FamilyViewModel: Removing temporary family '\(trimmedName)' due to non-Firestore error.")
-                families.removeAll { $0.id == temporaryId }
-                showCreateSuccess = false
-                showCreateProcessing = false
-                processingMessage = ""
-            }
-            
-            print("🛑 [FATAL] FamilyViewModel: Non-Firestore NSError during createFamily")
-            print("🛑 [FATAL] Error Domain: \(error.domain)")
-            print("🛑 [FATAL] Error Code: \(error.code)")
-            print("🛑 [FATAL] Error Description: \(error.localizedDescription)")
-            print("🛑 [FATAL] Error UserInfo: \(error.userInfo)")
-            
-            await MainActor.run {
-                self.error = FirebaseError.from(error)
+                FamilyErrorHandler.performOptimisticRollback(
+                    families: &families,
+                    temporaryId: temporaryId,
+                    familyName: trimmedName,
+                    showCreateSuccess: &showCreateSuccess,
+                    showCreateProcessing: &showCreateProcessing,
+                    processingMessage: &processingMessage
+                )
+                
+                self.error = FamilyErrorHandler.handleNSError(error)
             }
             return false
             
         } catch {
             // 🚨 CTO修正: 楽観的更新のロールバック
             await MainActor.run {
-                print("🛑 [ROLLBACK] FamilyViewModel: Removing temporary family '\(trimmedName)' due to unknown error.")
-                families.removeAll { $0.id == temporaryId }
-                showCreateSuccess = false
-                showCreateProcessing = false
-                processingMessage = ""
-            }
-            
-            print("🛑 [FATAL] FamilyViewModel: Unknown error during createFamily: \(error)")
-            print("🛑 [FATAL] Error type: \(type(of: error))")
-            print("🛑 [FATAL] Error description: \(error.localizedDescription)")
-            
-            await MainActor.run {
-                self.error = FirebaseError.unknownError(error)
+                FamilyErrorHandler.performOptimisticRollback(
+                    families: &families,
+                    temporaryId: temporaryId,
+                    familyName: trimmedName,
+                    showCreateSuccess: &showCreateSuccess,
+                    showCreateProcessing: &showCreateProcessing,
+                    processingMessage: &processingMessage
+                )
+                
+                self.error = FamilyErrorHandler.handleUnknownError(error)
             }
             return false
         }
@@ -400,7 +355,7 @@ class FamilyViewModel: ObservableObject {
         
         do {
             // Issue #43: Use optimistic updates for immediate family list reflection
-            let familyName = try await familyManager.joinFamilyWithCodeOptimistic(invitationCode, userId: userId)
+            let familyName = try await familyManager.joinFamilyWithCode(invitationCode, userId: userId)
             
             await MainActor.run {
                 // Switch to success message in the same popup
@@ -431,15 +386,28 @@ class FamilyViewModel: ObservableObject {
     }
     
     func resetSuccessStates() {
-        shouldDismissCreateSheet = false
-        showJoinSuccess = false
-        joinSuccessMessage = ""
-        newFamilyInvitationCode = nil
-        showCreateSuccess = false
-        createSuccessMessage = ""
-        showCreateProcessing = false
-        showJoinProcessing = false
-        processingMessage = ""
+        var publishedState = FamilyViewModelState.PublishedState()
+        publishedState.shouldDismissCreateSheet = shouldDismissCreateSheet
+        publishedState.showJoinSuccess = showJoinSuccess
+        publishedState.joinSuccessMessage = joinSuccessMessage
+        publishedState.newFamilyInvitationCode = newFamilyInvitationCode
+        publishedState.showCreateSuccess = showCreateSuccess
+        publishedState.createSuccessMessage = createSuccessMessage
+        publishedState.showCreateProcessing = showCreateProcessing
+        publishedState.showJoinProcessing = showJoinProcessing
+        publishedState.processingMessage = processingMessage
+        
+        FamilyViewModelState.resetSuccessStates(&publishedState)
+        
+        shouldDismissCreateSheet = publishedState.shouldDismissCreateSheet
+        showJoinSuccess = publishedState.showJoinSuccess
+        joinSuccessMessage = publishedState.joinSuccessMessage
+        newFamilyInvitationCode = publishedState.newFamilyInvitationCode
+        showCreateSuccess = publishedState.showCreateSuccess
+        createSuccessMessage = publishedState.createSuccessMessage
+        showCreateProcessing = publishedState.showCreateProcessing
+        showJoinProcessing = publishedState.showJoinProcessing
+        processingMessage = publishedState.processingMessage
     }
     
     func dismissCreateSheetWithReload() {
@@ -456,16 +424,17 @@ class FamilyViewModel: ObservableObject {
     // MARK: - Private Business Logic
     
     private func setupFamilyManagerIfNeeded() async {
-        guard self.familyManager == nil else { return }
+        guard self.privateState.familyManager == nil else { return }
         print("⏳ FamilyViewModel: FamilyManagerが未注入のため、SharedManagerStoreから取得します。")
-        self.familyManager = await SharedManagerStore.shared.getFamilyManager()
+        self.privateState.familyManager = await SharedManagerStore.shared.getFamilyManager()
+        self.familyManager = privateState.familyManager
         setupBindings() // Managerが注入されたので、バインディングを再設定
         self.isInitialized = true
         print("✅ FamilyViewModel: FamilyManagerの注入が完了しました。")
     }
     
     private func loadFamilies(for userId: String) async {
-        guard let familyManager = self.familyManager else {
+        guard let familyManager = self.privateState.familyManager else {
             print("⚠️ FamilyViewModel: Manager not available for loadFamilies")
             return
         }

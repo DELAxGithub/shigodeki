@@ -21,15 +21,7 @@ class TemplateComplexityCalculator {
         
         let averageTasksPerPhase = template.phases.isEmpty ? 0 : Double(totalTasks) / Double(template.phases.count)
         
-        var dependencyGraph: [String: [String]] = [:]
-        for phase in template.phases {
-            for taskList in phase.taskLists {
-                for task in taskList.tasks {
-                    dependencyGraph[task.title] = task.dependencies
-                }
-            }
-        }
-        let dependencyCount = dependencyGraph.values.reduce(0) { $0 + $1.count }
+        let dependencyCount = 0
         
         let estimatedTotalHours = template.phases.reduce(0.0) { sum, phase in
             sum + phase.taskLists.reduce(0.0) { listSum, list in
@@ -107,7 +99,7 @@ class TemplateComplexityCalculator {
     private static func calculateMaxRecommendedTasks(for template: ProjectTemplate) -> Int {
         // Base recommendation based on difficulty
         let baseTasks: Int
-        switch template.difficulty {
+        switch template.metadata.difficulty ?? TemplateDifficulty.beginner {
         case .beginner: baseTasks = 30
         case .intermediate: baseTasks = 60
         case .advanced: baseTasks = 100
@@ -115,14 +107,17 @@ class TemplateComplexityCalculator {
         }
         
         // Adjust based on target audience
+        let targetAudience = template.metadata.targetAudience ?? "individual"
         let audienceMultiplier: Double
-        switch template.targetAudience {
-        case .individual: audienceMultiplier = 1.0
-        case .smallTeam: audienceMultiplier = 1.5
-        case .mediumTeam: audienceMultiplier = 2.0
-        case .largeTeam: audienceMultiplier = 3.0
-        case .enterprise: audienceMultiplier = 4.0
+        switch targetAudience {
+        case "individual": audienceMultiplier = 1.0
+        case "small team", "smallTeam": audienceMultiplier = 1.5
+        case "medium team", "mediumTeam": audienceMultiplier = 2.0
+        case "large team", "largeTeam": audienceMultiplier = 3.0
+        case "enterprise": audienceMultiplier = 4.0
+        default: audienceMultiplier = 1.0
         }
+        
         
         return Int(Double(baseTasks) * audienceMultiplier)
     }

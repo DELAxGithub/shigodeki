@@ -24,7 +24,7 @@ struct FamilyDetailView: View {
     // Composed operations
     @StateObject private var memberOperations = FamilyMemberOperations(
         familyManager: FamilyManager(),
-        authManager: AuthenticationManager()
+        authManager: AuthenticationManager.shared
     )
     @StateObject private var projectOperations = FamilyProjectOperations(
         projectManager: ProjectManager(),
@@ -78,8 +78,7 @@ struct FamilyDetailView: View {
             InviteCodeView(inviteCode: projectOperations.currentInviteCode, familyName: family.name)
         }
         .sheet(isPresented: $showingCreateProject) {
-            CreateProjectView(familyId: family.id)
-                .environmentObject(sharedManagers)
+            CreateProjectView(projectManager: projectManager ?? ProjectManager(), defaultOwnerType: .family, defaultFamilyId: family.id)
         }
         .alert("家族グループから退出", isPresented: $showingLeaveConfirmation) {
             Button("キャンセル", role: .cancel) { }
@@ -92,18 +91,18 @@ struct FamilyDetailView: View {
     }
     
     private func setupManagers() {
-        authManager = sharedManagers.authManager
-        familyManager = sharedManagers.familyManager
-        projectManager = sharedManagers.projectManager
+        authManager = AuthenticationManager.shared
+        familyManager = FamilyManager()
+        projectManager = ProjectManager()
         
         // Update operations with actual managers
         memberOperations.updateManagers(
-            familyManager: sharedManagers.familyManager,
-            authManager: sharedManagers.authManager
+            familyManager: familyManager!,
+            authManager: authManager!
         )
         projectOperations.updateManagers(
-            projectManager: sharedManagers.projectManager,
-            familyManager: sharedManagers.familyManager
+            projectManager: projectManager!,
+            familyManager: familyManager!
         )
     }
     
@@ -194,7 +193,7 @@ struct FamilyMembersSection: View {
                         )
                     } else {
                         // Normal member
-                        NavigationLink(destination: MemberDetailView(member: member).environmentObject(SharedManagerStore())) {
+                        NavigationLink(destination: MemberDetailView(member: member)) {
                             MemberRowView(
                                 member: member,
                                 isCreator: member.id == family.members.first,
@@ -269,8 +268,7 @@ struct FamilyProjectsSection: View {
         if !projectOperations.familyProjects.isEmpty {
             Section("プロジェクト") {
                 ForEach(projectOperations.familyProjects) { project in
-                    NavigationLink(destination: ProjectDetailView(project: project, familyId: family.id)
-                                    .environmentObject(SharedManagerStore())) {
+                    NavigationLink(destination: ProjectDetailView(project: project, projectManager: ProjectManager())) {
                         ProjectRowView(project: project)
                     }
                 }

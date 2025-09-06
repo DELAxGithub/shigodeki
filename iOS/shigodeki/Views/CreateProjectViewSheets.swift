@@ -53,8 +53,7 @@ struct CreateProjectSheets: ViewModifier {
             }
             .sheet(isPresented: $showProjectTypePicker) {
                 ProjectTypePickerView(
-                    selectedType: $selectedProjectType,
-                    isPresented: $showProjectTypePicker
+                    selectedType: $selectedProjectType
                 )
             }
     }
