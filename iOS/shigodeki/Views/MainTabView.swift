@@ -59,6 +59,10 @@ struct MainTabView: View {
                 await sharedManagers.cleanupUnusedManagers()
             }
         }
+        .task {
+            // Fix: Initialize SharedManagerStore preload to prevent IntegratedPerformanceMonitor infinite loop
+            await sharedManagers.preload()
+        }
         .onChange(of: tabNavigationManager.selectedTab) { oldVal, newVal in
             print("📊 Issue #50 Debug: SharedManagerStore preload status: \(sharedManagers.isPreloaded)")
             print("🔊 Issue #50 Debug: Active Firebase listeners: \(FirebaseListenerManager.shared.listenerStats.totalActive)")

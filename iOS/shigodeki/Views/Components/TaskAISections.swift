@@ -74,16 +74,21 @@ struct TaskAISupportSection: View {
                 AIDetailResultView(
                     result: result,
                     onApply: { content in
-                        viewModel.taskDescription = content
                         Task {
+                            // Update viewModel on main actor first
+                            await MainActor.run {
+                                viewModel.taskDescription = content
+                            }
+                            
+                            // Save in background, then update state on next frame
                             do {
                                 try await viewModel.save()
-                                await MainActor.run {
+                                DispatchQueue.main.async {
                                     aiStateManager.applyResult(content)
                                 }
                             } catch {
                                 print("⚠️ AI提案の説明適用時の保存に失敗: \(error.localizedDescription)")
-                                await MainActor.run {
+                                DispatchQueue.main.async {
                                     aiStateManager.applyResult(content)
                                 }
                             }
@@ -108,7 +113,8 @@ struct TaskAISupportSection: View {
                                     phase: phase
                                 )
                                 
-                                await MainActor.run {
+                                // Use DispatchQueue to defer state updates to avoid publish-during-view-updates
+                                DispatchQueue.main.async {
                                     isCreatingSubtasks = false
                                     
                                     if !createdSubtasks.isEmpty {
@@ -135,10 +141,13 @@ struct TaskAISupportSection: View {
                                         }
                                     }
                                     
-                                    aiStateManager.applyResult(content)
+                                    // Defer aiStateManager update to next frame
+                                    DispatchQueue.main.async {
+                                        aiStateManager.applyResult(content)
+                                    }
                                 }
                             } catch {
-                                await MainActor.run {
+                                DispatchQueue.main.async {
                                     isCreatingSubtasks = false
                                     
                                     // 失敗: 楽観的なサブタスクを削除
@@ -152,7 +161,10 @@ struct TaskAISupportSection: View {
                                         subtaskCreationResult = nil
                                     }
                                     
-                                    aiStateManager.applyResult(content)
+                                    // Defer aiStateManager update to next frame
+                                    DispatchQueue.main.async {
+                                        aiStateManager.applyResult(content)
+                                    }
                                 }
                             }
                         }

@@ -56,7 +56,18 @@
       ignoresPersistentStateOnLaunch = "NO"
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
-      allowLocationSimulation = "YES">
+      allowLocationSimulation = "YES"
+      enableAddressSanitizer = "NO"
+      enableASanStackUseAfterReturn = "NO"
+      enableUBSanitizer = "NO"
+      enableThreadSanitizer = "NO"
+      stopOnEveryMainThreadCheckerIssue = "YES">
+      <AdditionalOptions>
+         <AdditionalOption
+            key = "MallocStackLogging"
+            value = "">
+         </AdditionalOption>
+      </AdditionalOptions>
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference

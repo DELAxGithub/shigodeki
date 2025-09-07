@@ -34,6 +34,9 @@ class FirebaseListenerManager: ObservableObject {
     /// リスナー使用状況の統計
     @Published var listenerStats = ListenerStatistics()
     
+    /// Thread safety for listenerStats updates
+    private let statsQueue = DispatchQueue(label: "com.shigodeki.listenerStats", attributes: .concurrent)
+    
     // MARK: - Listener Metadata
     
     struct ListenerMetadata {
@@ -190,13 +193,21 @@ class FirebaseListenerManager: ObservableObject {
         )
     }
     
-    /// 統計情報の更新
+    /// 統計情報の更新 - Thread-safe implementation
     private func updateStatistics() {
-        listenerStats = ListenerOptimizationService.updateStatistics(
-            activeListeners: activeListeners,
-            listenerMetadata: listenerMetadata,
-            currentStats: listenerStats
-        )
+        statsQueue.async(flags: .barrier) { [weak self] in
+            guard let self = self else { return }
+            
+            let updatedStats = ListenerOptimizationService.updateStatistics(
+                activeListeners: self.activeListeners,
+                listenerMetadata: self.listenerMetadata,
+                currentStats: self.listenerStats
+            )
+            
+            DispatchQueue.main.async {
+                self.listenerStats = updatedStats
+            }
+        }
     }
     
     // MARK: - Memory Management

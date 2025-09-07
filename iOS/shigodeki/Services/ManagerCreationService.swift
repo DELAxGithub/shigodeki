@@ -8,12 +8,41 @@
 import Foundation
 import os
 
+actor ManagerFactory {
+    private var creationTasks: [String: Task<Any, Never>] = [:]
+    
+    func getOrCreate<T>(
+        key: String,
+        create: @escaping @Sendable () async -> T
+    ) async -> T {
+        // If there's already a creation task for this key, await its result
+        if let existingTask = creationTasks[key] {
+            return await existingTask.value as! T
+        }
+        
+        // Create new task and store it
+        let task = Task<Any, Never> {
+            let result = await create()
+            return result
+        }
+        
+        creationTasks[key] = task
+        
+        let result = await task.value as! T
+        
+        // Clean up completed task
+        creationTasks.removeValue(forKey: key)
+        
+        return result
+    }
+}
+
 @MainActor
 struct ManagerCreationService {
     
     // MARK: - Thread Safety
     
-    private static var isCreatingManager: Set<String> = []
+    private static let factory = ManagerFactory()
     
     /// 非同期Manager作成メソッド（デッドロック回避）
     static func createManagerSafely<T>(
@@ -28,49 +57,24 @@ struct ManagerCreationService {
             return existing
         }
         
-        // 既に作成中の場合は待機（非同期）
-        if isCreatingManager.contains(key) {
-            print("⏳ SharedManagerStore: \(key) is being created, waiting...")
-            
-            // 作成完了まで非同期待機（最大5秒でタイムアウト）
-            let startTime = Date()
-            let maxWaitTime: TimeInterval = 5.0
-            
-            while isCreatingManager.contains(key) && Date().timeIntervalSince(startTime) < maxWaitTime {
-                try? await Task.sleep(for: .milliseconds(10))
+        // Use actor-based factory to avoid busy-waiting
+        return await factory.getOrCreate(key: key) {
+            // Managerを作成
+            let newManager = await MainActor.run {
+                let manager = create()
+                assign(manager)
+                return manager
             }
             
-            // タイムアウトした場合
-            if Date().timeIntervalSince(startTime) >= maxWaitTime {
-                print("❌ SharedManagerStore: Timeout waiting for \(key) creation, forcing cleanup")
-                isCreatingManager.remove(key)
+            #if DEBUG
+            await MainActor.run {
+                InstrumentsSetup.shared.logMemoryUsage(context: logContext)
+                print("🏭 SharedManagerStore: Created \(key)")
             }
+            #endif
             
-            // 作成完了後に再度チェック
-            if let existing = existing {
-                print("✅ SharedManagerStore: \(key) created by other thread")
-                return existing
-            }
+            return newManager
         }
-        
-        // 作成中フラグを立てる
-        isCreatingManager.insert(key)
-        
-        // Managerを作成（MainActorで実行）
-        let newManager = create()
-        
-        // 状態更新
-        assign(newManager)
-        
-        #if DEBUG
-        InstrumentsSetup.shared.logMemoryUsage(context: logContext)
-        print("🏭 SharedManagerStore: Created \(key)")
-        #endif
-        
-        // 作成完了フラグをクリア
-        isCreatingManager.remove(key)
-        
-        return newManager
     }
     
     // MARK: - Preload Management

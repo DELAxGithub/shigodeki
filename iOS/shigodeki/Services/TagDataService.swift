@@ -16,18 +16,35 @@ class TagDataService: ObservableObject {
     
     private let db = Firestore.firestore()
     private var tagsListener: ListenerRegistration?
+    private var fallbackTask: Task<Void, Never>?
     private let listenerQueue = DispatchQueue(label: "com.shigodeki.tagDataService.listeners", qos: .userInteractive)
     
     // MARK: - Lifecycle
     
     deinit {
+        // Fix: Properly cleanup all references to prevent memory leaks
         tagsListener?.remove()
         tagsListener = nil
+        fallbackTask?.cancel()
+        fallbackTask = nil
     }
     
-    func stopListening() {
-        tagsListener?.remove()
-        tagsListener = nil
+    nonisolated func stopListening() {
+        // Capture properties to avoid main actor access in nonisolated context
+        Task { @MainActor in
+            let listener = self.tagsListener
+            let task = self.fallbackTask
+            
+            // Clear references first
+            self.tagsListener = nil
+            self.fallbackTask = nil
+            
+            // Then remove/cancel outside main actor (these operations are thread-safe)
+            Task.detached {
+                listener?.remove()
+                task?.cancel()
+            }
+        }
     }
     
     // MARK: - Helper Methods
@@ -114,11 +131,17 @@ class TagDataService: ObservableObject {
     }
     
     private func startFallbackListening(projectId: String, onUpdate: @escaping ([TaskTag]) -> Void) {
-        // Implement polling fallback
-        Task {
-            while tagsListener != nil {
-                let tags = await loadTags(projectId: projectId)
-                onUpdate(tags)
+        // Fix: Store fallback task and make it cancellable to prevent memory leaks
+        fallbackTask?.cancel()
+        fallbackTask = Task { [weak self] in
+            while !Task.isCancelled && self?.tagsListener == nil {
+                guard let self = self else { break }
+                let tags = await self.loadTags(projectId: projectId)
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        onUpdate(tags)
+                    }
+                }
                 
                 try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
             }

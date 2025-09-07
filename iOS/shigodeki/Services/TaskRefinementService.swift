@@ -86,27 +86,126 @@ struct TaskRefinementService {
     // MARK: - Private Methods
     
     private static func generateAISuggestions(for tasks: [ShigodekiTask]) async throws -> [ImprovementSuggestion] {
+        guard !tasks.isEmpty else { return [] }
+        
         // Prepare task summary for AI
         let taskSummary = tasks.prefix(10).map { task in
             let completionStatus = task.isCompleted ? "完了" : "未完了"
-            return "- \(task.title) (優先度: \(task.priority.displayName), 状態: \(completionStatus))"
+            let subtaskInfo = task.subtaskCount > 0 ? ", サブタスク: \(task.subtaskCount)個" : ""
+            return "- \(task.title) (優先度: \(task.priority.displayName), 状態: \(completionStatus)\(subtaskInfo))"
         }.joined(separator: "\n")
         
         let prompt = """
-        以下のタスクリストを分析して、生産性向上のための具体的な改善提案を3つ以内で提供してください：
-        
+        以下のタスクリストを分析して、生産性向上のための具体的な改善提案を3つ以内で提供してください。
+
+        タスクリスト:
         \(taskSummary)
         
-        以下の観点で分析してください：
-        1. タスクの構造化・整理
-        2. 時間管理・効率化
-        3. モチベーション維持
+        分析観点:
+        1. タスクの構造化・整理（大きすぎるタスクの分割、関連タスクのグループ化）
+        2. 時間管理・効率化（優先度の調整、実行順序の最適化）
+        3. モチベーション維持（達成感の向上、進捗の可視化）
         
-        各提案には、具体的なアクションと期待される効果を含めてください。
+        各提案は以下の形式で出力してください（JSONでは**ありません**。プレーンテキスト）:
+        
+        提案1:
+        タイトル: [具体的なアクション]
+        説明: [詳細な説明とその理由]
+        影響: [期待される効果]
+        信頼度: [0.0-1.0の数値]
+        
+        提案2:
+        ...
         """
         
-        // Use existing AI generator (this would need to be adapted)
-        // For now, return empty array as AI integration needs more setup
-        return []
+        // Get available providers and use the first one
+        let availableProviders = KeychainManager.shared.getConfiguredProviders()
+        guard let provider = availableProviders.first else {
+            throw AIClientError.apiKeyNotConfigured
+        }
+        
+        // Get universal client based on provider
+        let universalClient = getUniversalClient(for: provider)
+        
+        do {
+            let response = try await universalClient.generateText(
+                prompt: prompt,
+                system: "あなたは生産性とタスク管理の専門家です。具体的で実行可能な改善提案を提供してください。",
+                temperature: 0.7
+            )
+            
+            return parseAIResponse(response)
+            
+        } catch {
+            // AI suggestions are optional, log the error but don't fail
+            print("⚠️ AI suggestions failed: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    private static func getUniversalClient(for provider: KeychainManager.APIProvider) -> UniversalAIClient {
+        switch provider {
+        case .openAI:
+            return OpenAIClient()
+        case .claude:
+            return ClaudeClient()
+        }
+    }
+    
+    private static func parseAIResponse(_ response: String) -> [ImprovementSuggestion] {
+        var suggestions: [ImprovementSuggestion] = []
+        
+        // Parse the AI response to extract suggestions
+        // This is a simple parser - in production, you might want structured output
+        let sections = response.components(separatedBy: "提案")
+        
+        for (index, section) in sections.enumerated() {
+            guard index > 0 else { continue } // Skip first empty section
+            
+            let lines = section.components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            
+            var title = ""
+            var description = ""
+            var impact = ""
+            var confidence = 0.7
+            
+            for line in lines {
+                if line.hasPrefix("タイトル:") {
+                    title = String(line.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+                } else if line.hasPrefix("説明:") {
+                    description = String(line.dropFirst(3)).trimmingCharacters(in: .whitespacesAndNewlines)
+                } else if line.hasPrefix("影響:") {
+                    impact = String(line.dropFirst(3)).trimmingCharacters(in: .whitespacesAndNewlines)
+                } else if line.hasPrefix("信頼度:") {
+                    let confidenceStr = String(line.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    confidence = Double(confidenceStr) ?? 0.7
+                }
+            }
+            
+            if !title.isEmpty && !description.isEmpty {
+                let suggestion = ImprovementSuggestion(
+                    type: .taskBreakdown, // Default type, could be smarter
+                    title: title,
+                    description: description,
+                    targetTasks: [], // AI doesn't specify specific tasks
+                    impact: ImprovementImpact(
+                        type: .medium,
+                        description: impact.isEmpty ? "AI提案による改善" : impact,
+                        estimatedTimeReduction: 1.0
+                    ),
+                    actionRequired: ImprovementAction(
+                        actionType: .createSubtasks,
+                        parameters: ["aiGenerated": true]
+                    ),
+                    confidence: confidence
+                )
+                
+                suggestions.append(suggestion)
+            }
+        }
+        
+        return suggestions
     }
 }

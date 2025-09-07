@@ -142,6 +142,35 @@ class SharedManagerStore: ObservableObject {
     
     // MARK: - Preload Management
     
+    /// Single-flight preload to prevent deadlock - prevents concurrent preload calls
+    func preload() async {
+        // If preload is already in progress, wait for it to complete
+        if let existingTask = preloadTask {
+            await existingTask.value
+            return
+        }
+        
+        // If already preloaded, return immediately
+        if isPreloaded {
+            #if DEBUG
+            print("✅ SharedManagerStore: Already preloaded, skipping")
+            #endif
+            return
+        }
+        
+        // Start single preload task
+        preloadTask = Task { [weak self] in
+            guard let self = self else { return }
+            await ManagerCreationService.preloadEssentialManagers(sharedStore: self)
+            await MainActor.run { [weak self] in
+                self?.isPreloaded = true
+                self?.preloadTask = nil
+            }
+        }
+        
+        await preloadTask?.value
+    }
+    
     func preloadAllManagers() async {
         if let existingTask = preloadTask {
             await existingTask.value

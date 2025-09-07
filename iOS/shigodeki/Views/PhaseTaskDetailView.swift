@@ -161,13 +161,6 @@ struct PhaseTaskDetailView: View {
             )
         }
         .navigationTitle("タスク詳細")
-        .onAppear {
-            helpers.initializeView(
-                viewModel: viewModel,
-                tagManager: tagManager,
-                aiStateManager: aiStateManager
-            )
-        }
         .onDisappear {
             tagManager.stopListening()
             sectionManager.removeAllListeners()
@@ -202,17 +195,26 @@ struct PhaseTaskDetailView: View {
             } 
         }
         .task {
+            // Serialize initialization: first load basic data, then initialize components
             let result = await helpers.loadInitialData(
                 task: task,
                 project: project,
                 phase: phase,
                 sectionManager: sectionManager
             )
+            
             await MainActor.run {
                 subtasks = result.subtasks
                 projectMembers = result.projectMembers
                 selectedSectionId = result.selectedSectionId
             }
+            
+            // Initialize view components after data is loaded to prevent race conditions
+            helpers.initializeView(
+                viewModel: viewModel,
+                tagManager: tagManager,
+                aiStateManager: aiStateManager
+            )
         }
     }
 }

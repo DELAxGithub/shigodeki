@@ -25,9 +25,8 @@ class TagManager: ObservableObject {
     // MARK: - Lifecycle
     
     deinit {
-        Task { @MainActor in
-            dataService.stopListening()
-        }
+        // Fix memory leak: Stop listening synchronously in deinit to avoid retain cycles
+        dataService.stopListening()
     }
     
     func stopListening() {

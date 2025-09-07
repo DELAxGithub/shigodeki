@@ -21,11 +21,10 @@ struct TaskAssignmentTagsSection: View {
     
     var body: some View {
         Section("担当・タグ・セクション") {
-            // TODO: Implement AssigneeSectionView component
-            // AssigneeSectionView(
-            //     members: projectMembers,
-            //     assignedTo: $viewModel.assignedTo
-            // )
+            AssigneeSectionView(
+                members: projectMembers,
+                assignedTo: $viewModel.assignedTo
+            )
             
             // Tags Section
             VStack(alignment: .leading, spacing: 8) {

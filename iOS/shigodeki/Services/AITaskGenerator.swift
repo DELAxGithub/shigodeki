@@ -11,6 +11,7 @@ final class AITaskGenerator: ObservableObject {
     @Published var progressMessage = ""
     
     private var currentClient: AIClient?
+    private var universalClient: UniversalAIClient?
     
     init() {
         updateAvailableProviders()
@@ -101,33 +102,20 @@ final class AITaskGenerator: ObservableObject {
         defer { isGenerating = false }
         
         do {
-            let client = AIClientRouter.getClient(for: selectedProvider)
-            
-            // Since AIClient only supports task suggestions, we'll adapt the prompt
-            // to generate text content structured as a single task description
-            let adaptedPrompt = """
-            Generate a comprehensive analysis based on the following request:
-            
-            \(prompt)
-            
-            Please provide a detailed response that directly addresses the request. Format your response as a single comprehensive description without task breakdown.
-            """
+            // Get universal client directly from provider
+            let universalClient = getUniversalClient(for: selectedProvider)
             
             progressMessage = "Connecting to \(selectedProvider.displayName)..."
             
-            let suggestions = try await client.generateTaskSuggestions(for: adaptedPrompt)
+            let response = try await universalClient.generateText(
+                prompt: prompt,
+                system: "You are a helpful AI assistant. Provide detailed, accurate, and helpful responses.",
+                temperature: 0.7
+            )
             
             progressMessage = "Processing response..."
             
-            // Extract the text from the first task's description as our generated text
-            if let firstTask = suggestions.tasks.first {
-                return firstTask.description
-            } else if let firstPhase = suggestions.phases?.first,
-                      let firstPhaseTask = firstPhase.tasks.first {
-                return firstPhaseTask.description
-            } else {
-                throw AIClientError.invalidResponse
-            }
+            return response
             
         } catch let aiError as AIClientError {
             error = aiError
@@ -138,6 +126,15 @@ final class AITaskGenerator: ObservableObject {
             self.error = networkError
             progressMessage = ""
             throw networkError
+        }
+    }
+    
+    private func getUniversalClient(for provider: KeychainManager.APIProvider) -> UniversalAIClient {
+        switch provider {
+        case .openAI:
+            return OpenAIClient()
+        case .claude:
+            return ClaudeClient()
         }
     }
     
