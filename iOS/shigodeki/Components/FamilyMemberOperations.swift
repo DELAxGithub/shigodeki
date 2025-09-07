@@ -13,19 +13,38 @@ import FirebaseFirestore
 class FamilyMemberOperations: ObservableObject {
     private let familyManager: FamilyManager
     private let authManager: AuthenticationManager
+    private let userDataService = UserDataService()
     
     @Published var familyMembers: [User] = []
     @Published var isLoadingMembers = false
     @Published var retryingMembers: Set<String> = []
     
+    // Cache to prevent repeated fetching
+    private var memberCache: [String: User] = [:]
+    
     init(familyManager: FamilyManager, authManager: AuthenticationManager) {
         self.familyManager = familyManager
         self.authManager = authManager
+        print("🏗️ FamilyMemberOperations: initialized with uid-scoped member resolution")
+        
+        // Listen for auth changes to clear stale data
+        NotificationCenter.default.addObserver(
+            forName: .authUserChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleAuthUserChanged(notification)
+        }
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
     
     func updateManagers(familyManager: FamilyManager, authManager: AuthenticationManager) {
-        // Note: In a production app, you'd want to implement proper manager updating
-        // For now, this is a placeholder to satisfy the interface
+        // Clear cache when managers change to ensure fresh data
+        memberCache.removeAll()
+        print("🔄 FamilyMemberOperations: managers updated, cache cleared")
     }
     
     func loadFamilyMembers(family: Family) {
@@ -38,39 +57,64 @@ class FamilyMemberOperations: ObservableObject {
     
     private func loadMembersInternal(memberIds: [String]) async {
         var loadedMembers: [User] = []
+        print("📋 FamilyMemberOperations: Loading members for UIDs: \(memberIds)")
         
         for memberId in memberIds {
+            guard !memberId.isEmpty else {
+                print("⚠️ FamilyMemberOperations: Skipping empty member ID")
+                continue
+            }
+            
             do {
-                // Check if we already have this member loaded correctly
-                if let existingMember = familyMembers.first(where: { $0.id == memberId }),
-                   !existingMember.name.contains("エラー") && !existingMember.name.contains("Load Error") {
-                    loadedMembers.append(existingMember)
+                // Check cache first
+                if let cachedMember = memberCache[memberId] {
+                    print("🗄️ FamilyMemberOperations: Using cached member for uid=\(memberId)")
+                    loadedMembers.append(cachedMember)
                     continue
                 }
                 
-                // TODO: Implement user fetching when UserManager is available
-                // For now, create a placeholder user
-                let placeholderUser = User(
-                    name: "ユーザー (\(memberId.prefix(8)))",
-                    email: "user@example.com",
-                    familyIds: []
-                )
-                loadedMembers.append(placeholderUser)
-            } catch {
-                print("❌ Error loading member \(memberId): \(error.localizedDescription)")
+                // Fetch from Firestore using UserDataService
+                if let user = await userDataService.loadUserData(uid: memberId) {
+                    var memberUser = user
+                    memberUser.id = memberId  // Ensure ID is set
+                    
+                    // Cache the result
+                    memberCache[memberId] = memberUser
+                    loadedMembers.append(memberUser)
+                    
+                    print("✅ FamilyMemberOperations: Loaded member uid=\(memberId), name=\(memberUser.name)")
+                } else {
+                    // User document not found - create a minimal user indicating missing data
+                    let missingUser = User(
+                        name: "ユーザー不明 (\(memberId.prefix(8)))",
+                        email: "unknown@example.com",
+                        familyIds: []
+                    )
+                    var userWithId = missingUser
+                    userWithId.id = memberId
+                    
+                    loadedMembers.append(userWithId)
+                    print("⚠️ FamilyMemberOperations: User document not found for uid=\(memberId)")
+                }
                 
-                // Create error user with detailed error info
-                let errorMessage = "Load Error: \(error.localizedDescription)"
+            } catch {
+                print("❌ FamilyMemberOperations: Error loading member uid=\(memberId): \(error.localizedDescription)")
+                
+                // Create error user with uid context
                 let errorUser = User(
-                    name: "エラー: \(error.localizedDescription.prefix(20))...",
+                    name: "エラー (\(memberId.prefix(8)))",
                     email: "error@example.com",
                     familyIds: []
                 )
-                loadedMembers.append(errorUser)
+                var userWithId = errorUser
+                userWithId.id = memberId
+                
+                loadedMembers.append(userWithId)
             }
         }
         
         familyMembers = loadedMembers
+        print("📋 FamilyMemberOperations: Loaded \(loadedMembers.count) members total")
     }
     
     func retryMemberLoad(memberId: String) {
@@ -83,42 +127,53 @@ class FamilyMemberOperations: ObservableObject {
     
     private func loadSingleMember(memberId: String) async {
         do {
-            print("🔄 Retrying load for member: \(memberId)")
+            print("🔄 FamilyMemberOperations: Retrying load for member uid=\(memberId)")
             
-            // TODO: Replace with actual user fetching when available
-            if false { // Disabled until fetchUser is implemented
-                let user = User(name: "Placeholder", email: "placeholder@example.com", familyIds: [])
-                // Successfully loaded - update the member in the list
+            // Remove from cache to force fresh fetch
+            memberCache.removeValue(forKey: memberId)
+            
+            // Attempt to fetch user data again
+            if let user = await userDataService.loadUserData(uid: memberId) {
+                var memberUser = user
+                memberUser.id = memberId
+                
+                // Cache the successful result
+                memberCache[memberId] = memberUser
+                
+                // Update in the familyMembers array
                 if let index = familyMembers.firstIndex(where: { $0.id == memberId }) {
-                    familyMembers[index] = user
-                    print("✅ Successfully reloaded member: \(user.name)")
+                    familyMembers[index] = memberUser
+                    print("✅ FamilyMemberOperations: Successfully reloaded member uid=\(memberId), name=\(memberUser.name)")
                 }
             } else {
-                // Still failed - update error message
-                let errorUser = User(
-                    name: "再試行失敗: ユーザーが見つかりません",
-                    email: "error@example.com",
+                // User document still not found
+                let missingUser = User(
+                    name: "ユーザー不明 (\(memberId.prefix(8)))",
+                    email: "unknown@example.com",
                     familyIds: []
                 )
+                var userWithId = missingUser
+                userWithId.id = memberId
                 
                 if let index = familyMembers.firstIndex(where: { $0.id == memberId }) {
-                    familyMembers[index] = errorUser
+                    familyMembers[index] = userWithId
                 }
-                print("❌ Retry failed for member: \(memberId)")
+                print("⚠️ FamilyMemberOperations: Retry failed, user document still not found for uid=\(memberId)")
             }
         } catch {
-            print("❌ Retry failed for member \(memberId): \(error.localizedDescription)")
+            print("❌ FamilyMemberOperations: Retry failed for member uid=\(memberId): \(error.localizedDescription)")
             
             // Update error message for retry failure
-            let errorMessage = "Retry Failed: \(error.localizedDescription)"
             let errorUser = User(
-                name: "再試行失敗: \(error.localizedDescription.prefix(20))...",
+                name: "再試行失敗 (\(memberId.prefix(8)))",
                 email: "error@example.com",
                 familyIds: []
             )
+            var userWithId = errorUser
+            userWithId.id = memberId
             
             if let index = familyMembers.firstIndex(where: { $0.id == memberId }) {
-                familyMembers[index] = errorUser
+                familyMembers[index] = userWithId
             }
         }
     }
@@ -136,7 +191,31 @@ class FamilyMemberOperations: ObservableObject {
         
         try await familyManager.removeMemberFromFamily(familyId: family.id ?? "", userId: memberId)
         
-        // Update local state
+        // Update local state and cache
         familyMembers.removeAll { $0.id == memberId }
+        memberCache.removeValue(forKey: memberId)
+        print("🗑️ FamilyMemberOperations: Removed member uid=\(memberId) from family and cache")
+    }
+    
+    // MARK: - Cache Management
+    
+    /// Clear all cached member data - called on auth state changes
+    func clearMemberCache() {
+        memberCache.removeAll()
+        familyMembers.removeAll()
+        print("🗑️ FamilyMemberOperations: Cache cleared due to auth state change")
+    }
+    
+    private func handleAuthUserChanged(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let action = userInfo["action"] as? String else { return }
+        
+        let newUserId = userInfo["newUserId"] as? String
+        let previousUserId = userInfo["previousUserId"] as? String
+        
+        print("🔄 FamilyMemberOperations: Auth change detected - action=\(action), new=\(newUserId ?? "nil"), prev=\(previousUserId ?? "nil")")
+        
+        // Clear all member-related caches on any auth change
+        clearMemberCache()
     }
 }

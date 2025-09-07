@@ -158,19 +158,40 @@ class AuthenticationManager: NSObject, ObservableObject {
     }
     
     private func handleUserAuthenticated(_ user: FirebaseAuth.User) async {
+        let previousUserId = currentUserId
+        
         if let userData = await userDataService.loadUserData(uid: user.uid) {
             currentUser = userData
         } else {
             // Create missing user document
             currentUser = await userDataService.createMissingUserDocument(authUser: user)
         }
-        print("👤 AuthManager: User data loaded, currentUserId: \(currentUserId ?? "nil")")
+        
+        // Notify components of user change for cache invalidation
+        NotificationCenter.default.post(
+            name: .authUserChanged,
+            object: nil,
+            userInfo: [
+                "action": "signin",
+                "newUserId": currentUserId ?? "",
+                "previousUserId": previousUserId
+            ]
+        )
+        print("👤 AuthManager: User authenticated uid=\(currentUserId ?? "nil"), clearing stale uid-scoped data")
     }
     
     private func handleUserSignedOut() {
         currentUser = nil
         isAuthenticated = false
         AppleSignInService.clearAppleSignInState()
+        
+        // Notify components to clear uid-scoped caches
+        NotificationCenter.default.post(
+            name: .authUserChanged, 
+            object: nil, 
+            userInfo: ["action": "signout", "previousUserId": currentUserId]
+        )
+        print("🧹 AuthManager: User signed out, clearing all uid-scoped data")
     }
     
     private func saveUserData(uid: String, name: String, email: String) async {
@@ -285,4 +306,10 @@ extension AuthenticationManager: ASAuthorizationControllerPresentationContextPro
         }
         return window
     }
+}
+
+// MARK: - Notification Names
+
+extension Notification.Name {
+    static let authUserChanged = Notification.Name("authUserChanged")
 }
