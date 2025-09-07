@@ -15,19 +15,14 @@ struct PhaseAIService {
         
         let prompt = "次のタスクを3〜7個の実行可能なサブタスクに分割して、日本語で出力してください。\nタイトル: \(task.title)\n説明: \(task.description ?? "")"
         
-        do {
-            await aiGenerator.generateTaskSuggestions(for: prompt, projectType: nil)
-            let suggestions = await aiGenerator.generatedSuggestions?.tasks
-            
-            if let suggestions = suggestions {
-                logger.info("✅ AI generated \(suggestions.count) subtask suggestions")
-                return suggestions
-            } else {
-                logger.warning("⚠️ AI generation returned no suggestions")
-                return nil
-            }
-        } catch {
-            logger.error("❌ AI generation failed: \(error.localizedDescription)")
+        await aiGenerator.generateTaskSuggestions(for: prompt, projectType: nil)
+        let suggestions = await aiGenerator.generatedSuggestions?.tasks
+        
+        if let suggestions = suggestions {
+            logger.info("✅ AI generated \(suggestions.count) subtask suggestions")
+            return suggestions
+        } else {
+            logger.warning("⚠️ AI generation returned no suggestions")
             return nil
         }
     }
@@ -40,7 +35,7 @@ struct PhaseAIService {
         subtaskManager: SubtaskManager
     ) async -> [Subtask] {
         guard let taskId = task.id, let projectId = project.id, let phaseId = phase.id else { 
-            print("❌ 必要なIDが不足しています")
+            logger.error("❌ Required IDs missing for subtask creation: taskId=\(task.id ?? "nil"), projectId=\(project.id ?? "nil"), phaseId=\(phase.id ?? "nil")")
             return [] 
         }
         
@@ -52,7 +47,7 @@ struct PhaseAIService {
         
         await aiGenerator.generateTaskSuggestions(for: prompt, projectType: nil)
         guard let suggestions = await aiGenerator.generatedSuggestions?.tasks else { 
-            print("❌ AI生成に失敗しました")
+            logger.warning("⚠️ AI subtask generation returned no suggestions for task: \(task.title)")
             return [] 
         }
 
@@ -71,9 +66,9 @@ struct PhaseAIService {
                     order: index
                 )
                 createdSubtasks.append(subtask)
-                print("✅ サブタスク作成成功: \(suggestion.title)")
+                logger.info("✅ Subtask created successfully: \(suggestion.title)")
             } catch {
-                print("❌ サブタスク作成失敗: \(suggestion.title) - \(error)")
+                logger.error("❌ Subtask creation failed: \(suggestion.title) - \(error.localizedDescription)")
             }
         }
         
@@ -84,7 +79,12 @@ struct PhaseAIService {
         for task: ShigodekiTask,
         aiGenerator: AITaskGenerator
     ) async -> String? {
-        return await aiGenerator.generateTaskDetails(for: task)
+        do {
+            return try await aiGenerator.generateTaskDetails(for: task)
+        } catch {
+            logger.error("❌ Task detail generation failed: \(error.localizedDescription)")
+            return nil
+        }
     }
     
     static func createSubtasksFromAIContent(

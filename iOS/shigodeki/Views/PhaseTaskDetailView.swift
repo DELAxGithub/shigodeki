@@ -19,11 +19,11 @@ struct PhaseTaskDetailView: View {
     let task: ShigodekiTask
     
     @StateObject private var viewModel: PhaseTaskDetailViewModel
-    @StateObject private var aiStateManager = AIStateManager()
+    @ObservedObject private var aiStateManager = AIStateManager.shared
     @StateObject private var sectionManager = PhaseSectionManager()
     @StateObject private var tagManager = TagManager()
     @StateObject private var service = PhaseTaskDetailService()
-    @StateObject private var helpers = PhaseTaskDetailViewHelpers()
+    @StateObject private var helpers: PhaseTaskDetailViewHelpers
     @StateObject private var optimisticManager = OptimisticUpdateManager()
     
     @State private var subtasks: [Subtask] = []
@@ -35,6 +35,9 @@ struct PhaseTaskDetailView: View {
     @State private var showingTagEditor = false
     @State private var showAISettings = false
     
+    // 🚨 FIX: 初期化が一度だけ実行されることを保証するためのフラグ
+    @State private var hasInitialized = false
+    
     // 楽観更新用の一時的なサブタスク管理
     @State private var optimisticSubtasks: [String] = [] // 一時的なID管理
     
@@ -43,6 +46,11 @@ struct PhaseTaskDetailView: View {
         self.project = project
         self.phase = phase
         self._viewModel = StateObject(wrappedValue: PhaseTaskDetailViewModel(task: task, project: project, phase: phase))
+        
+        // 🚨 FIX: 依存性注入でServiceを共有し、重複インスタンス作成を防止
+        let sharedService = PhaseTaskDetailService()
+        self._service = StateObject(wrappedValue: sharedService)
+        self._helpers = StateObject(wrappedValue: PhaseTaskDetailViewHelpers(service: sharedService))
     }
     
     var body: some View {
@@ -195,8 +203,17 @@ struct PhaseTaskDetailView: View {
             } 
         }
         .onAppear {
-            // Initialize AI state immediately when view appears
-            aiStateManager.checkConfiguration()
+            // 🚨 FIX: hasInitializedフラグをチェックし、初回のみ実行
+            if !hasInitialized {
+                // Initialize AI state immediately when view appears (only if not already initialized)
+                if case .idle = aiStateManager.state {
+                    aiStateManager.checkConfiguration()
+                }
+                hasInitialized = true
+                print("📱 PhaseTaskDetailView: Initialized AI state successfully (once).")
+            } else {
+                print("📱 PhaseTaskDetailView: Skipping duplicate initialization.")
+            }
         }
         .task {
             // Serialize initialization: first load basic data, then initialize components

@@ -151,6 +151,8 @@ struct APIKeyConfigurationView: View {
             return "Get your API key from platform.openai.com → API Keys"
         case .claude:
             return "Get your API key from console.anthropic.com → API Keys"
+        case .gemini:
+            return "Get your API key from aistudio.google.com → Get API Key"
         }
     }
     

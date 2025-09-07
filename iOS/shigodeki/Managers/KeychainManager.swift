@@ -7,6 +7,7 @@ final class KeychainManager {
     enum APIProvider: String, CaseIterable {
         case openAI = "openai"
         case claude = "claude"
+        case gemini = "gemini"
         
         var displayName: String {
             switch self {
@@ -14,6 +15,8 @@ final class KeychainManager {
                 return "OpenAI"
             case .claude:
                 return "Anthropic Claude"
+            case .gemini:
+                return "Google Gemini"
             }
         }
     }
@@ -150,6 +153,9 @@ final class KeychainManager {
         case .claude:
             // Claude keys start with "sk-ant-" 
             return trimmedKey.hasPrefix("sk-ant-") && trimmedKey.count >= 20
+        case .gemini:
+            // Gemini keys start with "AIza" and are typically longer than 20 characters
+            return trimmedKey.hasPrefix("AIza") && trimmedKey.count >= 20
         }
     }
 }

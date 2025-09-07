@@ -194,7 +194,7 @@ enum AITaskPriority: String, CaseIterable {
     }
 }
 
-enum AIClientError: Error, LocalizedError {
+enum AIClientError: Error, LocalizedError, Equatable {
     case invalidResponse
     case networkError(Error)
     case apiKeyNotConfigured
@@ -219,6 +219,23 @@ enum AIClientError: Error, LocalizedError {
             return "API quota exceeded"
         case .serviceUnavailable:
             return "AI service temporarily unavailable"
+        }
+    }
+    
+    // Equatable conformance
+    static func == (lhs: AIClientError, rhs: AIClientError) -> Bool {
+        switch (lhs, rhs) {
+        case (.invalidResponse, .invalidResponse),
+             (.apiKeyNotConfigured, .apiKeyNotConfigured),
+             (.invalidJSON, .invalidJSON),
+             (.rateLimitExceeded, .rateLimitExceeded),
+             (.quotaExceeded, .quotaExceeded),
+             (.serviceUnavailable, .serviceUnavailable):
+            return true
+        case (.networkError(let lhsError), .networkError(let rhsError)):
+            return lhsError.localizedDescription == rhsError.localizedDescription
+        default:
+            return false
         }
     }
 }

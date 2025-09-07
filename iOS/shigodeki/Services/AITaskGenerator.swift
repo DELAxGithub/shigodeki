@@ -35,11 +35,9 @@ final class AITaskGenerator: ObservableObject {
         
         do {
             let enhancedPrompt = AITaskPromptBuilder.buildEnhancedPrompt(userPrompt: prompt, projectType: projectType)
-            let client = AIClientRouter.getClient(for: selectedProvider)
             
-            progressMessage = "Connecting to \(selectedProvider.displayName)..."
-            
-            let suggestions = try await client.generateTaskSuggestions(for: enhancedPrompt)
+            // Use failover-enabled generation
+            let suggestions = try await generateTaskSuggestionsWithFailover(prompt: enhancedPrompt)
             
             progressMessage = "Processing suggestions..."
             
@@ -50,8 +48,14 @@ final class AITaskGenerator: ObservableObject {
             progressMessage = "Task suggestions generated successfully!"
             
         } catch let aiError as AIClientError {
-            error = aiError
-            progressMessage = ""
+            // Set final error message with next available info if all providers failed
+            if let nextAvailable = ProviderThrottleCenter.shared.getNextAvailableMessage() {
+                error = aiError
+                progressMessage = "現在混雑しています。しばらく待ってから再試行してください（\(nextAvailable))"
+            } else {
+                error = aiError
+                progressMessage = ""
+            }
         } catch {
             self.error = .networkError(error)
             progressMessage = ""
@@ -67,66 +71,64 @@ final class AITaskGenerator: ObservableObject {
     }
     
     // Generate detailed task description and implementation steps
-    func generateTaskDetails(for task: ShigodekiTask) async -> String? {
-        guard !isGenerating else { return nil }
+    func generateTaskDetails(for task: ShigodekiTask) async throws -> String {
+        guard !isGenerating else { 
+            print("🚫 AITaskGenerator: generateTaskDetails called while already generating")
+            throw AIClientError.serviceUnavailable 
+        }
         
         updateAvailableProviders()
-        guard !availableProviders.isEmpty else { return nil }
+        guard !availableProviders.isEmpty else { 
+            print("🚫 AITaskGenerator: No available providers for generateTaskDetails")
+            throw AIClientError.apiKeyNotConfigured 
+        }
         
+        print("🤖 AITaskGenerator: Starting task detail generation for task: \(task.title)")
         let prompt = AITaskPromptBuilder.buildTaskDetailPrompt(for: task)
         
         do {
             let detailText = try await generateText(prompt: prompt)
+            print("✅ AITaskGenerator: Successfully generated task details")
             return detailText
+        } catch let aiError as AIClientError {
+            print("❌ AITaskGenerator: AI client error: \(aiError.localizedDescription)")
+            self.error = aiError
+            throw aiError
         } catch {
-            self.error = error as? AIClientError ?? .networkError(error)
-            return nil
+            print("❌ AITaskGenerator: Network error: \(error.localizedDescription)")
+            let networkError = AIClientError.networkError(error)
+            self.error = networkError
+            throw networkError
         }
     }
     
     
     // Generic text generation method for analysis and other purposes
     func generateText(prompt: String) async throws -> String {
-        guard !isGenerating else { throw AIClientError.serviceUnavailable }
+        guard !isGenerating else { 
+            print("🚫 AITaskGenerator: generateText called while already generating")
+            throw AIClientError.serviceUnavailable 
+        }
         
         updateAvailableProviders()
         
         guard !availableProviders.isEmpty else {
+            print("🚫 AITaskGenerator: No available providers for generateText")
             throw AIClientError.apiKeyNotConfigured
         }
         
+        print("🤖 AITaskGenerator: Starting text generation")
         isGenerating = true
         error = nil
         progressMessage = "Generating analysis..."
         
         defer { isGenerating = false }
         
-        do {
-            // Get universal client directly from provider
-            let universalClient = getUniversalClient(for: selectedProvider)
-            
-            progressMessage = "Connecting to \(selectedProvider.displayName)..."
-            
-            let response = try await universalClient.generateText(
-                prompt: prompt,
-                system: "You are a helpful AI assistant. Provide detailed, accurate, and helpful responses.",
-                temperature: 0.7
-            )
-            
-            progressMessage = "Processing response..."
-            
-            return response
-            
-        } catch let aiError as AIClientError {
-            error = aiError
-            progressMessage = ""
-            throw aiError
-        } catch {
-            let networkError = AIClientError.networkError(error)
-            self.error = networkError
-            progressMessage = ""
-            throw networkError
-        }
+        return try await generateTextWithFailover(
+            prompt: prompt,
+            system: "You are a helpful AI assistant. Provide detailed, accurate, and helpful responses.",
+            temperature: 0.7
+        )
     }
     
     private func getUniversalClient(for provider: KeychainManager.APIProvider) -> UniversalAIClient {
@@ -135,6 +137,8 @@ final class AITaskGenerator: ObservableObject {
             return OpenAIClient()
         case .claude:
             return ClaudeClient()
+        case .gemini:
+            return GeminiClient()
         }
     }
     
@@ -146,7 +150,145 @@ final class AITaskGenerator: ObservableObject {
     
     // MARK: - Private Methods
     
+    /// Generate task suggestions with automatic provider failover
+    private func generateTaskSuggestionsWithFailover(prompt: String) async throws -> AITaskSuggestion {
+        let availableProviders = ProviderThrottleCenter.shared.getAvailableProviders(from: self.availableProviders)
+        
+        guard !availableProviders.isEmpty else {
+            if let nextAvailable = ProviderThrottleCenter.shared.getNextAvailableMessage() {
+                throw AIClientError.rateLimitExceeded // Will be handled with next available message
+            } else {
+                throw AIClientError.apiKeyNotConfigured
+            }
+        }
+        
+        // Start with selected provider if not in cooldown, otherwise use first available
+        var currentProvider = availableProviders.contains(selectedProvider) ? selectedProvider : availableProviders.first!
+        var hasTriedFailover = false
+        
+        for attempt in 0...2 { // 3 attempts with backoff
+            do {
+                let client = AIClientRouter.getClient(for: currentProvider)
+                
+                progressMessage = "Connecting to \(currentProvider.displayName)..."
+                let suggestions = try await client.generateTaskSuggestions(for: prompt)
+                
+                return suggestions
+                
+            } catch let aiError as AIClientError {
+                // Check if this is a retryable error that should trigger cooldown
+                let shouldCooldown = aiError == .rateLimitExceeded || aiError == .quotaExceeded || aiError == .serviceUnavailable
+                
+                if shouldCooldown {
+                    // Mark this provider for cooldown
+                    ProviderThrottleCenter.shared.markCoolingDown(currentProvider)
+                    
+                    // Try to failover to another provider (once per request)
+                    if !hasTriedFailover {
+                        let stillAvailableProviders = ProviderThrottleCenter.shared.getAvailableProviders(from: self.availableProviders)
+                        
+                        if let nextProvider = stillAvailableProviders.first(where: { $0 != currentProvider }) {
+                            hasTriedFailover = true
+                            progressMessage = "プロバイダ切替で再試行中: \(currentProvider.displayName) → \(nextProvider.displayName)"
+                            currentProvider = nextProvider
+                            continue // Try with new provider
+                        }
+                    }
+                    
+                    // If no failover available, use exponential backoff
+                    if attempt < 2 {
+                        let delay = pow(2.0, Double(attempt)) + Double.random(in: 0...1)
+                        progressMessage = "Rate limited... retry in \(Int(delay))s"
+                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        continue
+                    }
+                }
+                
+                // Non-retryable error or max retries reached
+                throw aiError
+            }
+        }
+        
+        throw AIClientError.rateLimitExceeded
+    }
     
+    /// Generate text with automatic provider failover
+    private func generateTextWithFailover(prompt: String, system: String, temperature: Double) async throws -> String {
+        let availableProviders = ProviderThrottleCenter.shared.getAvailableProviders(from: self.availableProviders)
+        
+        guard !availableProviders.isEmpty else {
+            throw AIClientError.apiKeyNotConfigured
+        }
+        
+        // Start with selected provider if not in cooldown, otherwise use first available
+        var currentProvider = availableProviders.contains(selectedProvider) ? selectedProvider : availableProviders.first!
+        var hasTriedFailover = false
+        
+        for attempt in 0...2 { // 3 attempts with backoff
+            do {
+                let universalClient = getUniversalClient(for: currentProvider)
+                
+                progressMessage = "Connecting to \(currentProvider.displayName)..."
+                let response = try await universalClient.generateText(
+                    prompt: prompt,
+                    system: system,
+                    temperature: temperature
+                )
+                
+                progressMessage = "Processing response..."
+                print("✅ AITaskGenerator: Successfully generated text")
+                
+                return response
+                
+            } catch let aiError as AIClientError {
+                // Check if this is a retryable error that should trigger cooldown
+                let shouldCooldown = aiError == .rateLimitExceeded || aiError == .quotaExceeded || aiError == .serviceUnavailable
+                
+                if shouldCooldown {
+                    // Mark this provider for cooldown
+                    ProviderThrottleCenter.shared.markCoolingDown(currentProvider)
+                    
+                    // Try to failover to another provider (once per request)
+                    if !hasTriedFailover {
+                        let stillAvailableProviders = ProviderThrottleCenter.shared.getAvailableProviders(from: self.availableProviders)
+                        
+                        if let nextProvider = stillAvailableProviders.first(where: { $0 != currentProvider }) {
+                            hasTriedFailover = true
+                            progressMessage = "プロバイダ切替で再試行中: \(currentProvider.displayName) → \(nextProvider.displayName)"
+                            currentProvider = nextProvider
+                            continue // Try with new provider
+                        }
+                    }
+                    
+                    // If no failover available, use exponential backoff
+                    if attempt < 2 {
+                        let delay = pow(2.0, Double(attempt)) + Double.random(in: 0...1)
+                        progressMessage = "Rate limited... retry in \(Int(delay))s"
+                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        continue
+                    }
+                }
+                
+                // Non-retryable error or max retries reached
+                print("❌ AITaskGenerator: AI client error: \(aiError.localizedDescription)")
+                error = aiError
+                progressMessage = ""
+                throw aiError
+            } catch {
+                print("❌ AITaskGenerator: Network error: \(error.localizedDescription)")
+                let networkError = AIClientError.networkError(error)
+                self.error = networkError
+                progressMessage = ""
+                throw networkError
+            }
+        }
+        
+        print("❌ AITaskGenerator: Exceeded maximum retries for rate limiting")
+        let rateLimitError = AIClientError.rateLimitExceeded
+        error = rateLimitError
+        progressMessage = ""
+        throw rateLimitError
+    }
 }
 
 // MARK: - Project Type Enum

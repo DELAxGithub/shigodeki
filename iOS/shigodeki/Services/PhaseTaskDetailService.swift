@@ -22,11 +22,14 @@ class PhaseTaskDetailService: ObservableObject {
     // MARK: - Initializers
     
     /// デフォルトイニシャライザ（直接インスタンス化）
-    /// 緊急対応用 - @MainActor + get async プロパティの相互作用によるSIGABRT回避
+    /// 🚨 CTO Fix: AI処理時は SharedManagerStore から動的取得するように修正済み
     init() {
-        logger.info("🔧 PhaseTaskDetailService initialized with direct instantiation (fallback mode)")
+        logger.info("🔧 PhaseTaskDetailService initialized with dynamic AI dependency resolution")
         self.subtaskManager = SubtaskManager()
         self.projectManager = ProjectManager()
+        
+        // 🚨 CTO Fix: AI関連メソッドで SharedManagerStore.shared.getAiGenerator() を使用
+        // この aiGenerator は初期化目的でのみ保持（実際は使用されない）
         self.aiGenerator = AITaskGenerator()
     }
     
@@ -115,27 +118,33 @@ class PhaseTaskDetailService: ObservableObject {
     // MARK: - AI Operations
     
     func generateSubtasksWithAI(task: ShigodekiTask) async -> [AITaskSuggestion.TaskSuggestion]? {
+        // 🚨 CTO Fix: 動的に最新のAITaskGeneratorを取得し、メモリ最適化に対応
+        let dynamicAIGenerator = await SharedManagerStore.shared.getAiGenerator()
         return await PhaseAIService.generateSubtasksWithAI(
             task: task,
-            aiGenerator: aiGenerator
+            aiGenerator: dynamicAIGenerator
         )
     }
     
     /// AI生成結果を直接Subtaskとして永続化する関数
     func createSubtasksFromAI(task: ShigodekiTask, project: Project, phase: Phase) async -> [Subtask] {
+        // 🚨 CTO Fix: 動的に最新のAITaskGeneratorを取得し、メモリ最適化に対応
+        let dynamicAIGenerator = await SharedManagerStore.shared.getAiGenerator()
         return await PhaseAIService.createSubtasksFromAI(
             task: task,
             project: project,
             phase: phase,
-            aiGenerator: aiGenerator,
+            aiGenerator: dynamicAIGenerator,
             subtaskManager: subtaskManager
         )
     }
     
     func generateTaskDetails(for task: ShigodekiTask) async -> String? {
+        // 🚨 CTO Fix: 動的に最新のAITaskGeneratorを取得し、メモリ最適化に対応
+        let dynamicAIGenerator = await SharedManagerStore.shared.getAiGenerator()
         return await PhaseAIService.generateTaskDetails(
             for: task,
-            aiGenerator: aiGenerator
+            aiGenerator: dynamicAIGenerator
         )
     }
     
@@ -146,6 +155,7 @@ class PhaseTaskDetailService: ObservableObject {
         project: Project,
         phase: Phase
     ) async -> [Subtask] {
+        // Note: この関数はAITaskGeneratorを直接使用しないため、変更不要
         return await PhaseAIService.createSubtasksFromAIContent(
             content: content,
             task: task,

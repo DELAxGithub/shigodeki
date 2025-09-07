@@ -12,7 +12,12 @@ import SwiftUI
 @MainActor
 class PhaseTaskDetailViewHelpers: ObservableObject {
     
-    private let service = PhaseTaskDetailService()
+    // 🚨 FIX: 依存性注入でServiceインスタンスを受け取り、重複召喚を防止
+    private let service: PhaseTaskDetailService
+    
+    init(service: PhaseTaskDetailService) {
+        self.service = service
+    }
     
     // MARK: - Initialization Methods
     
@@ -21,8 +26,9 @@ class PhaseTaskDetailViewHelpers: ObservableObject {
         tagManager: TagManager,
         aiStateManager: AIStateManager
     ) {
-        print("📱 PhaseTaskDetailView: initializeView called")
-        aiStateManager.checkConfiguration()
+        print("📱 PhaseTaskDetailViewHelpers: initializeView called")
+        // IMPORTANT: AI configuration check is centralized in PhaseTaskDetailView.onAppear
+        // Do NOT call aiStateManager.checkConfiguration() here to prevent duplicate logs
         
         Task {
             if let projectId = viewModel.projectId {

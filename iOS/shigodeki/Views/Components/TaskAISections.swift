@@ -64,11 +64,34 @@ struct TaskAISupportSection: View {
             case .ready:
                 AIActionButtonsView(
                     onGenerateSubtasks: onGenerateSubtasks,
-                    onGenerateDetails: { aiStateManager.generateDetail(for: task) }
+                    onGenerateDetails: { 
+                        // Prevent multiple concurrent AI generation requests
+                        guard case .ready = aiStateManager.state else { 
+                            print("⚠️ TaskAISections: Ignoring AI generation - state not ready")
+                            return 
+                        }
+                        aiStateManager.generateDetail(for: task) 
+                    },
+                    isDisabled: false  // Keep false for .ready state since buttons handle their own loading state
                 )
                 
             case .loading(let message):
-                AIStatusIndicatorView(message: message)
+                VStack(alignment: .leading, spacing: 8) {
+                    AIStatusIndicatorView(message: message)
+                    
+                    // Show provider switching progress if message contains switching info
+                    if message.contains("プロバイダ切替") {
+                        HStack {
+                            Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                                .foregroundColor(.orange)
+                                .font(.caption2)
+                            Text("プロバイダを切り替えています...")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.leading, 8)
+                    }
+                }
                 
             case .suggestion(let result):
                 AIDetailResultView(

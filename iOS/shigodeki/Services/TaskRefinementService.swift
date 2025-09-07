@@ -149,6 +149,8 @@ struct TaskRefinementService {
             return OpenAIClient()
         case .claude:
             return ClaudeClient()
+        case .gemini:
+            return GeminiClient()
         }
     }
     

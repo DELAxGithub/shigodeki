@@ -9,22 +9,21 @@ final class AIStateManager: ObservableObject {
     
     // MARK: - Published Properties
     
+    /// 🚨 CTO Fix: シングルトンパターンを導入し、アプリ全体で唯一のインスタンスを保証
+    static let shared = AIStateManager()
+    
     /// AI機能の現在状態（State Pattern適用）
     @Published private(set) var state: AIState = .idle
     
     // MARK: - Private Properties
     
-    private let aiGenerator: AITaskGenerator
     private let keychainManager: KeychainManager
     private let logger = Logger(subsystem: "com.company.shigodeki", category: "AIStateManager")
     
     // MARK: - Initialization
     
-    // 依存性をオプショナルにし、nilの場合はデフォルトのインスタンスを生成する堅牢なパターン
-    init(aiGenerator: AITaskGenerator? = nil, 
-         keychainManager: KeychainManager = KeychainManager.shared) {
-        // aiGeneratorが外部から注入されなかった場合、新しいインスタンスを生成する
-        self.aiGenerator = aiGenerator ?? AITaskGenerator()
+    /// 🚨 CTO Fix: `private`に変更し、外部からの直接インスタンス化を防止
+    private init(keychainManager: KeychainManager = KeychainManager.shared) {
         self.keychainManager = keychainManager
     }
     
@@ -70,30 +69,56 @@ final class AIStateManager: ObservableObject {
         state = .loading(message: "AIがタスクを分析中です...")
         
         Task {
+            // 🚨 CTO Fix: 依存関係を動的に解決し、メモリ解放後も安全に再取得
+            // SharedManagerStoreから常に最新のAITaskGeneratorインスタンスを取得する
+            let aiGenerator = await SharedManagerStore.shared.getAiGenerator()
+            
             do {
-                if let detailText = await aiGenerator.generateTaskDetails(for: task) {
-                    logger.info("✅ AIStateManager: Successfully generated task details")
-                    print("✅ AIStateManager: Successfully generated task details")
-                    let result = AIDetailResult(content: detailText)
+                let detailText = try await aiGenerator.generateTaskDetails(for: task)
+                logger.info("✅ AIStateManager: Successfully generated task details")
+                print("✅ AIStateManager: Successfully generated task details")
+                let result = AIDetailResult(content: detailText)
+                await MainActor.run {
+                    state = .suggestion(result: result)
+                }
+            } catch let aiError as AIClientError {
+                logger.error("❌ AIStateManager: AI client error - \(aiError.localizedDescription)")
+                print("❌ AIStateManager: AI client error - \(aiError.localizedDescription)")
+                
+                // APIキー未設定エラーの場合は、汎用エラーではなく直接 .needsConfiguration 状態に遷移させる
+                if case .apiKeyNotConfigured = aiError {
                     await MainActor.run {
-                        state = .suggestion(result: result)
+                        let guidance = ConfigurationGuidance.createDefault()
+                        logger.warning("⚠️ AIStateManager: API key not configured during generation, transitioning to needsConfiguration")
+                        print("⚠️ AIStateManager: API key not configured during generation, transitioning to needsConfiguration")
+                        state = .needsConfiguration(guidance: guidance)
                     }
-                } else {
-                    logger.error("❌ AIStateManager: Task detail generation returned nil")
-                    print("❌ AIStateManager: Task detail generation returned nil")
-                    await MainActor.run {
-                        state = .error(message: "AI提案の生成に失敗しました")
-                    }
+                    return // このTaskを終了
+                }
+                
+                let errorMessage: String
+                switch aiError {
+                // .apiKeyNotConfigured は上で特別に処理される
+                case .rateLimitExceeded:
+                    errorMessage = "レート制限に達しました。しばらく待って再試行してください"
+                case .serviceUnavailable:
+                    errorMessage = "AI生成処理中です。しばらくお待ちください"
+                case .networkError(let underlyingError):
+                    errorMessage = "ネットワークエラー: \(underlyingError.localizedDescription)"
+                case .invalidResponse:
+                    errorMessage = "AI応答の解析に失敗しました"
+                default:
+                    errorMessage = aiError.localizedDescription
+                }
+                
+                await MainActor.run {
+                    state = .error(message: errorMessage)
                 }
             } catch {
-                logger.error("❌ AIStateManager: Error generating task details")
-                print("❌ AIStateManager: Error generating task details: \(error.localizedDescription)")
+                logger.error("❌ AIStateManager: Unexpected error generating task details")
+                print("❌ AIStateManager: Unexpected error generating task details: \(error.localizedDescription)")
                 await MainActor.run {
-                    if let aiError = error as? AIClientError {
-                        state = .error(message: aiError.localizedDescription)
-                    } else {
-                        state = .error(message: "予期しないエラーが発生しました")
-                    }
+                    state = .error(message: "予期しないエラーが発生しました")
                 }
             }
         }
