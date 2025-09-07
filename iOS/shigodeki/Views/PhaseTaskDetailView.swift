@@ -23,6 +23,8 @@ struct PhaseTaskDetailView: View {
     @StateObject private var sectionManager = PhaseSectionManager()
     @StateObject private var tagManager = TagManager()
     @StateObject private var service = PhaseTaskDetailService()
+    @StateObject private var helpers = PhaseTaskDetailViewHelpers()
+    @StateObject private var optimisticManager = OptimisticUpdateManager()
     
     @State private var subtasks: [Subtask] = []
     @State private var newSubtaskTitle: String = ""
@@ -69,9 +71,49 @@ struct PhaseTaskDetailView: View {
             TaskSubtasksSection(
                 subtasks: subtasks,
                 newSubtaskTitle: $newSubtaskTitle,
-                onToggleSubtask: { toggleSubtask($0) },
-                onDeleteSubtask: { deleteSubtask($0) },
-                onAddSubtask: { addSubtask() }
+                onToggleSubtask: { subtask in
+                    Task {
+                        do {
+                            subtasks = try await helpers.toggleSubtask(
+                                subtask,
+                                task: task,
+                                project: project,
+                                phase: phase
+                            )
+                        } catch {
+                            print("❌ Failed to toggle subtask: \(error)")
+                        }
+                    }
+                },
+                onDeleteSubtask: { subtask in
+                    Task {
+                        do {
+                            subtasks = try await helpers.deleteSubtask(
+                                subtask,
+                                task: task,
+                                project: project,
+                                phase: phase
+                            )
+                        } catch {
+                            print("❌ Failed to delete subtask: \(error)")
+                        }
+                    }
+                },
+                onAddSubtask: { 
+                    Task {
+                        do {
+                            subtasks = try await helpers.addSubtask(
+                                title: newSubtaskTitle,
+                                task: task,
+                                project: project,
+                                phase: phase
+                            )
+                            newSubtaskTitle = ""
+                        } catch {
+                            print("❌ Failed to add subtask: \(error)")
+                        }
+                    }
+                }
             )
             
             TaskRelatedLinksSection(task: task)
@@ -83,21 +125,48 @@ struct PhaseTaskDetailView: View {
                 project: project,
                 phase: phase,
                 showAISettings: $showAISettings,
-                onGenerateSubtasks: { aiSplit() },
+                onGenerateSubtasks: { 
+                    Task { @MainActor in
+                        subtasks = await helpers.aiSplitWithDirectSave(
+                            task: task,
+                            project: project,
+                            phase: phase
+                        )
+                    }
+                },
                 onOptimisticSubtasksUpdate: { content in
-                    return addOptimisticSubtasks(from: content)
+                    let result = optimisticManager.addOptimisticSubtasks(
+                        from: content,
+                        currentSubtasks: subtasks,
+                        task: task,
+                        phase: phase,
+                        project: project
+                    )
+                    subtasks = result.updatedSubtasks
+                    return result.tempIds
                 },
                 onConfirmOptimisticUpdate: { tempIds, confirmedSubtasks in
-                    confirmOptimisticSubtasks(tempIds: tempIds, confirmedSubtasks: confirmedSubtasks)
+                    subtasks = optimisticManager.confirmOptimisticSubtasks(
+                        currentSubtasks: subtasks,
+                        tempIds: tempIds,
+                        confirmedSubtasks: confirmedSubtasks
+                    )
                 },
                 onRevertOptimisticUpdate: { tempIds in
-                    revertOptimisticSubtasks(tempIds: tempIds)
+                    subtasks = optimisticManager.revertOptimisticSubtasks(
+                        currentSubtasks: subtasks,
+                        tempIds: tempIds
+                    )
                 }
             )
         }
         .navigationTitle("タスク詳細")
         .onAppear {
-            initializeView()
+            helpers.initializeView(
+                viewModel: viewModel,
+                tagManager: tagManager,
+                aiStateManager: aiStateManager
+            )
         }
         .onDisappear {
             tagManager.stopListening()
@@ -121,210 +190,32 @@ struct PhaseTaskDetailView: View {
             ToolbarItem(placement: .navigationBarTrailing) { 
                 Button("保存") { 
                     Task { 
-                        await saveTask()
+                        do {
+                            try await helpers.saveTask(viewModel: viewModel)
+                            dismiss()
+                        } catch {
+                            print("⚠️ 保存エラー: \(error)")
+                        }
                     } 
                 } 
                 .disabled(!viewModel.canSave)
             } 
         }
         .task {
-            await loadInitialData()
-        }
-    }
-}
-
-
-// MARK: - Private Methods
-
-extension PhaseTaskDetailView {
-    private func initializeView() {
-        print("📱 PhaseTaskDetailView: initializeView called")
-        aiStateManager.checkConfiguration()
-        
-        Task {
-            if let projectId = viewModel.projectId {
-                await tagManager.loadTags(projectId: projectId)
-                tagManager.startListening(projectId: projectId)
-            }
-        }
-    }
-    
-    private func loadInitialData() async {
-        async let subtasksTask = service.loadSubtasks(task: task, project: project, phase: phase)
-        async let membersTask = service.loadProjectMembers(project: project)
-        
-        let (loadedSubtasks, loadedMembers) = await (subtasksTask, membersTask)
-        
-        await MainActor.run {
-            subtasks = loadedSubtasks
-            projectMembers = loadedMembers
-            selectedSectionId = task.sectionId
-        }
-        
-        sectionManager.startListening(phaseId: phase.id ?? "", projectId: project.id ?? "")
-    }
-    
-    private func saveTask() async {
-        do {
-            try await viewModel.save()
-            dismiss()
-        } catch {
-            print("⚠️ 保存エラー: \(error)")
-        }
-    }
-    
-    // MARK: - Subtask Operations
-    
-    private func addSubtask() {
-        Task {
-            do {
-                _ = try await service.addSubtask(title: newSubtaskTitle, task: task, project: project, phase: phase)
-                newSubtaskTitle = ""
-                subtasks = await service.loadSubtasks(task: task, project: project, phase: phase)
-            } catch {
-                print("❌ Failed to add subtask: \(error)")
-            }
-        }
-    }
-    
-    private func deleteSubtask(_ subtask: Subtask) {
-        Task {
-            do {
-                try await service.deleteSubtask(subtask, task: task, project: project, phase: phase)
-                subtasks = await service.loadSubtasks(task: task, project: project, phase: phase)
-            } catch {
-                print("❌ Failed to delete subtask: \(error)")
-            }
-        }
-    }
-    
-    private func toggleSubtask(_ subtask: Subtask) {
-        Task {
-            do {
-                _ = try await service.toggleSubtask(subtask)
-                subtasks = await service.loadSubtasks(task: task, project: project, phase: phase)
-            } catch {
-                print("❌ Failed to toggle subtask: \(error)")
-            }
-        }
-    }
-    
-    // MARK: - AI Operations
-    
-    private func aiSplit() {
-        aiSplitWithDirectSave()
-    }
-    
-    /// 従来方式: AI生成→ループでaddSubtask()を呼び出し
-    private func aiSplitWithLoop() {
-        Task { @MainActor in
-            if let suggestions = await service.generateSubtasksWithAI(task: task) {
-                for suggestion in suggestions {
-                    newSubtaskTitle = suggestion.title
-                    addSubtask()
-                }
-            }
-        }
-    }
-    
-    /// 自動永続化方式: AI生成→直接Firestore保存
-    private func aiSplitWithDirectSave() {
-        Task { @MainActor in
-            let createdSubtasks = await service.createSubtasksFromAI(task: task, project: project, phase: phase)
-            if !createdSubtasks.isEmpty {
-                print("✅ \(createdSubtasks.count)個のサブタスクを自動作成しました")
-                // サブタスク一覧を再読み込み
-                subtasks = await service.loadSubtasks(task: task, project: project, phase: phase)
-            } else {
-                print("❌ AI生成またはサブタスク作成に失敗しました")
-            }
-        }
-    }
-    
-    // MARK: - Optimistic Update Helper Methods
-    
-    /// AI提案から抽出されたタスクを楽観的にサブタスクリストに追加
-    private func addOptimisticSubtasks(from content: String) -> [String] {
-        // Phase 3のextractTasksFromStructuredContentロジックを再利用
-        let extractedTasks = extractTasksFromContent(content)
-        var tempIds: [String] = []
-        
-        for (index, extractedTask) in extractedTasks.enumerated() {
-            let tempId = "temp_\(UUID().uuidString)"
-            tempIds.append(tempId)
-            
-            // 楽観的なサブタスクを作成（一時的なID付き）
-            var optimisticSubtask = Subtask(
-                title: extractedTask.title,
-                description: extractedTask.description.isEmpty ? nil : extractedTask.description,
-                assignedTo: nil,
-                createdBy: task.createdBy,
-                dueDate: nil,
-                taskId: task.id ?? "",
-                listId: "", // 楽観的な一時データではlistIdは不要
-                phaseId: phase.id ?? "",
-                projectId: project.id ?? "",
-                order: subtasks.count + index
+            let result = await helpers.loadInitialData(
+                task: task,
+                project: project,
+                phase: phase,
+                sectionManager: sectionManager
             )
-            
-            // 一時的なIDと作成日時を設定
-            optimisticSubtask.id = tempId
-            optimisticSubtask.createdAt = Date()
-            
-            subtasks.append(optimisticSubtask)
-        }
-        
-        return tempIds
-    }
-    
-    /// 楽観更新の成功時：一時サブタスクを正式なサブタスクで置換
-    private func confirmOptimisticSubtasks(tempIds: [String], confirmedSubtasks: [Subtask]) {
-        // 一時IDのサブタスクを削除
-        subtasks.removeAll { subtask in
-            tempIds.contains(subtask.id ?? "")
-        }
-        
-        // 正式なサブタスクを追加
-        subtasks.append(contentsOf: confirmedSubtasks)
-        
-        // リストをソート（order順）
-        subtasks.sort { $0.order < $1.order }
-    }
-    
-    /// 楽観更新の失敗時：一時サブタスクを削除
-    private func revertOptimisticSubtasks(tempIds: [String]) {
-        subtasks.removeAll { subtask in
-            tempIds.contains(subtask.id ?? "")
-        }
-    }
-    
-    /// AI提案テキストから構造解析（PhaseTaskDetailServiceから再利用）
-    private func extractTasksFromContent(_ content: String) -> [ExtractedTask] {
-        var extractedTasks: [ExtractedTask] = []
-        
-        // パターン1: 番号付きリスト "(a) タスク名" の形式
-        let numberedPattern = #"\([a-z]\)\s*([^\n]+)"#
-        if let regex = try? NSRegularExpression(pattern: numberedPattern) {
-            let matches = regex.matches(in: content, options: [], range: NSRange(content.startIndex..., in: content))
-            for match in matches {
-                if let titleRange = Range(match.range(at: 1), in: content) {
-                    let title = String(content[titleRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !title.isEmpty {
-                        extractedTasks.append(ExtractedTask(title: title, description: ""))
-                    }
-                }
+            await MainActor.run {
+                subtasks = result.subtasks
+                projectMembers = result.projectMembers
+                selectedSectionId = result.selectedSectionId
             }
         }
-        
-        // パターン2以降は省略（同じロジック）
-        return extractedTasks
     }
 }
 
-// MARK: - Supporting Types for Optimistic Updates
 
-private struct ExtractedTask {
-    let title: String
-    let description: String
-}
 

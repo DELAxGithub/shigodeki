@@ -69,164 +69,35 @@ struct ProjectSettingsView: View {
                 .background(Color(.systemGray6))
                 
                 Form {
-                    // Invitation Section
-                    Section(header: Text("招待")) {
-                        Picker("権限", selection: $selectedInviteRole) {
-                            ForEach(Role.allCases, id: \.self) { role in
-                                Text(role.displayName).tag(role)
-                            }
-                        }
-                        Button {
+                    ProjectInvitationSection(
+                        selectedInviteRole: $selectedInviteRole,
+                        isUpdating: $isUpdating,
+                        onCreateInvite: {
                             Task { await createInvite() }
-                        } label: {
-                            HStack {
-                                Image(systemName: "person.badge.plus")
-                                Text("招待コードを作成")
-                            }
                         }
-                        .disabled(isUpdating)
-                    }
-                    // Owner Section
-                    Section(header: Text("所有者")) {
-                        Picker("所有者タイプ", selection: $selectedOwnerType) {
-                            Text(ProjectOwnerType.individual.displayName).tag(ProjectOwnerType.individual)
-                            Text(ProjectOwnerType.family.displayName).tag(ProjectOwnerType.family)
-                        }
-                        .pickerStyle(.segmented)
-                        
-                        if selectedOwnerType == .family {
-                            if (familyManager?.families.isEmpty ?? true) {
-                                Text("家族グループがありません。家族タブから作成/参加してください。")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Picker("家族グループ", selection: Binding(get: { selectedFamilyId ?? "" }, set: { selectedFamilyId = $0.isEmpty ? nil : $0 })) {
-                                    Text("選択してください").tag("")
-                                    ForEach(familyManager?.families ?? []) { fam in
-                                        Text(fam.name).tag(fam.id ?? "")
-                                    }
-                                }
-                            }
-                        }
-                        
-                        Button {
-                            changeOwner()
-                        } label: {
-                            HStack {
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                                Text("所有者を変更")
-                            }
-                        }
-                        .disabled(isUpdating || (selectedOwnerType == .family && (selectedFamilyId ?? "").isEmpty))
-                    }
-                    Section(header: Text("基本情報")) {
-                        TextField("プロジェクト名", text: $projectName)
-                            .textInputAutocapitalization(.words)
-                            .disableAutocorrection(false)
-                            .onChange(of: projectName) { _ in updateHasChanges() }
-                        
-                        ZStack(alignment: .topLeading) {
-                            if projectDescription.isEmpty {
-                                VStack {
-                                    HStack {
-                                        Text("プロジェクトの説明")
-                                            .foregroundColor(Color(.placeholderText))
-                                        Spacer()
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.top, 8)
-                                .padding(.leading, 4)
-                            }
-                            
-                            TextEditor(text: $projectDescription)
-                                .frame(minHeight: 80)
-                                .onChange(of: projectDescription) { _ in updateHasChanges() }
-                        }
-                    }
+                    )
                     
-                    Section(header: Text("ステータス")) {
-                        Toggle("完了済み", isOn: $isCompleted)
-                            .onChange(of: isCompleted) { _ in updateHasChanges() }
-                        
-                        if isCompleted {
-                            HStack {
-                                Image(systemName: "info.circle")
-                                    .foregroundColor(.blue)
-                                Text("完了済みのプロジェクトは読み取り専用になります")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
+                    ProjectOwnerSection(
+                        selectedOwnerType: $selectedOwnerType,
+                        selectedFamilyId: $selectedFamilyId,
+                        isUpdating: $isUpdating,
+                        familyManager: familyManager,
+                        onChangeOwner: changeOwner
+                    )
                     
-                    Section(header: Text("プロジェクト情報")) {
-                        HStack {
-                            Image(systemName: "person.circle.fill")
-                                .foregroundColor(.blue)
-                            VStack(alignment: .leading) {
-                                Text("作成者")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(ownerDisplayName.isEmpty ? "読み込み中..." : ownerDisplayName)
-                                    .font(.subheadline)
-                                    .foregroundColor(ownerDisplayName.isEmpty ? .secondary : .primary)
-                            }
-                        }
-                        
-                        HStack {
-                            Image(systemName: "person.2.fill")
-                                .foregroundColor(.blue)
-                            VStack(alignment: .leading) {
-                                Text("メンバー数")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text("\(project.memberIds.count)人")
-                                    .font(.subheadline)
-                            }
-                        }
-                        
-                        HStack {
-                            Image(systemName: "calendar")
-                                .foregroundColor(.blue)
-                            VStack(alignment: .leading) {
-                                Text("作成日")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text(formatDate(project.createdAt))
-                                    .font(.subheadline)
-                            }
-                        }
-                        
-                        if let lastModified = project.lastModifiedAt {
-                            HStack {
-                                Image(systemName: "clock")
-                                    .foregroundColor(.blue)
-                                VStack(alignment: .leading) {
-                                    Text("最終更新")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Text(formatDate(lastModified))
-                                        .font(.subheadline)
-                                }
-                            }
-                        }
-                    }
+                    ProjectBasicSection(
+                        projectName: $projectName,
+                        projectDescription: $projectDescription,
+                        isCompleted: $isCompleted,
+                        isUpdating: $isUpdating,
+                        showingDeleteConfirmation: $showingDeleteConfirmation,
+                        onFieldChange: updateHasChanges
+                    )
                     
-                    // Danger Zone
-                    Section(header: Text("危険な操作")) {
-                        Button(action: {
-                            showingDeleteConfirmation = true
-                        }) {
-                            HStack {
-                                Image(systemName: "trash")
-                                    .foregroundColor(.red)
-                                Text("プロジェクトを削除")
-                                    .foregroundColor(.red)
-                            }
-                        }
-                        .disabled(isUpdating)
-                    }
+                    ProjectInfoSection(
+                        project: project,
+                        ownerDisplayName: ownerDisplayName
+                    )
                 }
             }
             .navigationTitle("設定")
@@ -294,32 +165,10 @@ struct ProjectSettingsView: View {
             }
         }
         .sheet(isPresented: $showingInviteSheet) {
-            VStack(spacing: 24) {
-                Image(systemName: "person.badge.plus")
-                    .font(.system(size: 48))
-                    .foregroundColor(.blue)
-                Text("招待コード")
-                    .font(.title2).bold()
-                Text(createdInviteCode)
-                    .font(.system(size: 36, weight: .bold, design: .monospaced))
-                    .padding()
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(12)
-                    .onTapGesture { UIPasteboard.general.string = createdInviteCode }
-                Text("タップしてコピー").font(.caption).foregroundColor(.secondary)
-                Button {
-                    let act = UIActivityViewController(activityItems: ["プロジェクト『\(project.name)』への招待コード: \(createdInviteCode)"], applicationActivities: nil)
-                    if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene, let win = scene.windows.first {
-                        win.rootViewController?.present(act, animated: true)
-                    }
-                } label: {
-                    Label("招待コードを共有", systemImage: "square.and.arrow.up")
-                        .padding().frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                Spacer()
-            }
-            .padding()
+            ProjectInvitationSheet(
+                project: project,
+                inviteCode: createdInviteCode
+            )
         }
     }
     
@@ -438,14 +287,6 @@ struct ProjectSettingsView: View {
     }
     
     
-    private func formatDate(_ date: Date?) -> String {
-        guard let date = date else { return "不明" }
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        formatter.locale = Locale(identifier: "ja_JP")
-        return formatter.string(from: date)
-    }
     
     // Issue #64 Fix: Load owner display name from Firestore
     private func loadOwnerDisplayName() async {
