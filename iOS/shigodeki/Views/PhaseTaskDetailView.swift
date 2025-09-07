@@ -194,6 +194,10 @@ struct PhaseTaskDetailView: View {
                 .disabled(!viewModel.canSave)
             } 
         }
+        .onAppear {
+            // Initialize AI state immediately when view appears
+            aiStateManager.checkConfiguration()
+        }
         .task {
             // Serialize initialization: first load basic data, then initialize components
             let result = await helpers.loadInitialData(

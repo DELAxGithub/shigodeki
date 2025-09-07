@@ -5,6 +5,7 @@ struct AIDetailResultView: View {
     let result: AIDetailResult
     let onApply: (String) -> Void
     let onEdit: (String) -> Void
+    let onCreateSubtasks: ((String) -> Void)?
     let onReject: () -> Void
     
     @State private var showingEditSheet = false
@@ -61,6 +62,19 @@ struct AIDetailResultView: View {
                 .buttonStyle(BorderedButtonStyle())
                 .controlSize(.small)
                 .accessibilityHint("AI提案を編集してから適用します")
+                
+                // サブタスク作成ボタン（オプショナル）
+                if let onCreateSubtasks = onCreateSubtasks {
+                    Button {
+                        onCreateSubtasks(result.content)
+                    } label: {
+                        Label("サブタスク化", systemImage: "list.bullet.rectangle")
+                            .foregroundColor(.purple)
+                    }
+                    .buttonStyle(BorderedButtonStyle())
+                    .controlSize(.small)
+                    .accessibilityHint("AI提案からサブタスクを作成します")
+                }
                 
                 // 却下ボタン
                 Button {
@@ -137,6 +151,9 @@ private struct AIEditSheet: View {
         },
         onEdit: { content in
             print("Edit: \(content)")
+        },
+        onCreateSubtasks: { content in
+            print("Create subtasks: \(content)")
         },
         onReject: {
             print("Reject")
