@@ -1,0 +1,158 @@
+# iOS Code Quality and Guardrail Enforcement
+# CLAUDE_VERSION: v2025.01
+name: Code Quality & Guardrails
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'iOS/**/*.swift'
+      - '.swiftlint.yml'
+      - 'Dangerfile'
+
+jobs:
+  # SwiftLint job for 300-line rule enforcement
+  swiftlint:
+    name: SwiftLint
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Install SwiftLint
+      run: |
+        brew install swiftlint
+    
+    - name: Run SwiftLint
+      run: |
+        echo "🔍 Running SwiftLint with 300-line rule enforcement..."
+        swiftlint --config .swiftlint.yml --reporter github-actions-logging
+      continue-on-error: false  # Fail CI if SwiftLint fails
+    
+    - name: SwiftLint Autocorrect (if needed)
+      if: failure()
+      run: |
+        echo "🔧 Attempting SwiftLint autocorrect..."
+        swiftlint --config .swiftlint.yml --fix
+        echo "Please review and commit any autocorrected changes."
+  
+  # Danger job for PR template and size validation
+  danger:
+    name: Danger (PR Guardrails)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.0'
+        bundler-cache: true
+    
+    - name: Install Danger
+      run: |
+        gem install danger
+        gem install danger-swiftlint
+    
+    - name: Run Danger
+      env:
+        DANGER_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "🚨 Running Danger guardrail checks..."
+        echo "Checking: 300-line rule, PR size limits, template compliance"
+        danger --verbose
+      continue-on-error: false  # Fail CI if guardrails violated
+  
+  # File size validation job (backup check)
+  file-size-check:
+    name: File Size Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Check file sizes
+      run: |
+        echo "📏 Checking for files exceeding 300-line limit..."
+        
+        # Get changed Swift files
+        CHANGED_FILES=$(git diff --name-only origin/main HEAD | grep '\.swift$' || true)
+        
+        if [ -z "$CHANGED_FILES" ]; then
+          echo "No Swift files changed."
+          exit 0
+        fi
+        
+        VIOLATIONS=""
+        WARNING_FILES=""
+        
+        for file in $CHANGED_FILES; do
+          if [ -f "$file" ]; then
+            line_count=$(wc -l < "$file")
+            echo "Checking: $file ($line_count lines)"
+            
+            if [ $line_count -gt 300 ]; then
+              VIOLATIONS="$VIOLATIONS\n- $file: $line_count lines (exceeds 300-line limit)"
+            elif [ $line_count -gt 250 ]; then
+              WARNING_FILES="$WARNING_FILES\n- $file: $line_count lines (approaching 300-line limit)"
+            fi
+          fi
+        done
+        
+        if [ ! -z "$WARNING_FILES" ]; then
+          echo "⚠️ Files approaching size limit:$WARNING_FILES"
+        fi
+        
+        if [ ! -z "$VIOLATIONS" ]; then
+          echo "🚨 FILES EXCEEDING 300-LINE LIMIT:$VIOLATIONS"
+          echo ""
+          echo "Action required: Split these files according to CLAUDE.md guidelines."
+          exit 1
+        fi
+        
+        echo "✅ All files comply with 300-line rule."
+
+  # Summary job
+  guardrail-summary:
+    name: Guardrail Summary
+    runs-on: ubuntu-latest
+    needs: [swiftlint, danger, file-size-check]
+    if: always()
+    
+    steps:
+    - name: Summary
+      run: |
+        echo "📋 GUARDRAIL CHECK SUMMARY (CLAUDE_VERSION: v2025.01)"
+        echo "=================================================="
+        
+        if [[ "${{ needs.swiftlint.result }}" == "success" ]]; then
+          echo "✅ SwiftLint: PASSED"
+        else
+          echo "❌ SwiftLint: FAILED"
+        fi
+        
+        if [[ "${{ needs.danger.result }}" == "success" ]]; then
+          echo "✅ Danger (PR Guardrails): PASSED"
+        else
+          echo "❌ Danger (PR Guardrails): FAILED"
+        fi
+        
+        if [[ "${{ needs.file-size-check.result }}" == "success" ]]; then
+          echo "✅ File Size Check: PASSED"
+        else
+          echo "❌ File Size Check: FAILED"
+        fi
+        
+        echo ""
+        echo "All checks must pass before merging."
+        echo "For violations, see CLAUDE.md v2025.01 guidelines."

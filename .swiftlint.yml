@@ -1,0 +1,107 @@
+# SwiftLint Configuration for 300-Line Rule Enforcement
+# CLAUDE_VERSION: v2025.01
+
+# Paths to include/exclude
+included:
+  - iOS/
+excluded:
+  - iOS/DerivedData/
+  - iOS/build/
+  - iOS/Pods/
+  - iOS/.build/
+
+# Enable opt-in rules for better code quality
+opt_in_rules:
+  - closure_spacing
+  - empty_count
+  - explicit_init
+  - fatal_error_message
+  - first_where
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - join_method
+  - let_var_whitespace
+  - literal_expression_end_indentation
+  - multiline_arguments
+  - multiline_parameters
+  - operator_usage_whitespace
+  - overridden_super_call
+  - private_action
+  - private_outlet
+  - redundant_nil_coalescing
+  - sorted_first_last
+  - toggle_bool
+  - unneeded_parentheses_in_closure_argument
+  - vertical_parameter_alignment_on_call
+
+# Disable some default rules that might conflict with project style
+disabled_rules:
+  - line_length # We handle line length more flexibly
+  - identifier_name # Allow short names in some contexts
+
+# File length rules - STRICT ENFORCEMENT of 300-line rule
+file_length:
+  warning: 250  # Warning at 250 lines (recommendation)
+  error: 300    # Error at 300 lines (hard limit)
+
+# Type body length rules
+type_body_length:
+  warning: 150  # Warning at 150 lines
+  error: 200    # Error at 200 lines (per CLAUDE.md)
+
+# Function body length rules  
+function_body_length:
+  warning: 40   # Warning at 40 lines
+  error: 50     # Error at 50 lines (per CLAUDE.md)
+
+# Large tuple rules
+large_tuple:
+  warning: 3
+  error: 4
+
+# Nesting depth
+nesting:
+  type_level:
+    warning: 2
+    error: 3
+  function_level:
+    warning: 4
+    error: 5
+
+# Cyclomatic complexity
+cyclomatic_complexity:
+  warning: 10
+  error: 15
+
+# Custom rules for CLAUDE.md compliance
+custom_rules:
+  # Enforce file naming convention for Views
+  view_naming:
+    name: "View Naming Convention"
+    regex: '^[A-Z][a-zA-Z0-9]*View\.swift$'
+    match_kinds:
+      - identifier
+    message: "View files should follow [Feature][Purpose]View.swift pattern"
+    severity: warning
+
+  # Discourage massive initializers
+  large_initializer:
+    name: "Large Initializer"
+    regex: 'init\([^)]{100,}\)'
+    message: "Consider breaking large initializers into smaller functions"
+    severity: warning
+
+  # Warn about potential God objects
+  many_properties:
+    name: "Many Properties"
+    regex: '(var|let)\s+\w+:'
+    message: "File with many properties may violate single responsibility"
+    severity: warning
+    
+# Reporter configuration
+reporter: "xcode" # Use Xcode format for CI integration
+
+# Analysis configuration
+analyzer_rules:
+  - unused_declaration
+  - unused_import
