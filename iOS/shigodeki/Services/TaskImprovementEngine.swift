@@ -39,7 +39,7 @@ final class TaskImprovementEngine: ObservableObject {
         do {
             // Phase 1: Load user's tasks across all families (0-40%)
             analysisMessage = "ユーザーのタスクを読み込み中..."
-            let userTasks = try await loadUserTasks(userId: userId)
+            let userTasks = try await TaskAnalysisService.loadUserTasks(userId: userId, familyManager: familyManager)
             analysisProgress = 0.4
             
             guard !userTasks.isEmpty else {
@@ -52,12 +52,12 @@ final class TaskImprovementEngine: ObservableObject {
             
             // Phase 2: Analyze task patterns and issues (40-60%)
             analysisMessage = "タスクパターンを分析中..."
-            let taskAnalysis = await analyzeTaskPatterns(userTasks)
+            let taskAnalysis = await TaskAnalysisService.analyzeTaskPatterns(userTasks)
             analysisProgress = 0.6
             
             // Phase 3: Generate AI-powered suggestions (60-90%)
             analysisMessage = "AI による改善提案を生成中..."
-            let suggestions = try await generateImprovements(from: taskAnalysis, tasks: userTasks)
+            let suggestions = try await TaskRefinementService.generateImprovements(from: taskAnalysis, tasks: userTasks)
             analysisProgress = 0.9
             
             // Phase 4: Finalize and update UI (90-100%)
@@ -105,180 +105,6 @@ final class TaskImprovementEngine: ObservableObject {
     }
     
     // MARK: - Private Methods
-    private func loadUserTasks(userId: String) async throws -> [ShigodekiTask] {
-        // Load families for user
-        await familyManager.loadFamiliesForUser(userId: userId)
-        let families = familyManager.families
-        
-        var allTasks: [ShigodekiTask] = []
-        
-        for family in families {
-            guard let familyId = family.id else { continue }
-            
-            // Load task lists for this family
-            // Note: Using placeholder - actual TaskManager API may differ
-            let taskLists: [TaskList] = []
-            
-            for taskList in taskLists {
-                guard let taskListId = taskList.id else { continue }
-                
-                // Load tasks for this task list
-                // Note: Using placeholder - actual TaskManager API may differ
-                let tasks: [ShigodekiTask] = []
-                allTasks.append(contentsOf: tasks)
-            }
-        }
-        
-        return allTasks
-    }
-    
-    private func analyzeTaskPatterns(_ tasks: [ShigodekiTask]) async -> TaskPatternAnalysis {
-        var analysis = TaskPatternAnalysis()
-        
-        // Analyze task complexity
-        let largeTasks = tasks.filter { $0.subtaskCount > 5 || $0.title.count > 100 }
-        analysis.largeTasksNeedingBreakdown = largeTasks
-        
-        // Analyze priority distribution
-        let priorityDistribution = Dictionary(grouping: tasks, by: { $0.priority })
-        if let highPriorityCount = priorityDistribution[.high]?.count {
-            let totalCount = priorityDistribution.values.flatMap({ $0 }).count
-            if highPriorityCount > totalCount / 2 {
-                analysis.hasPriorityInflation = true
-            }
-        }
-        
-        // Analyze overdue tasks
-        let now = Date()
-        let overdueTasks = tasks.filter { task in
-            guard let dueDate = task.dueDate else { return false }
-            return dueDate < now && !task.isCompleted
-        }
-        analysis.overdueTasks = overdueTasks
-        
-        // Analyze completion patterns
-        let completedTasks = tasks.filter { $0.isCompleted }
-        let averageCompletionTime = calculateAverageCompletionTime(completedTasks)
-        analysis.averageCompletionTime = averageCompletionTime
-        
-        // Analyze task dependencies
-        // Note: Using placeholder - ShigodekiTask may not have dependentTaskIds property
-        analysis.tasksWithoutDependencies = tasks.filter { !$0.isCompleted }
-        
-        return analysis
-    }
-    
-    private func generateImprovements(from analysis: TaskPatternAnalysis, tasks: [ShigodekiTask]) async throws -> [ImprovementSuggestion] {
-        var suggestions: [ImprovementSuggestion] = []
-        
-        // Large task breakdown suggestions
-        for task in analysis.largeTasksNeedingBreakdown.prefix(3) {
-            suggestions.append(ImprovementSuggestion(
-                type: .taskBreakdown,
-                title: "「\\(task.title)」を小さなタスクに分割",
-                description: "この大きなタスクをより管理しやすい小さなタスクに分割することで、進捗を追跡しやすくなり、完了率が向上します。",
-                targetTasks: [task.id].compactMap { $0 },
-                impact: ImprovementImpact(
-                    type: .high,
-                    description: "タスク完了率20%向上",
-                    estimatedTimeReduction: 2.0
-                ),
-                actionRequired: ImprovementAction(
-                    actionType: .createSubtasks,
-                    parameters: ["taskId": task.id ?? "", "suggestedCount": min(task.subtaskCount + 3, 8)]
-                ),
-                confidence: 0.85
-            ))
-        }
-        
-        // Priority adjustment suggestions
-        if analysis.hasPriorityInflation {
-            suggestions.append(ImprovementSuggestion(
-                type: .priorityAdjustment,
-                title: "タスクの優先度を再調整",
-                description: "高優先度のタスクが多すぎます。真に重要なタスクに焦点を当てるために優先度を見直しましょう。",
-                targetTasks: tasks.filter { $0.priority == .high }.compactMap { $0.id }.prefix(5).map { $0 },
-                impact: ImprovementImpact(
-                    type: .medium,
-                    description: "集中力向上、ストレス軽減",
-                    estimatedTimeReduction: 1.5
-                ),
-                actionRequired: ImprovementAction(
-                    actionType: .adjustPriorities,
-                    parameters: ["strategy": "balanced"]
-                ),
-                confidence: 0.78
-            ))
-        }
-        
-        // Overdue task management
-        if !analysis.overdueTasks.isEmpty {
-            suggestions.append(ImprovementSuggestion(
-                type: .deadlineOptimization,
-                title: "期限切れタスクの整理",
-                description: "\\(analysis.overdueTasks.count)個の期限切れタスクがあります。現実的な期限に調整するか、不要なタスクを削除しましょう。",
-                targetTasks: analysis.overdueTasks.compactMap { $0.id },
-                impact: ImprovementImpact(
-                    type: .high,
-                    description: "精神的負担軽減、進捗明確化",
-                    estimatedTimeReduction: 3.0
-                ),
-                actionRequired: ImprovementAction(
-                    actionType: .adjustDeadlines,
-                    parameters: ["overdueCount": analysis.overdueTasks.count]
-                ),
-                confidence: 0.92
-            ))
-        }
-        
-        // AI-generated suggestions using external service
-        if !tasks.isEmpty {
-            do {
-                let aiSuggestions = try await generateAISuggestions(for: tasks)
-                suggestions.append(contentsOf: aiSuggestions)
-            } catch {
-                // AI suggestions are optional, continue without them
-                print("⚠️ AI suggestions failed: \\(error.localizedDescription)")
-            }
-        }
-        
-        return suggestions
-    }
-    
-    private func generateAISuggestions(for tasks: [ShigodekiTask]) async throws -> [ImprovementSuggestion] {
-        // Prepare task summary for AI
-        let taskSummary = tasks.prefix(10).map { task in
-            let completionStatus = task.isCompleted ? "完了" : "未完了"
-            return "- \\(task.title) (優先度: \\(task.priority.displayName), 状態: \\(completionStatus))"
-        }.joined(separator: "\\n")
-        
-        let prompt = """
-        以下のタスクリストを分析して、生産性向上のための具体的な改善提案を3つ以内で提供してください：
-        
-        \\(taskSummary)
-        
-        以下の観点で分析してください：
-        1. タスクの構造化・整理
-        2. 時間管理・効率化
-        3. モチベーション維持
-        
-        各提案には、具体的なアクションと期待される効果を含めてください。
-        """
-        
-        // Use existing AI generator (this would need to be adapted)
-        // For now, return empty array as AI integration needs more setup
-        return []
-    }
-    
-    private func calculateAverageCompletionTime(_ tasks: [ShigodekiTask]) -> TimeInterval {
-        let completionTimes = tasks.compactMap { task -> TimeInterval? in
-            guard let completedAt = task.completedAt,
-                  let createdAt = task.createdAt else { return nil }
-            return completedAt.timeIntervalSince(createdAt)
-        }
-        
-        return completionTimes.isEmpty ? 0 : completionTimes.reduce(0, +) / Double(completionTimes.count)
-    }
     
     private func applyImprovement(_ improvement: ImprovementSuggestion) async throws {
         switch improvement.actionRequired.actionType {
@@ -333,13 +159,6 @@ enum AnalysisState {
     case failed
 }
 
-struct TaskPatternAnalysis {
-    var largeTasksNeedingBreakdown: [ShigodekiTask] = []
-    var hasPriorityInflation: Bool = false
-    var overdueTasks: [ShigodekiTask] = []
-    var averageCompletionTime: TimeInterval = 0
-    var tasksWithoutDependencies: [ShigodekiTask] = []
-}
 
 struct ImprovementSuggestion: Identifiable, Hashable {
     let id = UUID()
