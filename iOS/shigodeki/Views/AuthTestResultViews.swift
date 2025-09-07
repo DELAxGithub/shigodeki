@@ -7,15 +7,8 @@
 
 import SwiftUI
 
-// MARK: - Test Result Data Model
-
-struct TestResult {
-    let name: String
-    let passed: Bool
-    let message: String
-}
-
 // MARK: - Test Results View
+// Note: TestResult struct is defined in AuthTestControls.swift
 
 struct TestResultsView: View {
     let results: [TestResult]

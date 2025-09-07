@@ -61,40 +61,10 @@ struct TaskListContentSection: View {
             // Empty state
             if (pendingTasks.isEmpty && completedTasks.isEmpty) && !isLoading {
                 Section {
-                    TaskEmptyStateView(onCreateTask: onCreateTask)
+                    TaskEmptyStateView(action: onCreateTask)
                 }
             }
         }
     }
 }
 
-struct TaskEmptyStateView: View {
-    let onCreateTask: () -> Void
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "checklist")
-                .font(.system(size: 40))
-                .foregroundColor(.gray)
-            
-            Text("タスクがありません")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            
-            Text("新しいタスクを作成してみましょう")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            Button(action: onCreateTask) {
-                HStack {
-                    Image(systemName: "plus")
-                    Text("タスクを作成")
-                }
-                .font(.subheadline)
-                .foregroundColor(.blue)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 32)
-    }
-}

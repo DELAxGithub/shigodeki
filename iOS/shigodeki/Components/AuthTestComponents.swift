@@ -8,16 +8,6 @@
 
 import SwiftUI
 
-// MARK: - Re-export all auth test modules for backward compatibility
-
-// Authentication status display components
-@_exported import AuthStatusComponents
-
-// Authentication test control components
-@_exported import AuthTestControls
-
-// Authentication debug and data management components
-@_exported import AuthDebugComponents
-
-// Authentication test helper UI components
-@_exported import AuthHelperViews
+// MARK: - Aggregator note
+// These auth test components live in the same app module (shigodeki). No imports needed.
+// This file serves as documentation/aggregation point for auth test components.

@@ -60,9 +60,9 @@ class FamilyViewModelDI: ObservableObject {
     /// - Parameters:
     ///   - repository: FamilyRepository protocol implementation
     ///   - authManager: Authentication manager for user ID access
-    init(repository: FamilyRepository, authManager: AuthenticationManager = AuthenticationManager.shared) {
+    init(repository: FamilyRepository, authManager: AuthenticationManager? = nil) {
         self.repository = repository
-        self.authManager = authManager
+        self.authManager = authManager ?? AuthenticationManager.shared
         
         print("✅ FamilyViewModelDI: Initialized with Repository Pattern")
         

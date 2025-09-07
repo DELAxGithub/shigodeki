@@ -8,16 +8,6 @@
 
 import SwiftUI
 
-// MARK: - Re-export all accessibility modules for backward compatibility
-
-// VoiceOver and basic accessibility extensions
-@_exported import VoiceOverExtensions
-
-// Dynamic Type, motion, and visual accessibility
-@_exported import DynamicTypeExtensions
-
-// Accessibility-optimized UI components  
-@_exported import AccessibilityComponents
-
-// Focus management and announcements
-@_exported import AccessibilityFocusManager
+// MARK: - Aggregator note
+// These accessibility components live in the same app module (shigodeki). No imports needed.
+// This file serves as documentation/aggregation point for accessibility system.

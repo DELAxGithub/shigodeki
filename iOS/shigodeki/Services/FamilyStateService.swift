@@ -10,6 +10,7 @@ import Foundation
 struct FamilyStateService {
     // MARK: - Empty State Management
     
+    @MainActor
     static func updateEmptyState(
         publishedState: inout FamilyViewModelState.PublishedState,
         authManager: AuthenticationManager?
@@ -19,6 +20,7 @@ struct FamilyStateService {
     
     // MARK: - Success State Management
     
+    @MainActor
     static func resetSuccessStates(
         publishedState: inout FamilyViewModelState.PublishedState
     ) {
@@ -34,6 +36,7 @@ struct FamilyStateService {
         // 認証状態の変更によって自動的にロードされるため、ここでの明示的なロードは不要
     }
     
+    @MainActor
     static func onDisappear(familyManager: FamilyManager?) {
         #if DEBUG
         print("👋 FamilyViewModel: Disappearing, cleaning up listeners")
@@ -56,10 +59,12 @@ struct FamilyStateService {
     
     // MARK: - Proxy Methods
     
+    @MainActor
     static func removeAllListeners(familyManager: FamilyManager?) {
         familyManager?.stopListeningToFamilies()
     }
     
+    @MainActor
     static func clearError(
         familyManager: FamilyManager?,
         error: inout FirebaseError?

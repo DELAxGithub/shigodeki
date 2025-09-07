@@ -77,7 +77,6 @@ class TaskManager: ObservableObject {
                 assignedTo: assignedTo,
                 dueDate: dueDate,
                 priority: priority,
-                tasks: &tasks,
                 db: db
             )
         } catch {
@@ -103,7 +102,6 @@ class TaskManager: ObservableObject {
                 dueDate: dueDate,
                 priority: priority,
                 tags: tags,
-                tasks: &tasks,
                 db: db
             )
         } catch {
@@ -144,7 +142,9 @@ class TaskManager: ObservableObject {
         TaskRealtimeService.startListeningToTaskLists(
             familyId: familyId,
             taskListListeners: &taskListListeners,
-            taskLists: &taskLists,
+            taskListsUpdateCallback: { [weak self] updatedTaskLists in
+                self?.taskLists = updatedTaskLists
+            },
             errorCallback: { [weak self] message in
                 self?.errorMessage = message
             },
@@ -157,7 +157,9 @@ class TaskManager: ObservableObject {
             taskListId: taskListId,
             familyId: familyId,
             taskListeners: &taskListeners,
-            tasks: &tasks,
+            tasksUpdateCallback: { [weak self] taskListId, updatedTasks in
+                self?.tasks[taskListId] = updatedTasks
+            },
             errorCallback: { [weak self] message in
                 self?.errorMessage = message
             },

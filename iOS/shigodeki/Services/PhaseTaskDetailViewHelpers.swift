@@ -9,6 +9,7 @@
 import Foundation
 import SwiftUI
 
+@MainActor
 class PhaseTaskDetailViewHelpers: ObservableObject {
     
     private let service = PhaseTaskDetailService()

@@ -10,6 +10,7 @@ import Foundation
 
 class ProjectAnalysisEngine {
     
+    @MainActor
     static func buildAnalysisPrompt(
         for analysisType: AnalysisType,
         project: Project,
@@ -91,6 +92,7 @@ class ProjectAnalysisEngine {
         }
     }
     
+    @MainActor
     private static func buildProjectContext(project: Project, phaseManager: PhaseManager) -> String {
         var context = ""
         

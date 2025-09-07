@@ -9,7 +9,7 @@ struct TaskAnalysisService {
     ) async throws -> [ShigodekiTask] {
         // Load families for user
         await familyManager.loadFamiliesForUser(userId: userId)
-        let families = familyManager.families
+        let families = await familyManager.families
         
         var allTasks: [ShigodekiTask] = []
         

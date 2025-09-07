@@ -8,13 +8,6 @@
 
 import SwiftUI
 
-// MARK: - Re-export all member detail modules for backward compatibility
-
-// Member information display section components
-@_exported import MemberInfoSections
-
-// Member statistics and completion tracking sections
-@_exported import MemberStatisticsSections
-
-// Supporting UI components for member detail sections
-@_exported import MemberSupportingComponents
+// MARK: - Aggregator note
+// These sections live in the same app module (shigodeki). No imports needed.
+// This file serves as documentation/aggregation point for member detail sections.

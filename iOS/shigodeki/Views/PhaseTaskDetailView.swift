@@ -19,7 +19,7 @@ struct PhaseTaskDetailView: View {
     let task: ShigodekiTask
     
     @StateObject private var viewModel: PhaseTaskDetailViewModel
-    @StateObject private var aiStateManager = AIStateManager.shared
+    @StateObject private var aiStateManager = AIStateManager()
     @StateObject private var sectionManager = PhaseSectionManager()
     @StateObject private var tagManager = TagManager()
     @StateObject private var service = PhaseTaskDetailService()

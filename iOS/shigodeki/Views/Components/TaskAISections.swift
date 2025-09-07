@@ -26,7 +26,7 @@ struct TaskAISupportSection: View {
     @State private var subtaskCreationResult: String? = nil
     
     var body: some View {
-        Section(header: Text("AI支援")) {
+        VStack(alignment: .leading, spacing: 12) {
             // サブタスク作成中またはフィードバック表示
             if isCreatingSubtasks {
                 AIStatusIndicatorView(message: "サブタスクを作成中...")
@@ -73,7 +73,7 @@ struct TaskAISupportSection: View {
             case .suggestion(let result):
                 AIDetailResultView(
                     result: result,
-                    onApplyToDescription: { content in
+                    onApply: { content in
                         viewModel.taskDescription = content
                         Task {
                             do {
@@ -89,7 +89,7 @@ struct TaskAISupportSection: View {
                             }
                         }
                     },
-                    onApplyToSubtasks: { content in
+                    onEdit: { content in
                         Task {
                             // 楽観更新: 即座にUI更新
                             let tempIds = await MainActor.run {

@@ -17,7 +17,7 @@ struct PhaseAIService {
         
         do {
             await aiGenerator.generateTaskSuggestions(for: prompt, projectType: nil)
-            let suggestions = aiGenerator.generatedSuggestions?.tasks
+            let suggestions = await aiGenerator.generatedSuggestions?.tasks
             
             if let suggestions = suggestions {
                 logger.info("✅ AI generated \(suggestions.count) subtask suggestions")
@@ -51,7 +51,7 @@ struct PhaseAIService {
         """
         
         await aiGenerator.generateTaskSuggestions(for: prompt, projectType: nil)
-        guard let suggestions = aiGenerator.generatedSuggestions?.tasks else { 
+        guard let suggestions = await aiGenerator.generatedSuggestions?.tasks else { 
             print("❌ AI生成に失敗しました")
             return [] 
         }
@@ -203,9 +203,4 @@ struct PhaseAIService {
 }
 
 // MARK: - Supporting Types
-
-/// AI提案から抽出されたタスク情報
-private struct ExtractedTask {
-    let title: String
-    let description: String
-}
+// Note: ExtractedTask is defined in Models/ExtractedTask.swift

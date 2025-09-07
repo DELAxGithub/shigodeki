@@ -84,10 +84,11 @@ class FamilyViewModel: ObservableObject {
 
     /// **【重要】同期イニシャライザ**  
     /// Viewの生成と同時に、依存関係なしで即座にインスタンス化される。
-    init(authManager: AuthenticationManager = AuthenticationManager.shared) {
+    init(authManager: AuthenticationManager? = nil) {
         print("⚡ FamilyViewModel: 同期初期化開始")
-        self.privateState.authManager = authManager
-        self.authManager = authManager
+        let manager = authManager ?? AuthenticationManager.shared
+        self.privateState.authManager = manager
+        self.authManager = manager
         setupAuthenticationObserver()
         print("✅ FamilyViewModel: 同期初期化完了 - 認証状態の監視を開始")
     }
@@ -171,7 +172,7 @@ class FamilyViewModel: ObservableObject {
         publishedState.isLoading = isLoading
         publishedState.families = families
         
-        FamilyStateService.updateEmptyState(&publishedState, authManager: authManager)
+        FamilyStateService.updateEmptyState(publishedState: &publishedState, authManager: authManager)
         shouldShowEmptyState = publishedState.shouldShowEmptyState
     }
     
@@ -199,19 +200,81 @@ class FamilyViewModel: ObservableObject {
         operationState.processingMessage = processingMessage
         operationState.newFamilyInvitationCode = newFamilyInvitationCode
         
-        let result = await FamilyOperationService.createFamily(
-            name: name, userId: userId, familyManager: familyManager,
-            privateState: &privateState, operationState: &operationState,
-            isCreatingFamily: &isCreatingFamily, error: &error
-        )
+        // Handle duplicate prevention directly
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            error = FirebaseError.operationFailed("ファミリー名を入力してください")
+            return false
+        }
+        
+        // Check for duplicate requests
+        if FamilyOperationService.shouldBlockCreateRequest(
+            trimmedName: trimmedName,
+            userId: userId,
+            activeRequests: privateState.activeCreateRequests,
+            lastRequest: privateState.lastCreateRequest
+        ) {
+            return false
+        }
+        
+        // Track request and start loading
+        let requestKey = FamilyOperationService.createRequestKey(userId: userId, familyName: trimmedName)
+        privateState.activeCreateRequests.insert(requestKey)
+        privateState.lastCreateRequest = (name: trimmedName, timestamp: Date())
+        
+        isCreatingFamily = true
+        operationState.showCreateProcessing = true
+        operationState.processingMessage = "ファミリーを作成中..."
+        
+        // Optimistic update
+        let optimisticFamily = FamilyOperationService.createOptimisticFamily(name: trimmedName, userId: userId)
+        operationState.families.append(optimisticFamily)
+        
+        defer {
+            isCreatingFamily = false
+            operationState.showCreateProcessing = false
+            privateState.activeCreateRequests.remove(requestKey)
+        }
+        
+        do {
+            let familyId = try await familyManager.createFamily(
+                name: trimmedName,
+                creatorUserId: userId
+            )
+            
+            // Update optimistic family with real ID
+            if let index = operationState.families.firstIndex(where: { $0.id == optimisticFamily.id }) {
+                operationState.families[index].id = familyId
+            }
+            
+            // Generate invitation code
+            operationState.newFamilyInvitationCode = FamilyOperationService.generateInvitationCode(from: familyId)
+            
+            // Show success
+            operationState.showCreateSuccess = true
+            
+            print("✅ ファミリー '\(trimmedName)' の作成が完了しました。ID: \(familyId)")
+            return true
+            
+        } catch {
+            // Remove optimistic family on error
+            operationState.families.removeAll { $0.id == optimisticFamily.id }
+            
+            if let firebaseError = error as? FirebaseError {
+                self.error = firebaseError
+            } else {
+                self.error = FirebaseError.operationFailed("ファミリーの作成に失敗しました: \(error.localizedDescription)")
+            }
+            
+            print("❌ ファミリー作成エラー: \(error.localizedDescription)")
+            return false
+        }
         
         families = operationState.families
         showCreateSuccess = operationState.showCreateSuccess
         showCreateProcessing = operationState.showCreateProcessing
         processingMessage = operationState.processingMessage
         newFamilyInvitationCode = operationState.newFamilyInvitationCode
-        
-        return result
     }
     
     func joinFamily(invitationCode: String) async -> Bool {
@@ -227,19 +290,51 @@ class FamilyViewModel: ObservableObject {
         operationState.joinSuccessMessage = joinSuccessMessage
         operationState.showJoinSuccess = showJoinSuccess
         
-        let result = await FamilyOperationService.joinFamily(
-            invitationCode: invitationCode, userId: userId,
-            familyManager: familyManager, authManager: authManager,
-            operationState: &operationState, isJoiningFamily: &isJoiningFamily,
-            error: &error
-        )
+        // Handle join family directly
+        let trimmedCode = invitationCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCode.isEmpty else {
+            error = FirebaseError.operationFailed("招待コードを入力してください")
+            return false
+        }
+        
+        // Start loading state
+        isJoiningFamily = true
+        operationState.showJoinProcessing = true
+        operationState.processingMessage = "ファミリーに参加中..."
+        
+        defer {
+            isJoiningFamily = false
+            operationState.showJoinProcessing = false
+        }
+        
+        do {
+            let familyName = try await familyManager.joinFamilyWithCode(trimmedCode, userId: userId)
+            
+            // Show success message
+            operationState.showJoinSuccess = true
+            operationState.joinSuccessMessage = "'\(familyName)'に参加しました！"
+            
+            // Refresh families after successful join
+            await familyManager.startListeningToFamilies(userId: userId)
+            
+            print("✅ ファミリー '\(familyName)' への参加が完了しました")
+            return true
+            
+        } catch {
+            if let firebaseError = error as? FirebaseError {
+                self.error = firebaseError
+            } else {
+                self.error = FirebaseError.operationFailed("ファミリーへの参加に失敗しました: \(error.localizedDescription)")
+            }
+            
+            print("❌ ファミリー参加エラー: \(error.localizedDescription)")
+            return false
+        }
         
         processingMessage = operationState.processingMessage
         showJoinProcessing = operationState.showJoinProcessing
         joinSuccessMessage = operationState.joinSuccessMessage
         showJoinSuccess = operationState.showJoinSuccess
-        
-        return result
     }
     
     func resetSuccessStates() {
@@ -254,7 +349,7 @@ class FamilyViewModel: ObservableObject {
         publishedState.showJoinProcessing = showJoinProcessing
         publishedState.processingMessage = processingMessage
         
-        FamilyStateService.resetSuccessStates(&publishedState)
+        FamilyStateService.resetSuccessStates(publishedState: &publishedState)
         
         shouldDismissCreateSheet = publishedState.shouldDismissCreateSheet
         showJoinSuccess = publishedState.showJoinSuccess
@@ -278,14 +373,13 @@ class FamilyViewModel: ObservableObject {
     // MARK: - Private Business Logic
     
     private func setupFamilyManagerIfNeeded() async {
-        await FamilyInitializationService.setupFamilyManagerIfNeeded(
-            privateState: &privateState,
-            familyManager: &familyManager,
-            isInitialized: &isInitialized,
-            setupBindingsCallback: { [weak self] in
-                self?.setupBindings()
-            }
-        )
+        guard privateState.familyManager == nil else { return }
+        print("⏳ FamilyViewModel: FamilyManagerが未注入のため、SharedManagerStoreから取得します。")
+        privateState.familyManager = await SharedManagerStore.shared.getFamilyManager()
+        familyManager = privateState.familyManager
+        setupBindings() // Managerが注入されたので、バインディングを再設定
+        isInitialized = true
+        print("✅ FamilyViewModel: FamilyManagerの注入が完了しました。")
     }
     
     private func loadFamilies(for userId: String) async {

@@ -14,7 +14,7 @@ struct TaskRealtimeService {
     static func startListeningToTaskLists(
         familyId: String,
         taskListListeners: inout [ListenerRegistration],
-        taskLists: inout [TaskList],
+        taskListsUpdateCallback: @escaping ([TaskList]) -> Void,
         errorCallback: @escaping (String) -> Void,
         db: Firestore
     ) {
@@ -41,7 +41,7 @@ struct TaskRealtimeService {
                         }
                     }
                     
-                    taskLists = updatedTaskLists
+                    taskListsUpdateCallback(updatedTaskLists)
                 }
             }
         
@@ -52,7 +52,7 @@ struct TaskRealtimeService {
         taskListId: String, 
         familyId: String,
         taskListeners: inout [String: ListenerRegistration],
-        tasks: inout [String: [ShigodekiTask]],
+        tasksUpdateCallback: @escaping (String, [ShigodekiTask]) -> Void,
         errorCallback: @escaping (String) -> Void,
         db: Firestore
     ) {
@@ -80,7 +80,7 @@ struct TaskRealtimeService {
                         }
                     }
                     
-                    tasks[taskListId] = updatedTasks
+                    tasksUpdateCallback(taskListId, updatedTasks)
                 }
             }
         

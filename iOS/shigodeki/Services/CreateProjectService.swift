@@ -3,6 +3,7 @@ import FirebaseAuth
 
 // MARK: - Create Project Service
 
+@MainActor
 class CreateProjectService: ObservableObject {
     private let authManager = AuthenticationManager.shared
     

@@ -23,7 +23,6 @@ struct TaskOperationService {
         assignedTo: String? = nil, 
         dueDate: Date? = nil, 
         priority: TaskPriority = .medium,
-        tasks: inout [String: [ShigodekiTask]],
         db: Firestore
     ) async throws -> String {
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -53,15 +52,6 @@ struct TaskOperationService {
         ]
         
         do {
-            // 🚀 Optimistic UI Update: Add to local list immediately
-            print("⚡ Adding phase task optimistically to UI")
-            task.id = "optimistic_\(UUID().uuidString)"
-            
-            if tasks[taskListId] == nil {
-                tasks[taskListId] = []
-            }
-            tasks[taskListId]?.append(task)
-            
             // Save to project-based path: projects/{projectId}/phases/{phaseId}/lists/{taskListId}/tasks
             let taskRef = try await db.collection("projects").document(projectId)
                 .collection("phases").document(phaseId)
@@ -69,21 +59,11 @@ struct TaskOperationService {
                 .collection("tasks").addDocument(data: taskData)
             let taskId = taskRef.documentID
             
-            // Update the local task with the real ID from Firestore
-            if let taskIndex = tasks[taskListId]?.firstIndex(where: { $0.id == task.id }) {
-                tasks[taskListId]?[taskIndex].id = taskId
-            }
-            
             print("Phase task created successfully with ID: \(taskId)")
             return taskId
             
         } catch {
             print("Error creating phase task: \(error)")
-            
-            // 🔄 Rollback: Remove optimistically added task on error
-            print("🔄 Rolling back optimistic UI update")
-            tasks[taskListId]?.removeAll { $0.id == task.id }
-            
             throw TaskError.creationFailed(error.localizedDescription)
         }
     }
@@ -98,7 +78,6 @@ struct TaskOperationService {
         dueDate: Date? = nil, 
         priority: TaskPriority = .medium, 
         tags: [String] = [],
-        tasks: inout [String: [ShigodekiTask]],
         db: Firestore
     ) async throws -> String {
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -130,35 +109,16 @@ struct TaskOperationService {
         ]
         
         do {
-            // 🚀 Optimistic UI Update: Add to local list immediately
-            print("⚡ Adding task optimistically to UI")
-            task.id = "optimistic_\(UUID().uuidString)"
-            
-            if tasks[taskListId] == nil {
-                tasks[taskListId] = []
-            }
-            tasks[taskListId]?.append(task)
-            
             let taskRef = try await db.collection("families").document(familyId)
                 .collection("taskLists").document(taskListId)
                 .collection("tasks").addDocument(data: taskData)
             let taskId = taskRef.documentID
-            
-            // Update the local task with the real ID from Firestore
-            if let taskIndex = tasks[taskListId]?.firstIndex(where: { $0.id == task.id }) {
-                tasks[taskListId]?[taskIndex].id = taskId
-            }
             
             print("Task created successfully with ID: \(taskId)")
             return taskId
             
         } catch {
             print("Error creating task: \(error)")
-            
-            // 🔄 Rollback: Remove optimistically added task on error
-            print("🔄 Rolling back optimistic UI update")
-            tasks[taskListId]?.removeAll { $0.id == task.id }
-            
             throw TaskError.creationFailed(error.localizedDescription)
         }
     }

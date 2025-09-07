@@ -100,6 +100,7 @@ struct TaskListCRUDService {
     
     // MARK: - TaskList Deletion
     
+    @MainActor
     static func deleteTaskList(id: String, phaseId: String, projectId: String) async throws {
         // Delete all tasks in this task list first
         let enhancedTaskManager = EnhancedTaskManager()
