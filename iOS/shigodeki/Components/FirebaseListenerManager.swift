@@ -172,10 +172,10 @@ class FirebaseListenerManager: ObservableObject {
     
     /// 自動リスナー最適化
     func optimizeListeners() {
-        ListenerOptimizationService.optimizeListeners(
-            activeListeners: &activeListeners,
-            listenerMetadata: &listenerMetadata,
-            listenerStats: &listenerStats,
+        listenerStats = ListenerOptimizationService.optimizeListeners(
+            activeListeners: activeListeners,
+            listenerMetadata: listenerMetadata,
+            currentStats: listenerStats,
             removeListenersCallback: { [weak self] ids in
                 self?.removeListeners(ids: ids)
             }
@@ -184,18 +184,18 @@ class FirebaseListenerManager: ObservableObject {
     
     /// アクセス頻度に基づく優先度調整
     private func updateAccessMetadata(for id: String) {
-        ListenerOptimizationService.updateAccessMetadata(
+        listenerMetadata = ListenerOptimizationService.updateAccessMetadata(
             for: id,
-            listenerMetadata: &listenerMetadata
+            listenerMetadata: listenerMetadata
         )
     }
     
     /// 統計情報の更新
     private func updateStatistics() {
-        ListenerOptimizationService.updateStatistics(
+        listenerStats = ListenerOptimizationService.updateStatistics(
             activeListeners: activeListeners,
             listenerMetadata: listenerMetadata,
-            listenerStats: &listenerStats
+            currentStats: listenerStats
         )
     }
     

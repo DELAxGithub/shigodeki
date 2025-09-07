@@ -14,11 +14,11 @@ struct ListenerOptimizationService {
     
     /// 自動リスナー最適化
     static func optimizeListeners(
-        activeListeners: inout [String: ListenerRegistration],
-        listenerMetadata: inout [String: FirebaseListenerManager.ListenerMetadata],
-        listenerStats: inout FirebaseListenerManager.ListenerStatistics,
+        activeListeners: [String: ListenerRegistration],
+        listenerMetadata: [String: FirebaseListenerManager.ListenerMetadata],
+        currentStats: FirebaseListenerManager.ListenerStatistics,
         removeListenersCallback: @escaping ([String]) -> Void
-    ) {
+    ) -> FirebaseListenerManager.ListenerStatistics {
         let now = Date()
         let inactiveThreshold: TimeInterval = 300 // 5分
         
@@ -27,20 +27,23 @@ struct ListenerOptimizationService {
             now.timeIntervalSince(metadata.lastAccessed) > inactiveThreshold && metadata.priority == .low ? key : nil
         }
         
+        var updatedStats = currentStats
         if !inactiveListeners.isEmpty {
             removeListenersCallback(inactiveListeners)
-            listenerStats.lastOptimized = now
+            updatedStats.lastOptimized = now
         }
+        return updatedStats
     }
     
     /// アクセス頻度に基づく優先度調整
     static func updateAccessMetadata(
         for id: String,
-        listenerMetadata: inout [String: FirebaseListenerManager.ListenerMetadata]
-    ) {
-        guard let metadata = listenerMetadata[id] else { return }
+        listenerMetadata: [String: FirebaseListenerManager.ListenerMetadata]
+    ) -> [String: FirebaseListenerManager.ListenerMetadata] {
+        guard let metadata = listenerMetadata[id] else { return listenerMetadata }
         
-        listenerMetadata[id] = FirebaseListenerManager.ListenerMetadata(
+        var updatedMetadata = listenerMetadata
+        updatedMetadata[id] = FirebaseListenerManager.ListenerMetadata(
             id: metadata.id,
             type: metadata.type,
             createdAt: metadata.createdAt,
@@ -49,25 +52,30 @@ struct ListenerOptimizationService {
             path: metadata.path,
             priority: metadata.priority
         )
+        
+        return updatedMetadata
     }
     
     /// 統計情報の更新
     static func updateStatistics(
         activeListeners: [String: ListenerRegistration],
         listenerMetadata: [String: FirebaseListenerManager.ListenerMetadata],
-        listenerStats: inout FirebaseListenerManager.ListenerStatistics
-    ) {
-        listenerStats.totalActive = activeListeners.count
+        currentStats: FirebaseListenerManager.ListenerStatistics
+    ) -> FirebaseListenerManager.ListenerStatistics {
+        var updatedStats = currentStats
+        updatedStats.totalActive = activeListeners.count
         
         var typeCount: [String: Int] = [:]
         for metadata in listenerMetadata.values {
             let typeKey = String(describing: metadata.type)
             typeCount[typeKey, default: 0] += 1
         }
-        listenerStats.byType = typeCount
+        updatedStats.byType = typeCount
         
         // メモリ使用量の推定（1リスナーあたり約0.5MB）
-        listenerStats.memoryUsage = Double(activeListeners.count) * 0.5
+        updatedStats.memoryUsage = Double(activeListeners.count) * 0.5
+        
+        return updatedStats
     }
     
     // MARK: - Memory Management
