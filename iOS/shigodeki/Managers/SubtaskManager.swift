@@ -217,6 +217,11 @@ class SubtaskManager: ObservableObject {
                 updated.completedAt = subtask.isCompleted ? Date() : nil
                 try await doc.updateData(["completedAt": updated.completedAt as Any])
                 try await updatePhaseTaskSubtaskCounts(taskId: subtask.taskId, phaseId: subtask.phaseId, projectId: subtask.projectId)
+                // ローカル配列も更新して、completedAt付きの最新データを返す
+                if let idx = subtasks.firstIndex(where: { $0.id == subtask.id }) { 
+                    subtasks[idx] = updated 
+                }
+                return updated
             }
             return subtask
         } catch {

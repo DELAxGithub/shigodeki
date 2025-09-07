@@ -80,45 +80,151 @@ struct PhaseTaskDetailView: View {
                 subtasks: subtasks,
                 newSubtaskTitle: $newSubtaskTitle,
                 onToggleSubtask: { subtask in
-                    Task {
+                    print("🔄 isMainThread:", Thread.isMainThread) // デバッグ用
+                    
+                    // 1. 即座にローカル状態を更新（楽観的更新）- MainActor保証
+                    Task { @MainActor in
+                        guard let index = subtasks.firstIndex(where: { $0.id == subtask.id }) else { return }
+                        
+                        subtasks[index].isCompleted.toggle()
+                        let newState = subtasks[index].isCompleted
+                        print("🔄 楽観的更新: サブタスク「\(subtask.title)」の完了状態を \(newState) に変更")
+                        
+                        // 2. バックグラウンドでFirebase同期
                         do {
-                            subtasks = try await helpers.toggleSubtask(
-                                subtask,
-                                task: task,
-                                project: project,
-                                phase: phase
-                            )
+                            let updatedSubtask = try await helpers.toggleSubtaskReturnOne(subtask)
+                            
+                            // 3. 同期成功時は該当要素のみを確定更新
+                            await MainActor.run {
+                                if let localIndex = subtasks.firstIndex(where: { $0.id == subtask.id }) {
+                                    subtasks[localIndex] = updatedSubtask // completedAt含む完全なデータで上書き
+                                    print("✅ Firebase同期完了: サブタスク確定更新 - id:\(updatedSubtask.id ?? "nil"), completed:\(updatedSubtask.isCompleted), completedAt:\(updatedSubtask.completedAt?.description ?? "nil")")
+                                }
+                            }
                         } catch {
-                            print("❌ Failed to toggle subtask: \(error)")
+                            // 4. エラー時は元の状態に巻き戻し
+                            await MainActor.run {
+                                if let index = subtasks.firstIndex(where: { $0.id == subtask.id }) {
+                                    subtasks[index].isCompleted.toggle()
+                                    print("❌ 同期失敗: サブタスクの状態を巻き戻しました - \(error)")
+                                }
+                            }
                         }
                     }
                 },
                 onDeleteSubtask: { subtask in
-                    Task {
+                    print("🗑️ isMainThread:", Thread.isMainThread) // デバッグ用
+                    
+                    // 1. 即座にローカルから削除（楽観的更新）- MainActor保証
+                    Task { @MainActor in
+                        let backupSubtask = subtask
+                        subtasks.removeAll { $0.id == subtask.id }
+                        print("🗑️ 楽観的削除: サブタスク「\(subtask.title)」をリストから除去")
+                        
+                        // 2. バックグラウンドでFirebase同期
                         do {
-                            subtasks = try await helpers.deleteSubtask(
+                            let updatedSubtasks = try await helpers.deleteSubtask(
                                 subtask,
                                 task: task,
                                 project: project,
                                 phase: phase
                             )
+                            // 3. 同期成功時は正式データで更新
+                            await MainActor.run {
+                                subtasks = updatedSubtasks
+                                print("✅ Firebase削除完了: サブタスクリストを更新")
+                            }
                         } catch {
-                            print("❌ Failed to delete subtask: \(error)")
+                            // 4. エラー時は削除したサブタスクを復元
+                            await MainActor.run {
+                                subtasks.append(backupSubtask)
+                                subtasks.sort { $0.order < $1.order }
+                                print("❌ 削除失敗: サブタスク「\(backupSubtask.title)」を復元しました - \(error)")
+                            }
+                        }
+                    }
+                },
+                onPromoteSubtask: { subtask in
+                    print("⬆️ isMainThread:", Thread.isMainThread) // デバッグ用
+                    
+                    // 1. 即座にローカルから削除（楽観的更新）- MainActor保証
+                    Task { @MainActor in
+                        let backupSubtask = subtask
+                        subtasks.removeAll { $0.id == subtask.id }
+                        print("⬆️ 楽観的繰り上げ: サブタスク「\(subtask.title)」をリストから除去")
+                        
+                        // 2. バックグラウンドでタスクに繰り上げ
+                        do {
+                            let updatedSubtasks = try await helpers.promoteSubtaskToTask(
+                                subtask,
+                                task: task,
+                                project: project,
+                                phase: phase,
+                                taskListId: task.listId
+                            )
+                            // 3. 繰り上げ成功時は正式データで更新
+                            await MainActor.run {
+                                subtasks = updatedSubtasks
+                                print("✅ サブタスク「\(subtask.title)」をタスクに繰り上げました")
+                            }
+                        } catch {
+                            // 4. エラー時は削除したサブタスクを復元
+                            await MainActor.run {
+                                subtasks.append(backupSubtask)
+                                subtasks.sort { $0.order < $1.order }
+                                print("❌ 繰り上げ失敗: サブタスク「\(backupSubtask.title)」を復元しました - \(error)")
+                            }
                         }
                     }
                 },
                 onAddSubtask: { 
-                    Task {
+                    guard !newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                    print("➕ isMainThread:", Thread.isMainThread) // デバッグ用
+                    
+                    // 1. 即座にローカルに追加（楽観的更新）- MainActor保証
+                    Task { @MainActor in
+                        let titleToAdd = newSubtaskTitle
+                        
+                        let tempSubtask = Subtask(
+                            title: titleToAdd,
+                            description: nil,
+                            assignedTo: nil,
+                            createdBy: task.createdBy,
+                            dueDate: nil,
+                            taskId: task.id ?? "",
+                            listId: "",
+                            phaseId: phase.id ?? "",
+                            projectId: project.id ?? "",
+                            order: subtasks.count
+                        )
+                        var optimisticSubtask = tempSubtask
+                        optimisticSubtask.id = "temp_\(UUID().uuidString)"
+                        optimisticSubtask.createdAt = Date()
+                        
+                        subtasks.append(optimisticSubtask)
+                        newSubtaskTitle = ""
+                        print("➕ 楽観的追加: サブタスク「\(titleToAdd)」をリストに追加")
+                        
+                        // 2. バックグラウンドでFirebase同期
                         do {
-                            subtasks = try await helpers.addSubtask(
-                                title: newSubtaskTitle,
+                            let updatedSubtasks = try await helpers.addSubtask(
+                                title: titleToAdd,
                                 task: task,
                                 project: project,
                                 phase: phase
                             )
-                            newSubtaskTitle = ""
+                            // 3. 同期成功時は正式データで更新
+                            await MainActor.run {
+                                subtasks = updatedSubtasks
+                                print("✅ Firebase追加完了: サブタスクリストを更新")
+                            }
                         } catch {
-                            print("❌ Failed to add subtask: \(error)")
+                            // 4. エラー時は楽観的に追加したサブタスクを削除し、タイトルを復元
+                            await MainActor.run {
+                                subtasks.removeAll { $0.id == optimisticSubtask.id }
+                                newSubtaskTitle = titleToAdd
+                                print("❌ 追加失敗: サブタスクを削除し、入力を復元しました - \(error)")
+                            }
                         }
                     }
                 }

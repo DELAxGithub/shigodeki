@@ -85,6 +85,7 @@ struct TaskSubtasksSection: View {
     @Binding var newSubtaskTitle: String
     let onToggleSubtask: (Subtask) -> Void
     let onDeleteSubtask: (Subtask) -> Void
+    let onPromoteSubtask: ((Subtask) -> Void)?  // 繰り上げコールバック（オプション）
     let onAddSubtask: () -> Void
     
     var body: some View {
@@ -98,19 +99,50 @@ struct TaskSubtasksSection: View {
                         Button(action: { onToggleSubtask(subtask) }) {
                             Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
                                 .foregroundColor(subtask.isCompleted ? .green : .secondary)
+                                .font(.title2)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(subtask.title)
+                                .strikethrough(subtask.isCompleted)
+                                .foregroundColor(subtask.isCompleted ? .secondary : .primary)
+                                .animation(.easeInOut(duration: 0.2), value: subtask.isCompleted)
+                            
+                            if let description = subtask.description, !description.isEmpty {
+                                Text(description)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(2)
+                            }
                         }
                         
-                        Text(subtask.title)
                         Spacer()
                         
+                        // 期限表示
+                        if let dueDate = subtask.dueDate {
+                            Text(dueDate, style: .date)
+                                .font(.caption)
+                                .foregroundColor(subtask.isOverdue ? .red : .secondary)
+                        }
+                        
                         Menu {
+                            // 繰り上げオプション（利用可能な場合のみ表示）
+                            if let onPromoteSubtask = onPromoteSubtask {
+                                Button(action: { onPromoteSubtask(subtask) }) {
+                                    Label("タスクに繰り上げ", systemImage: "arrow.up.circle")
+                                }
+                            }
+                            
                             Button("削除", role: .destructive) { 
                                 onDeleteSubtask(subtask) 
                             }
                         } label: { 
-                            Image(systemName: "ellipsis.circle") 
+                            Image(systemName: "ellipsis.circle")
+                                .foregroundColor(.secondary)
                         }
                     }
+                    .padding(.vertical, 2)
                 }
             }
             

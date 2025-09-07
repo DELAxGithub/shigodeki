@@ -85,14 +85,9 @@ class PhaseTaskDetailViewHelpers: ObservableObject {
         return await service.loadSubtasks(task: task, project: project, phase: phase)
     }
     
-    func toggleSubtask(
-        _ subtask: Subtask,
-        task: ShigodekiTask,
-        project: Project,
-        phase: Phase
-    ) async throws -> [Subtask] {
-        _ = try await service.toggleSubtask(subtask)
-        return await service.loadSubtasks(task: task, project: project, phase: phase)
+    /// サブタスクの完了状態を切り替え、更新済みの単一Subtaskを返す（リスト再取得なし）
+    func toggleSubtaskReturnOne(_ subtask: Subtask) async throws -> Subtask {
+        return try await service.toggleSubtask(subtask)
     }
     
     // MARK: - AI Operations
@@ -126,5 +121,27 @@ class PhaseTaskDetailViewHelpers: ObservableObject {
                 }
             }
         }
+    }
+    
+    // MARK: - Subtask Promotion
+    
+    /// サブタスクをタスクに繰り上げて、サブタスクリストを更新
+    func promoteSubtaskToTask(
+        _ subtask: Subtask,
+        task: ShigodekiTask,
+        project: Project,
+        phase: Phase,
+        taskListId: String
+    ) async throws -> [Subtask] {
+        _ = try await service.promoteSubtaskToTask(
+            subtask: subtask,
+            parentTask: task,
+            project: project,
+            phase: phase,
+            taskListId: taskListId
+        )
+        
+        // 繰り上げ後、更新されたサブタスクリストを返す
+        return await service.loadSubtasks(task: task, project: project, phase: phase)
     }
 }

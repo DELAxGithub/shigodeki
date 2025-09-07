@@ -56,6 +56,11 @@ struct Subtask: Identifiable, Codable, Hashable {
     }
     
     static func == (lhs: Subtask, rhs: Subtask) -> Bool {
-        lhs.id == rhs.id
+        // UI更新を確実にするため、IDだけでなく重要なフィールドも比較
+        lhs.id == rhs.id && 
+        lhs.isCompleted == rhs.isCompleted &&
+        lhs.title == rhs.title &&
+        lhs.description == rhs.description &&
+        lhs.completedAt == rhs.completedAt
     }
 }

@@ -24,7 +24,10 @@ class PhaseTaskDetailService: ObservableObject {
     /// デフォルトイニシャライザ（直接インスタンス化）
     /// 🚨 CTO Fix: AI処理時は SharedManagerStore から動的取得するように修正済み
     init() {
+        // 初期化ログを減らすため、デバッグビルドでのみ出力
+        #if DEBUG
         logger.info("🔧 PhaseTaskDetailService initialized with dynamic AI dependency resolution")
+        #endif
         self.subtaskManager = SubtaskManager()
         self.projectManager = ProjectManager()
         
@@ -161,6 +164,30 @@ class PhaseTaskDetailService: ObservableObject {
             task: task,
             project: project,
             phase: phase,
+            subtaskManager: subtaskManager
+        )
+    }
+    
+    // MARK: - Subtask Promotion
+    
+    /// サブタスクをタスクに繰り上げる
+    func promoteSubtaskToTask(
+        subtask: Subtask,
+        parentTask: ShigodekiTask,
+        project: Project,
+        phase: Phase,
+        taskListId: String
+    ) async throws -> String {
+        // 🚨 CTO Fix: 動的にEnhancedTaskManagerを取得し、メモリ最適化に対応
+        let enhancedTaskManager = await SharedManagerStore.shared.getTaskManager()
+        
+        return try await SubtaskPromotionService.promoteSubtaskToTask(
+            subtask: subtask,
+            parentTask: parentTask,
+            project: project,
+            phase: phase,
+            taskListId: taskListId,
+            enhancedTaskManager: enhancedTaskManager,
             subtaskManager: subtaskManager
         )
     }
