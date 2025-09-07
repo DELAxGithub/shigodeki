@@ -96,6 +96,27 @@ struct TaskAISupportSection: View {
                     },
                     onEdit: { content in
                         Task {
+                            // Update viewModel on main actor first  
+                            await MainActor.run {
+                                viewModel.taskDescription = content
+                            }
+                            
+                            // Save in background, then update state on next frame
+                            do {
+                                try await viewModel.save()
+                                DispatchQueue.main.async {
+                                    aiStateManager.applyResult(content)
+                                }
+                            } catch {
+                                print("⚠️ AI提案の編集適用時の保存に失敗: \(error.localizedDescription)")
+                                DispatchQueue.main.async {
+                                    aiStateManager.applyResult(content)
+                                }
+                            }
+                        }
+                    },
+                    onCreateSubtasks: { content in
+                        Task {
                             // 楽観更新: 即座にUI更新
                             let tempIds = await MainActor.run {
                                 isCreatingSubtasks = true
