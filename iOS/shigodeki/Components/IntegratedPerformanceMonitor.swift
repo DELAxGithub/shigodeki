@@ -126,26 +126,12 @@ class IntegratedPerformanceMonitor: ObservableObject {
     // MARK: - Performance Analysis
     
     private func calculateOverallScore() async -> Double {
-        var score = 100.0
-        
-        // Firebase リスナー数による減点
-        let listenerCount = Double(listenerManager.listenerStats.totalActive)
-        score -= max(0, (listenerCount - 8.0) * 5.0) // 8個超過で1個あたり5点減点
-        
-        // メモリ使用量による減点
-        let memoryUsage = sharedManagers.getCurrentMemoryUsage()
-        score -= max(0, (memoryUsage - 150.0) * 0.5) // 150MB超過で1MBあたり0.5点減点
-        
-        // FPSによる減点
-        let fps = performanceMonitor.metrics.currentFPS
-        score -= max(0, (55.0 - fps) * 2.0) // 55fps未満で1fpsあたり2点減点
-        
-        // Manager数による減点
-        let managerStats = sharedManagers.getManagerStatistics()
-        let managerCount = Double(managerStats.totalActiveManagers)
-        score -= max(0, (managerCount - 12.0) * 3.0) // 12個超過で1個あたり3点減点
-        
-        return max(0, min(100, score))
+        return PerformanceScoreCalculator.calculateOverallScore(
+            listenerCount: listenerManager.listenerStats.totalActive,
+            memoryUsage: sharedManagers.getCurrentMemoryUsage(),
+            fps: performanceMonitor.metrics.currentFPS,
+            managerCount: sharedManagers.getManagerStatistics().totalActiveManagers
+        )
     }
     
     private func checkPerformanceAlerts(_ metrics: IntegratedPerformanceMetrics) {
@@ -319,104 +305,14 @@ class IntegratedPerformanceMonitor: ObservableObject {
     // MARK: - Reporting
     
     func generatePerformanceReport() -> String {
-        var report = ""
-        report += "📊 統合パフォーマンスレポート\n"
-        report += "==============================\n"
-        report += "生成日時: \(DateFormatter.localizedString(from: currentMetrics.timestamp, dateStyle: .short, timeStyle: .medium))\n\n"
-        
-        report += "🎯 総合スコア: \(String(format: "%.1f", currentMetrics.overallScore))/100\n\n"
-        
-        report += "📊 主要メトリクス:\n"
-        report += "  総メモリ使用量: \(String(format: "%.0f", currentMetrics.totalMemoryUsage))MB\n"
-        report += "  現在のFPS: \(String(format: "%.1f", currentMetrics.currentFPS))\n"
-        report += "  アクティブFirebaseリスナー: \(currentMetrics.activeFirebaseListeners)個\n"
-        report += "  アクティブManager: \(currentMetrics.activeManagers)個\n"
-        report += "  キャッシュメモリ: \(String(format: "%.1f", currentMetrics.cacheMemoryUsage))MB\n\n"
-        
-        report += "🎯 目標達成状況:\n"
-        report += "  メモリ目標 (150MB): \(currentMetrics.totalMemoryUsage <= 150 ? "✅" : "❌") \(String(format: "%.0f", (currentMetrics.totalMemoryUsage / 150) * 100))%\n"
-        report += "  FPS目標 (55fps): \(currentMetrics.currentFPS >= 55 ? "✅" : "❌") \(String(format: "%.0f", (currentMetrics.currentFPS / 55) * 100))%\n"
-        report += "  リスナー目標 (8個): \(currentMetrics.activeFirebaseListeners <= 8 ? "✅" : "❌") \(currentMetrics.activeFirebaseListeners)/8\n"
-        report += "  Manager目標 (12個): \(currentMetrics.activeManagers <= 12 ? "✅" : "❌") \(currentMetrics.activeManagers)/12\n\n"
-        
-        if !performanceAlerts.isEmpty {
-            report += "⚠️ パフォーマンスアラート:\n"
-            for alert in performanceAlerts {
-                let emoji = alert.severity == .critical ? "🔴" : "🟡"
-                report += "  \(emoji) \(alert.message)\n"
-            }
-            report += "\n"
-        } else {
-            report += "✅ パフォーマンスアラートなし\n\n"
-        }
-        
-        report += "📈 Phase別改善状況:\n"
-        report += "  Phase 1 (分析): ✅ 完了\n"
-        report += "  Phase 2 (アーキテクチャ最適化): ✅ 完了\n"
-        report += "  Phase 3 (機能統合): 🔄 実行中\n"
-        
-        return report
+        return PerformanceReportGenerator.generateReport(
+            metrics: currentMetrics,
+            alerts: performanceAlerts
+        )
     }
     
 }
 
-// MARK: - Data Models
-
-struct IntegratedPerformanceMetrics {
-    let activeFirebaseListeners: Int
-    let firebaseMemoryUsage: Double
-    let activeManagers: Int
-    let managerMemoryUsage: Double
-    let currentFPS: Double
-    let totalMemoryUsage: Double
-    let cacheMemoryUsage: Double
-    let overallScore: Double
-    let timestamp: Date
-    
-    init() {
-        self.activeFirebaseListeners = 0
-        self.firebaseMemoryUsage = 0.0
-        self.activeManagers = 0
-        self.managerMemoryUsage = 0.0
-        self.currentFPS = 60.0
-        self.totalMemoryUsage = 0.0
-        self.cacheMemoryUsage = 0.0
-        self.overallScore = 100.0
-        self.timestamp = Date()
-    }
-    
-    init(activeFirebaseListeners: Int, firebaseMemoryUsage: Double, activeManagers: Int,
-         managerMemoryUsage: Double, currentFPS: Double, totalMemoryUsage: Double,
-         cacheMemoryUsage: Double, overallScore: Double, timestamp: Date) {
-        self.activeFirebaseListeners = activeFirebaseListeners
-        self.firebaseMemoryUsage = firebaseMemoryUsage
-        self.activeManagers = activeManagers
-        self.managerMemoryUsage = managerMemoryUsage
-        self.currentFPS = currentFPS
-        self.totalMemoryUsage = totalMemoryUsage
-        self.cacheMemoryUsage = cacheMemoryUsage
-        self.overallScore = overallScore
-        self.timestamp = timestamp
-    }
-}
-
-struct PerformanceAlert: Identifiable {
-    let id = UUID()
-    let type: AlertType
-    let message: String
-    let severity: Severity
-    
-    enum AlertType {
-        case highMemoryUsage
-        case lowFrameRate
-        case excessiveListeners
-        case systemMemoryWarning
-    }
-    
-    enum Severity {
-        case warning, critical
-    }
-}
 
 // MARK: - SwiftUI Integration
 
