@@ -63,15 +63,14 @@ struct TaskAssignmentTagsSection: View {
             
             // Section Picker
             if !sectionManager.sections.isEmpty {
-                // TODO: Implement SectionPickerView component
-                // SectionPickerView(
-                //     sections: sectionManager.sections,
-                //     selectedSectionId: Binding(
-                //         get: { selectedSectionId ?? task.sectionId }, 
-                //         set: { selectedSectionId = $0 }
-                //     ),
-                //     onChange: { _ in }
-                // )
+                SectionPickerView(
+                    sections: sectionManager.sections,
+                    selectedSectionId: Binding(
+                        get: { selectedSectionId ?? task.sectionId }, 
+                        set: { selectedSectionId = $0 }
+                    ),
+                    onChange: { _ in }
+                )
             } else {
                 ProgressView().frame(maxWidth: .infinity, alignment: .center)
             }
