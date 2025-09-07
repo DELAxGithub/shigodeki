@@ -72,82 +72,24 @@ class FirebaseListenerManager: ObservableObject {
         completion: @escaping (Result<[T], FirebaseError>) -> Void
     ) -> String {
         
-        // Issue #50 Fix: Enhanced duplicate detection with detailed logging
-        if activeListeners[id] != nil {
-            updateAccessMetadata(for: id)
-            InstrumentsSetup.shared.endFirebaseConnectionMeasurement(operation: "Listener Reuse", success: true)
-            
-            #if DEBUG
-            print("🔄 Issue #50: Firebase Listener REUSED: \(id) (type: \(type), priority: \(priority))")
-            print("📊 Issue #50: Active listeners count: \(activeListeners.count)")
-            if let metadata = listenerMetadata[id] {
-                print("📈 Issue #50: Listener access count: \(metadata.accessCount), last accessed: \(metadata.lastAccessed)")
-            }
-            #endif
-            return id
-        }
-        
-        InstrumentsSetup.shared.startFirebaseConnectionMeasurement(operation: "Create Listener: \(id)")
-        
-        // 新しいリスナーを作成
-        let listener = query.addSnapshotListener { [weak self] snapshot, error in
-            Task { @MainActor in
-                self?.updateAccessMetadata(for: id)
-                
-                if let error = error {
-                    completion(.failure(FirebaseError.from(error)))
-                    InstrumentsSetup.shared.endFirebaseConnectionMeasurement(operation: "Create Listener: \(id)", success: false)
-                    return
-                }
-                
-                guard let documents = snapshot?.documents else {
-                    completion(.success([]))
-                    InstrumentsSetup.shared.endFirebaseConnectionMeasurement(operation: "Create Listener: \(id)", success: true)
-                    return
-                }
-                
-                do {
-                    let items = try documents.compactMap { document in
-                        try document.data(as: T.self)
-                    }
-                    completion(.success(items))
-                    InstrumentsSetup.shared.endFirebaseConnectionMeasurement(operation: "Create Listener: \(id)", success: true)
-                } catch {
-                    completion(.failure(FirebaseError.from(error)))
-                    InstrumentsSetup.shared.endFirebaseConnectionMeasurement(operation: "Create Listener: \(id)", success: false)
-                }
-            }
-        }
-        
-        // リスナーとメタデータの保存
-        activeListeners[id] = listener
-        listenerMetadata[id] = ListenerMetadata(
+        return ListenerCreationService.createListener(
             id: id,
+            query: query,
             type: type,
-            createdAt: Date(),
-            lastAccessed: Date(),
-            accessCount: 1,
-            path: query.description,
-            priority: priority
+            priority: priority,
+            activeListeners: &activeListeners,
+            listenerMetadata: &listenerMetadata,
+            updateAccessCallback: { [weak self] id in
+                self?.updateAccessMetadata(for: id)
+            },
+            updateStatisticsCallback: { [weak self] in
+                self?.updateStatistics()
+            },
+            optimizeCallback: { [weak self] in
+                self?.optimizeListeners()
+            },
+            completion: completion
         )
-        
-        updateStatistics()
-        
-        #if DEBUG
-        print("🆕 Issue #50: Firebase Listener CREATED: \(id) (type: \(type), priority: \(priority))")
-        print("📊 Issue #50: Total active listeners: \(activeListeners.count)")
-        print("🗂️ Issue #50: Query path: \(query.description)")
-        #endif
-        
-        // 自動最適化のトリガー
-        if activeListeners.count > 15 {
-            #if DEBUG
-            print("⚠️ Issue #50: High listener count (\(activeListeners.count)), triggering optimization")
-            #endif
-            optimizeListeners()
-        }
-        
-        return id
     }
     
     /// 単一ドキュメント用のリスナー作成
@@ -159,168 +101,102 @@ class FirebaseListenerManager: ObservableObject {
         completion: @escaping (Result<T?, FirebaseError>) -> Void
     ) -> String {
         
-        // 既存リスナーチェック
-        if activeListeners[id] != nil {
-            updateAccessMetadata(for: id)
-            return id
-        }
-        
-        InstrumentsSetup.shared.startFirebaseConnectionMeasurement(operation: "Create Document Listener: \(id)")
-        
-        let listener = document.addSnapshotListener { [weak self] snapshot, error in
-            Task { @MainActor in
-                self?.updateAccessMetadata(for: id)
-                
-                if let error = error {
-                    completion(.failure(FirebaseError.from(error)))
-                    InstrumentsSetup.shared.endFirebaseConnectionMeasurement(operation: "Create Document Listener: \(id)", success: false)
-                    return
-                }
-                
-                guard let document = snapshot, document.exists else {
-                    completion(.success(nil))
-                    InstrumentsSetup.shared.endFirebaseConnectionMeasurement(operation: "Create Document Listener: \(id)", success: true)
-                    return
-                }
-                
-                do {
-                    let item = try document.data(as: T.self)
-                    completion(.success(item))
-                    InstrumentsSetup.shared.endFirebaseConnectionMeasurement(operation: "Create Document Listener: \(id)", success: true)
-                } catch {
-                    completion(.failure(FirebaseError.from(error)))
-                    InstrumentsSetup.shared.endFirebaseConnectionMeasurement(operation: "Create Document Listener: \(id)", success: false)
-                }
-            }
-        }
-        
-        activeListeners[id] = listener
-        listenerMetadata[id] = ListenerMetadata(
+        return ListenerCreationService.createDocumentListener(
             id: id,
+            document: document,
             type: type,
-            createdAt: Date(),
-            lastAccessed: Date(),
-            accessCount: 1,
-            path: document.path,
-            priority: priority
+            priority: priority,
+            activeListeners: &activeListeners,
+            listenerMetadata: &listenerMetadata,
+            updateAccessCallback: { [weak self] id in
+                self?.updateAccessMetadata(for: id)
+            },
+            updateStatisticsCallback: { [weak self] in
+                self?.updateStatistics()
+            },
+            completion: completion
         )
-        
-        updateStatistics()
-        return id
     }
     
     // MARK: - Listener Management Operations
     
     /// リスナーの削除
     func removeListener(id: String) {
-        guard let listener = activeListeners[id] else { return }
-        
-        #if DEBUG
-        if let metadata = listenerMetadata[id] {
-            print("❌ Issue #50: Firebase Listener REMOVED: \(id) (type: \(metadata.type), access count: \(metadata.accessCount))")
-        }
-        #endif
-        
-        listener.remove()
-        activeListeners.removeValue(forKey: id)
-        listenerMetadata.removeValue(forKey: id)
-        
-        updateStatistics()
-        
-        #if DEBUG
-        print("📊 Issue #50: Remaining active listeners: \(activeListeners.count)")
-        #endif
-        
-        InstrumentsSetup.shared.logMemoryUsage(context: "After Listener Removal")
+        ListenerManagementService.removeListener(
+            id: id,
+            activeListeners: &activeListeners,
+            listenerMetadata: &listenerMetadata,
+            updateStatisticsCallback: { [weak self] in
+                self?.updateStatistics()
+            }
+        )
     }
     
     /// 複数リスナーの一括削除
     func removeListeners(ids: [String]) {
-        for id in ids {
-            removeListener(id: id)
-        }
+        ListenerManagementService.removeListeners(
+            ids: ids,
+            activeListeners: &activeListeners,
+            listenerMetadata: &listenerMetadata,
+            updateStatisticsCallback: { [weak self] in
+                self?.updateStatistics()
+            }
+        )
     }
     
     /// タイプ別リスナー削除
     func removeListeners(ofType type: ListenerMetadata.ListenerType) {
-        let idsToRemove = listenerMetadata.compactMap { key, metadata in
-            metadata.type == type ? key : nil
-        }
-        removeListeners(ids: idsToRemove)
+        ListenerManagementService.removeListeners(
+            ofType: type,
+            listenerMetadata: listenerMetadata,
+            activeListeners: &activeListeners,
+            listenerMetadataRef: &listenerMetadata,
+            updateStatisticsCallback: { [weak self] in
+                self?.updateStatistics()
+            }
+        )
     }
     
     /// 全リスナーの削除
     func removeAllListeners() {
-        #if DEBUG
-        let count = activeListeners.count
-        print("🗑️ Issue #50: Removing ALL Firebase Listeners (\(count) total)")
-        for (id, _) in activeListeners {
-            if let metadata = listenerMetadata[id] {
-                print("  ❌ Removing: \(id) (type: \(metadata.type))")
+        ListenerManagementService.removeAllListeners(
+            activeListeners: &activeListeners,
+            listenerMetadata: &listenerMetadata,
+            updateStatisticsCallback: { [weak self] in
+                self?.updateStatistics()
             }
-        }
-        #endif
-        
-        for (_, listener) in activeListeners {
-            listener.remove()
-        }
-        activeListeners.removeAll()
-        listenerMetadata.removeAll()
-        updateStatistics()
-        
-        #if DEBUG
-        print("✅ Issue #50: All Firebase Listeners removed. Active count: \(activeListeners.count)")
-        #endif
-        
-        InstrumentsSetup.shared.logMemoryUsage(context: "After All Listeners Removal")
+        )
     }
     
     // MARK: - Smart Optimization
     
     /// 自動リスナー最適化
     func optimizeListeners() {
-        let now = Date()
-        let inactiveThreshold: TimeInterval = 300 // 5分
-        
-        // 非アクティブなリスナーを特定
-        let inactiveListeners = listenerMetadata.compactMap { key, metadata in
-            now.timeIntervalSince(metadata.lastAccessed) > inactiveThreshold && metadata.priority == .low ? key : nil
-        }
-        
-        if !inactiveListeners.isEmpty {
-            removeListeners(ids: inactiveListeners)
-            listenerStats.lastOptimized = now
-        }
+        ListenerOptimizationService.optimizeListeners(
+            activeListeners: &activeListeners,
+            listenerMetadata: &listenerMetadata,
+            listenerStats: &listenerStats,
+            removeListenersCallback: { [weak self] ids in
+                self?.removeListeners(ids: ids)
+            }
+        )
     }
     
     /// アクセス頻度に基づく優先度調整
     private func updateAccessMetadata(for id: String) {
-        guard let metadata = listenerMetadata[id] else { return }
-        
-        listenerMetadata[id] = ListenerMetadata(
-            id: metadata.id,
-            type: metadata.type,
-            createdAt: metadata.createdAt,
-            lastAccessed: Date(),
-            accessCount: metadata.accessCount + 1,
-            path: metadata.path,
-            priority: metadata.priority
+        ListenerOptimizationService.updateAccessMetadata(
+            for: id,
+            listenerMetadata: &listenerMetadata
         )
     }
     
     /// 統計情報の更新
     private func updateStatistics() {
-        listenerStats.totalActive = activeListeners.count
-        
-        var typeCount: [String: Int] = [:]
-        for metadata in listenerMetadata.values {
-            let typeKey = String(describing: metadata.type)
-            typeCount[typeKey, default: 0] += 1
-        }
-        listenerStats.byType = typeCount
-        
-        // メモリ使用量の推定（1リスナーあたり約0.5MB）
-        listenerStats.memoryUsage = Double(activeListeners.count) * 0.5
+        ListenerOptimizationService.updateStatistics(
+            activeListeners: activeListeners,
+            listenerMetadata: listenerMetadata,
+            listenerStats: &listenerStats
+        )
     }
     
     // MARK: - Memory Management
@@ -338,52 +214,30 @@ class FirebaseListenerManager: ObservableObject {
     }
     
     private func handleMemoryWarning() {
-        // 低優先度のリスナーを削除
-        let lowPriorityIds = listenerMetadata.compactMap { key, metadata in
-            metadata.priority == .low ? key : nil
-        }
-        
-        if !lowPriorityIds.isEmpty {
-            removeListeners(ids: lowPriorityIds)
-        }
-        
-        InstrumentsSetup.shared.logMemoryUsage(context: "After Memory Warning Cleanup")
+        ListenerOptimizationService.handleMemoryWarning(
+            listenerMetadata: listenerMetadata,
+            removeListenersCallback: { [weak self] ids in
+                self?.removeListeners(ids: ids)
+            }
+        )
     }
     
     // MARK: - Debugging and Monitoring
     
     /// リスナー状況の詳細レポート
     func getDetailedReport() -> String {
-        var report = "📊 Firebase Listener Manager Report\n"
-        report += "====================================\n"
-        report += "Total Active Listeners: \(listenerStats.totalActive)\n"
-        report += "Memory Usage: \(String(format: "%.1f", listenerStats.memoryUsage))MB\n"
-        
-        if let lastOptimized = listenerStats.lastOptimized {
-            report += "Last Optimized: \(DateFormatter.localizedString(from: lastOptimized, dateStyle: .short, timeStyle: .medium))\n"
-        }
-        
-        report += "\nBy Type:\n"
-        for (type, count) in listenerStats.byType.sorted(by: { $0.value > $1.value }) {
-            report += "  \(type): \(count)\n"
-        }
-        
-        report += "\nActive Listeners:\n"
-        for (id, metadata) in listenerMetadata.sorted(by: { $0.value.lastAccessed > $1.value.lastAccessed }) {
-            let timeSinceAccess = Date().timeIntervalSince(metadata.lastAccessed)
-            report += "  [\(metadata.type)] \(id) - Accessed: \(Int(timeSinceAccess))s ago (\(metadata.accessCount) times)\n"
-        }
-        
-        return report
+        return ListenerOptimizationService.getDetailedReport(
+            listenerStats: listenerStats,
+            listenerMetadata: listenerMetadata
+        )
     }
     
     /// デバッグ情報のログ出力
     func logDebugInfo() {
-        let report = getDetailedReport()
-        print(report)
-        
-        // OSLogにも記録
-        os_log(.info, log: InstrumentsSetup.firebaseLog, "%{public}@", report)
+        ListenerOptimizationService.logDebugInfo(
+            listenerStats: listenerStats,
+            listenerMetadata: listenerMetadata
+        )
     }
 }
 
@@ -396,16 +250,19 @@ extension FirebaseListenerManager {
         userId: String,
         completion: @escaping (Result<[Project], FirebaseError>) -> Void
     ) -> String {
-        let id = "projects_\(userId)"
-        let query = Firestore.firestore()
-            .collection("projects")
-            .whereField("memberIds", arrayContains: userId)
-        
-        return createListener(
-            id: id,
-            query: query,
-            type: .project,
-            priority: .high,
+        return ListenerCreationService.createProjectListener(
+            userId: userId,
+            activeListeners: &activeListeners,
+            listenerMetadata: &listenerMetadata,
+            updateAccessCallback: { [weak self] id in
+                self?.updateAccessMetadata(for: id)
+            },
+            updateStatisticsCallback: { [weak self] in
+                self?.updateStatistics()
+            },
+            optimizeCallback: { [weak self] in
+                self?.optimizeListeners()
+            },
             completion: completion
         )
     }
@@ -415,17 +272,19 @@ extension FirebaseListenerManager {
         projectId: String,
         completion: @escaping (Result<[Phase], FirebaseError>) -> Void
     ) -> String {
-        let id = "phases_\(projectId)"
-        let query = Firestore.firestore()
-            .collection("projects").document(projectId)
-            .collection("phases")
-            .order(by: "order")
-        
-        return createListener(
-            id: id,
-            query: query,
-            type: .phase,
-            priority: .medium,
+        return ListenerCreationService.createPhaseListener(
+            projectId: projectId,
+            activeListeners: &activeListeners,
+            listenerMetadata: &listenerMetadata,
+            updateAccessCallback: { [weak self] id in
+                self?.updateAccessMetadata(for: id)
+            },
+            updateStatisticsCallback: { [weak self] in
+                self?.updateStatistics()
+            },
+            optimizeCallback: { [weak self] in
+                self?.optimizeListeners()
+            },
             completion: completion
         )
     }
@@ -436,18 +295,20 @@ extension FirebaseListenerManager {
         phaseId: String,
         completion: @escaping (Result<[TaskList], FirebaseError>) -> Void
     ) -> String {
-        let id = "tasklists_\(projectId)_\(phaseId)"
-        let query = Firestore.firestore()
-            .collection("projects").document(projectId)
-            .collection("phases").document(phaseId)
-            .collection("lists")
-            .order(by: "order")
-        
-        return createListener(
-            id: id,
-            query: query,
-            type: .taskList,
-            priority: .medium,
+        return ListenerCreationService.createTaskListListener(
+            projectId: projectId,
+            phaseId: phaseId,
+            activeListeners: &activeListeners,
+            listenerMetadata: &listenerMetadata,
+            updateAccessCallback: { [weak self] id in
+                self?.updateAccessMetadata(for: id)
+            },
+            updateStatisticsCallback: { [weak self] in
+                self?.updateStatistics()
+            },
+            optimizeCallback: { [weak self] in
+                self?.optimizeListeners()
+            },
             completion: completion
         )
     }
@@ -459,19 +320,21 @@ extension FirebaseListenerManager {
         listId: String,
         completion: @escaping (Result<[ShigodekiTask], FirebaseError>) -> Void
     ) -> String {
-        let id = "tasks_\(projectId)_\(phaseId)_\(listId)"
-        let query = Firestore.firestore()
-            .collection("projects").document(projectId)
-            .collection("phases").document(phaseId)
-            .collection("lists").document(listId)
-            .collection("tasks")
-            .order(by: "order")
-        
-        return createListener(
-            id: id,
-            query: query,
-            type: .task,
-            priority: .low, // タスクは低優先度（頻繁に変更される）
+        return ListenerCreationService.createTaskListener(
+            projectId: projectId,
+            phaseId: phaseId,
+            listId: listId,
+            activeListeners: &activeListeners,
+            listenerMetadata: &listenerMetadata,
+            updateAccessCallback: { [weak self] id in
+                self?.updateAccessMetadata(for: id)
+            },
+            updateStatisticsCallback: { [weak self] in
+                self?.updateStatistics()
+            },
+            optimizeCallback: { [weak self] in
+                self?.optimizeListeners()
+            },
             completion: completion
         )
     }
