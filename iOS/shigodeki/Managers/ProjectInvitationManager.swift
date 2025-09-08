@@ -62,7 +62,7 @@ class ProjectInvitationManager: ObservableObject {
             let result = try await unifiedService.validateInvitationCode(code)
             let project: Project = try await Firestore.firestore()
                 .collection("projects")
-                .document(result.targetName) // TODO: targetIdを正しく取得
+                .document(result.targetId)
                 .getDocument()
                 .data(as: Project.self, decoder: Firestore.Decoder())
             

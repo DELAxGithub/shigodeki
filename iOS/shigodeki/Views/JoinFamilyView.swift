@@ -157,10 +157,35 @@ struct JoinFamilyView: View {
         inviteCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || inputError != nil
     }
     
-    /// 統一招待システム対応の入力検証
+    /// 統一招待システム対応の入力検証（INV-途中入力に対応）
     private func validateInput(_ input: String) {
+        let trimmedInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // 空文字列または短すぎる入力はエラー表示しない
+        if trimmedInput.isEmpty {
+            inputError = nil
+            return
+        }
+        
+        // INV-の途中入力はエラー表示を保留
+        let upperInput = trimmedInput.uppercased()
+        if upperInput == "I" || upperInput == "IN" || upperInput == "INV" || upperInput == "INV-" {
+            inputError = nil
+            print("ℹ️ [JoinFamilyView] INV- partial input detected, validation postponed: '\(input)'")
+            return
+        }
+        
+        // 6桁未満（INV-を除いた実質長）の場合もエラー表示を保留
+        let withoutPrefix = upperInput.hasPrefix("INV-") ? String(upperInput.dropFirst(4)) : upperInput
+        if withoutPrefix.count < 6 {
+            inputError = nil
+            print("ℹ️ [JoinFamilyView] Input too short, validation postponed: '\(input)' -> '\(withoutPrefix)'")
+            return
+        }
+        
+        // 6桁以上になったら正規化・検証を実行
         do {
-            let normalizedCode = try InvitationCodeNormalizer.normalize(input)
+            let normalizedCode = try InvitationCodeNormalizer.normalize(trimmedInput)
             let validationResult = InviteCodeSpec.validate(normalizedCode)
             
             switch validationResult {
@@ -169,12 +194,8 @@ struct JoinFamilyView: View {
                 let kind = codeType.isSafe ? "safe" : "legacy"
                 print("✅ [JoinFamilyView] Validation success: input='\(input)', normalized='\(normalizedCode)', kind=\(kind)")
             case .failure(let error):
-                if normalizedCode.isEmpty {
-                    inputError = nil
-                } else {
-                    inputError = error.localizedDescription
-                    print("❌ [JoinFamilyView] Validation error: \(error.localizedDescription)")
-                }
+                inputError = error.localizedDescription
+                print("❌ [JoinFamilyView] Validation error: \(error.localizedDescription)")
             }
         } catch let error as NormalizationError {
             inputError = error.localizedDescription

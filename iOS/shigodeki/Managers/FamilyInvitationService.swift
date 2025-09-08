@@ -43,7 +43,7 @@ class FamilyInvitationService {
         do {
             let result = try await unifiedService.validateInvitationCode(code)
             print("✅ [FamilyInvitationService] Validation completed: \(code) -> \(result.targetName)")
-            return (familyId: result.targetName, familyName: result.targetName)
+            return (familyId: result.targetId, familyName: result.targetName)
         } catch let error as InvitationError {
             throw mapToLegacyError(error)
         }

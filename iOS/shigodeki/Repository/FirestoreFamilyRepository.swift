@@ -64,10 +64,10 @@ class FirestoreFamilyRepository: FamilyRepository {
             // 結果取得のため検証を実施（統一システム経由）
             let result = try await unifiedService.validateInvitationCode(invitationCode)
             
-            print("✅ [FirestoreFamilyRepository] Delegation completed: \(invitationCode) -> \(result.targetName)")
+            print("✅ [FirestoreFamilyRepository] Delegation completed: \(invitationCode) -> familyId=\(result.targetId) familyName=\(result.targetName)")
             
             return JoinResult(
-                familyId: result.targetName,
+                familyId: result.targetId,
                 familyName: result.targetName,
                 message: "Successfully joined via unified system"
             )

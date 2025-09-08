@@ -44,47 +44,22 @@ class FamilyCreationService {
     }
     
     private func generateInvitationCode(familyId: String, familyName: String) async throws -> String {
-        let normalizedCode = generateRandomCode()
+        // 統一招待システムを使用（3重保存廃止）
+        let unifiedService = UnifiedInvitationService()
+        let code = try await unifiedService.createInvitation(targetId: familyId, type: .family)
+        
+        // families/{id}.latestInviteCode に正規化コード保存（冪等）
+        let normalizedCode = try InvitationCodeNormalizer.normalize(code)
+        try await db.collection("families").document(familyId).updateData([
+            "latestInviteCode": normalizedCode
+        ])
+        
         let displayCode = "\(InviteCodeSpec.displayPrefix)\(normalizedCode)"
-        
-        guard let currentUserId = Auth.auth().currentUser?.uid else {
-            throw FamilyError.userNotAuthenticated
-        }
-        
-        let invitationData: [String: Any] = [
-            "familyId": familyId,
-            "familyName": familyName,
-            "code": displayCode,
-            "normalizedCode": normalizedCode,
-            "isActive": true,
-            "createdBy": currentUserId,
-            "createdAt": FieldValue.serverTimestamp(),
-            "expiresAt": Timestamp(date: Date().addingTimeInterval(7 * 24 * 60 * 60)), // 7 days
-            "remainingUses": 50,
-            "maxUses": 50
-        ]
-        
-        // Triple-save strategy for maximum compatibility and reliability
-        // 1. Primary save by normalized code
-        try await db.collection("invites_by_norm").document(normalizedCode).setData(invitationData)
-        
-        // 2. Mirror save by display format for compatibility  
-        try await db.collection("invitations").document(displayCode).setData(invitationData)
-        
-        // 3. Family-scoped save for reliable family member access
-        try await db.collection("families").document(familyId)
-            .collection("invites").document(normalizedCode).setData(invitationData)
-        
-        print("📝 [FamilyCreationService] InviteIssue normalized=\(normalizedCode) shown=\(displayCode) familyId=\(familyId)")
+        print("📝 [FamilyCreationService] Unified invitation: \(displayCode) familyId=\(familyId)")
         
         return displayCode
     }
     
-    private func generateRandomCode() -> String {
-        return String((0..<InviteCodeSpec.codeLength).map { _ in 
-            InviteCodeSpec.safeCharacters.randomElement()! 
-        })
-    }
     
     private func updateUserFamilyIds(userId: String, familyId: String, action: FamilyMembershipService.FamilyIdAction) async throws {
         let userRef = db.collection("users").document(userId)

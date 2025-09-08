@@ -16,6 +16,7 @@ class FamilyProjectOperations: ObservableObject {
     
     @Published var familyProjects: [Project] = []
     @Published var currentInviteCode: String = ""
+    private var listener: ListenerRegistration?
     
     init(projectManager: ProjectManager, familyManager: FamilyManager) {
         self.projectManager = projectManager
@@ -28,27 +29,35 @@ class FamilyProjectOperations: ObservableObject {
     }
     
     func loadFamilyProjects(family: Family) {
-        Task {
-            do {
-                // Get projects for the family members
-                var allProjects: [Project] = []
-                for memberId in family.members {
-                    let memberProjects = try await projectManager.getUserProjects(userId: memberId)
-                    allProjects.append(contentsOf: memberProjects)
+        // Realtime: listen projects owned by this family (ownerType == family)
+        listener?.remove(); listener = nil
+        guard let familyId = family.id, !familyId.isEmpty else {
+            familyProjects = []; return
+        }
+        let db = Firestore.firestore()
+        let query = db.collection("projects")
+            .whereField("ownerId", isEqualTo: familyId)
+            .whereField("ownerType", isEqualTo: ProjectOwnerType.family.rawValue)
+        listener = query.addSnapshotListener { [weak self] snapshot, error in
+            Task { @MainActor in
+                guard let self = self else { return }
+                if let error = error {
+                    print("❌ Error loading family projects: \(error)")
+                    self.familyProjects = []
+                    return
                 }
-                
-                // Remove duplicates and filter for family projects
-                familyProjects = Array(Set(allProjects))
-            } catch {
-                print("❌ Error loading family projects: \(error)")
-                familyProjects = []
+                let projects: [Project] = snapshot?.documents.compactMap { doc in
+                    var p = try? doc.data(as: Project.self, decoder: Firestore.Decoder())
+                    p?.id = doc.documentID
+                    return p
+                } ?? []
+                self.familyProjects = projects
             }
         }
     }
     
     func loadInviteCode(family: Family) {
         Task {
-            // Fetch the actual invite code from Firestore
             guard let familyId = family.id else {
                 print("❌ [FamilyProjectOperations] No family ID available")
                 return
@@ -57,43 +66,30 @@ class FamilyProjectOperations: ObservableObject {
             do {
                 let db = Firestore.firestore()
                 
-                // Try to find existing invitation codes using family-scoped approach
-                // 1. Try family-scoped invites collection (most reliable for family members)
-                let familyScopedQuery = db.collection("families").document(familyId)
-                    .collection("invites")
-                    .limit(to: 1)
+                // families/{id}.latestInviteCode から読み込み
+                let familyDoc = try await db.collection("families").document(familyId).getDocument()
                 
-                let familyScopedDocs = try await familyScopedQuery.getDocuments()
-                
-                if let doc = familyScopedDocs.documents.first,
-                   let normalizedCode = doc.data()["normalizedCode"] as? String {
-                    let displayCode = "\(InviteCodeSpec.displayPrefix)\(normalizedCode)"
+                if let latestCode = familyDoc.data()?["latestInviteCode"] as? String {
+                    let displayCode = "\(InviteCodeSpec.displayPrefix)\(latestCode)"
                     currentInviteCode = displayCode
-                    print("✅ [FamilyProjectOperations] Loaded invite code from family scope: \(displayCode)")
+                    print("✅ [FamilyProjectOperations] Loaded invite code: \(displayCode)")
                     return
                 }
                 
-                // 2. Fallback: Legacy invitations collection (still uses queries for backward compatibility)
-                let legacyQuery = db.collection("invitations")
-                    .whereField("familyId", isEqualTo: familyId)
-                    .whereField("isActive", isEqualTo: true)
-                    .limit(to: 1)
+                // latestInviteCode が無ければその場で作成
+                print("ℹ️ [FamilyProjectOperations] No latestInviteCode found, creating new invitation")
+                let unifiedService = UnifiedInvitationService()
+                let code = try await unifiedService.createInvitation(targetId: familyId, type: .family)
+                let normalizedCode = try InvitationCodeNormalizer.normalize(code)
                 
-                let legacyDocs = try await legacyQuery.getDocuments()
+                // families/{id}.latestInviteCode に保存
+                try await db.collection("families").document(familyId).updateData([
+                    "latestInviteCode": normalizedCode
+                ])
                 
-                if let doc = legacyDocs.documents.first {
-                    let rawCode = doc.documentID
-                    let normalizedCode = try InvitationCodeNormalizer.normalize(rawCode)
-                    let displayCode = "\(InviteCodeSpec.displayPrefix)\(normalizedCode)"
-                    
-                    currentInviteCode = displayCode
-                    print("✅ [FamilyProjectOperations] Loaded invite code from legacy: \(displayCode) (normalized: \(normalizedCode))")
-                    return
-                }
-                
-                // 3. If no invitation found, this shouldn't happen in normal flow
-                print("⚠️ [FamilyProjectOperations] No active invitation found for family \(familyId)")
-                currentInviteCode = "コード未発行"
+                let displayCode = "\(InviteCodeSpec.displayPrefix)\(normalizedCode)"
+                currentInviteCode = displayCode
+                print("✅ [FamilyProjectOperations] Created and saved new invite code: \(displayCode)")
                 
             } catch {
                 print("❌ [FamilyProjectOperations] Error loading invite code: \(error)")
