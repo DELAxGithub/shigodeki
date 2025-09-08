@@ -21,6 +21,10 @@ struct FamilyDetailView: View {
     @State private var showingLeaveConfirmation = false
     @State private var showingCreateProject = false
     
+    // Live family document listener
+    @State private var liveFamily: Family?
+    @State private var familyListener: ListenerRegistration?
+
     // Composed operations
     @StateObject private var memberOperations = FamilyMemberOperations(
         familyManager: FamilyManager(),
@@ -37,13 +41,15 @@ struct FamilyDetailView: View {
     }
     
     var body: some View {
+        // Prefer live family snapshot when available
+        let currentFamily = liveFamily ?? family
         List {
             // Family Info Section
-            FamilyInfoSection(family: family)
+            FamilyInfoSection(family: currentFamily)
             
             // Members Section
             FamilyMembersSection(
-                family: family,
+                family: currentFamily,
                 memberOperations: memberOperations,
                 isCurrentUserCreator: isCurrentUserCreator,
                 onRemoveMember: removeMember
@@ -51,28 +57,39 @@ struct FamilyDetailView: View {
             
             // Projects Section
             FamilyProjectsSection(
-                family: family,
+                family: currentFamily,
                 projectOperations: projectOperations,
                 showingCreateProject: $showingCreateProject
             )
             
             // Actions Section
             FamilyActionsSection(
-                family: family,
+                family: currentFamily,
                 isCurrentUserCreator: isCurrentUserCreator,
                 showingInviteCode: $showingInviteCode,
                 showingLeaveConfirmation: $showingLeaveConfirmation,
                 onLoadInviteCode: {
-                    projectOperations.loadInviteCode(family: family)
+                    projectOperations.loadInviteCode(family: currentFamily)
                 }
             )
         }
-        .navigationTitle(family.name)
+        .navigationTitle(currentFamily.name)
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
             setupManagers()
-            memberOperations.loadFamilyMembers(family: family)
-            projectOperations.loadFamilyProjects(family: family)
+            startFamilyListener()
+            memberOperations.loadFamilyMembers(family: currentFamily)
+            projectOperations.loadFamilyProjects(family: currentFamily)
+        }
+        .onChange(of: liveFamily?.members ?? []) { _ in
+            // Members changed -> reload member list and projects
+            if let lf = liveFamily {
+                memberOperations.loadFamilyMembers(family: lf)
+                projectOperations.loadFamilyProjects(family: lf)
+            }
+        }
+        .onDisappear {
+            familyListener?.remove(); familyListener = nil
         }
         .sheet(isPresented: $showingInviteCode) {
             InviteCodeView(inviteCode: projectOperations.currentInviteCode, familyName: family.name)
@@ -104,6 +121,24 @@ struct FamilyDetailView: View {
             projectManager: projectManager!,
             familyManager: familyManager!
         )
+    }
+
+    private func startFamilyListener() {
+        guard let id = family.id else { return }
+        let ref = Firestore.firestore().collection("families").document(id)
+        familyListener?.remove()
+        familyListener = ref.addSnapshotListener { snapshot, error in
+            guard let data = snapshot?.data() else { return }
+            var f = Family(
+                name: data["name"] as? String ?? "",
+                members: data["members"] as? [String] ?? []
+            )
+            f.id = snapshot?.documentID
+            f.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
+            f.lastUpdatedAt = (data["lastUpdatedAt"] as? Timestamp)?.dateValue()
+            f.devEnvironmentTest = data["devEnvironmentTest"] as? String
+            liveFamily = f
+        }
     }
     
     private func removeMember(_ member: User) {

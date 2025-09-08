@@ -3,6 +3,8 @@ import SwiftUI
 struct ProjectInfoSection: View {
     let project: Project
     let ownerDisplayName: String
+    let memberCount: Int
+    let createdAtOverride: Date?
     
     var body: some View {
         Section(header: Text("プロジェクト情報")) {
@@ -26,7 +28,7 @@ struct ProjectInfoSection: View {
                     Text("メンバー数")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text("\(project.memberIds.count)人")
+                    Text("\(memberCount)人")
                         .font(.subheadline)
                 }
             }
@@ -38,7 +40,7 @@ struct ProjectInfoSection: View {
                     Text("作成日")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text(ProjectInfoSection.formatDate(project.createdAt))
+                    Text(ProjectInfoSection.formatDate(createdAtOverride ?? project.createdAt))
                         .font(.subheadline)
                 }
             }

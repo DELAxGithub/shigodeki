@@ -37,6 +37,12 @@ struct ProjectSettingsView: View {
     
     // Issue #64 Fix: User display name resolution
     @State private var ownerDisplayName: String = ""
+
+    // Live project + members listener
+    @State private var liveProject: Project?
+    @State private var projectListener: ListenerRegistration?
+    @State private var membersListener: ListenerRegistration?
+    @State private var liveMemberCount: Int = 0
     
     init(project: Project, projectManager: ProjectManager) {
         self.project = project
@@ -95,8 +101,10 @@ struct ProjectSettingsView: View {
                     )
                     
                     ProjectInfoSection(
-                        project: project,
-                        ownerDisplayName: ownerDisplayName
+                        project: liveProject ?? project,
+                        ownerDisplayName: ownerDisplayName,
+                        memberCount: liveMemberCount > 0 ? liveMemberCount : project.memberIds.count,
+                        createdAtOverride: liveProject?.createdAt
                     )
                 }
             }
@@ -145,6 +153,11 @@ struct ProjectSettingsView: View {
                 // Issue #64 Fix: Load owner display name
                 await loadOwnerDisplayName()
                 updateHasChanges() // Issue #65 Fix: Initialize hasChanges state
+                startProjectListeners()
+            }
+            .onDisappear {
+                projectListener?.remove(); projectListener = nil
+                membersListener?.remove(); membersListener = nil
             }
             .confirmationDialog(
                 "プロジェクトを削除",
@@ -291,29 +304,49 @@ struct ProjectSettingsView: View {
     // Issue #64 Fix: Load owner display name from Firestore
     private func loadOwnerDisplayName() async {
         do {
-            // Get user document from Firestore
             let db = Firestore.firestore()
-            let userDoc = try await db.collection("users").document(project.ownerId).getDocument()
-            
-            if userDoc.exists, let data = userDoc.data() {
-                // Try different possible field names for display name
-                let displayName = data["displayName"] as? String ?? 
-                                 data["name"] as? String ?? 
-                                 data["email"] as? String ?? 
-                                 "ユーザー名不明"
-                
-                await MainActor.run {
-                    ownerDisplayName = displayName
-                }
+            if project.ownerType == .family {
+                // Family-owned project: show family name
+                let famDoc = try await db.collection("families").document(project.ownerId).getDocument()
+                let famName = famDoc.data()? ["name"] as? String ?? "家族情報が見つかりません"
+                await MainActor.run { ownerDisplayName = famName }
             } else {
-                await MainActor.run {
-                    ownerDisplayName = "ユーザー情報が見つかりません"
+                // Individual-owned project: show user name/email
+                let userDoc = try await db.collection("users").document(project.ownerId).getDocument()
+                if userDoc.exists, let data = userDoc.data() {
+                    let displayName = data["displayName"] as? String ?? data["name"] as? String ?? data["email"] as? String ?? "ユーザー名不明"
+                    await MainActor.run { ownerDisplayName = displayName }
+                } else {
+                    await MainActor.run { ownerDisplayName = "ユーザー情報が見つかりません" }
                 }
             }
         } catch {
             print("Error loading owner display name: \(error)")
             await MainActor.run {
                 ownerDisplayName = "ユーザー情報の取得に失敗"
+            }
+        }
+    }
+
+    private func startProjectListeners() {
+        guard let id = project.id else { return }
+        liveMemberCount = project.memberIds.count
+        // Project document listener
+        let docRef = Firestore.firestore().collection("projects").document(id)
+        projectListener?.remove()
+        projectListener = docRef.addSnapshotListener { snapshot, error in
+            Task { @MainActor in
+                guard let data = snapshot?.data() else { return }
+                var proj = try? snapshot?.data(as: Project.self, decoder: Firestore.Decoder())
+                proj?.id = snapshot?.documentID
+                self.liveProject = proj
+            }
+        }
+        // Members subcollection count listener
+        membersListener?.remove()
+        membersListener = docRef.collection("members").addSnapshotListener { snapshot, error in
+            Task { @MainActor in
+                self.liveMemberCount = snapshot?.documents.count ?? self.liveMemberCount
             }
         }
     }
