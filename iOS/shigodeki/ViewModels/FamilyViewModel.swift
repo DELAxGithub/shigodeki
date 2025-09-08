@@ -237,7 +237,7 @@ class FamilyViewModel: ObservableObject {
         }
         
         do {
-            let familyId = try await familyManager.createFamily(
+            let (familyId, inviteCode) = try await familyManager.createFamily(
                 name: trimmedName,
                 creatorUserId: userId
             )
@@ -247,8 +247,14 @@ class FamilyViewModel: ObservableObject {
                 operationState.families[index].id = familyId
             }
             
-            // Generate invitation code
-            operationState.newFamilyInvitationCode = FamilyOperationService.generateInvitationCode(from: familyId)
+            // Use the real invitation code if available, otherwise generate locally
+            if let inviteCode = inviteCode {
+                operationState.newFamilyInvitationCode = inviteCode
+                print("✅ Using server-generated invitation code: \(inviteCode)")
+            } else {
+                operationState.newFamilyInvitationCode = FamilyOperationService.generateInvitationCode(from: familyId)
+                print("⚠️ Using locally generated invitation code, server generation failed")
+            }
             
             // Show success
             operationState.showCreateSuccess = true
@@ -290,10 +296,22 @@ class FamilyViewModel: ObservableObject {
         operationState.joinSuccessMessage = joinSuccessMessage
         operationState.showJoinSuccess = showJoinSuccess
         
-        // Handle join family directly
-        let trimmedCode = invitationCode.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedCode.isEmpty else {
-            error = FirebaseError.operationFailed("招待コードを入力してください")
+        // Handle join family with input normalization
+        let normalizedCode: String
+        do {
+            normalizedCode = try InvitationCodeNormalizer.normalize(invitationCode)
+        } catch {
+            self.error = FirebaseError.operationFailed("無効な招待コード: \(error.localizedDescription)")
+            return false
+        }
+        
+        print("🔄 FamilyViewModel: Join family button tapped")
+        print("🔍 FamilyViewModel: Original code: '\(invitationCode)', normalized: '\(normalizedCode)'")
+        
+        guard !normalizedCode.isEmpty else {
+            let errorMessage = "招待コードを入力してください"
+            error = FirebaseError.operationFailed(errorMessage)
+            print("❌ FamilyViewModel: \(errorMessage)")
             return false
         }
         
@@ -308,7 +326,8 @@ class FamilyViewModel: ObservableObject {
         }
         
         do {
-            let familyName = try await familyManager.joinFamilyWithCode(trimmedCode, userId: userId)
+            print("⏳ FamilyViewModel: Starting join process with normalizedCode=\(normalizedCode), userId=\(userId)")
+            let familyName = try await familyManager.joinFamilyWithCode(normalizedCode, userId: userId)
             
             // Show success message
             operationState.showJoinSuccess = true
@@ -317,17 +336,29 @@ class FamilyViewModel: ObservableObject {
             // Refresh families after successful join
             await familyManager.startListeningToFamilies(userId: userId)
             
-            print("✅ ファミリー '\(familyName)' への参加が完了しました")
+            print("✅ FamilyViewModel: Join success familyId=..., added member uid=\(userId)")
             return true
             
         } catch {
-            if let firebaseError = error as? FirebaseError {
+            let errorMessage: String
+            if let familyError = error as? FamilyError {
+                errorMessage = familyError.localizedDescription
+                print("❌ FamilyViewModel: Join failed - \(familyError)")
+            } else if let firebaseError = error as? FirebaseError {
+                errorMessage = firebaseError.localizedDescription
                 self.error = firebaseError
+                print("❌ FamilyViewModel: Join failed - Firebase error: \(firebaseError)")
             } else {
-                self.error = FirebaseError.operationFailed("ファミリーへの参加に失敗しました: \(error.localizedDescription)")
+                errorMessage = "ファミリーへの参加に失敗しました: \(error.localizedDescription)"
+                self.error = FirebaseError.operationFailed(errorMessage)
+                print("❌ FamilyViewModel: Join failed - Unknown error: \(error)")
             }
             
-            print("❌ ファミリー参加エラー: \(error.localizedDescription)")
+            // Set appropriate error for UI display
+            if error is FamilyError {
+                self.error = FirebaseError.operationFailed(errorMessage)
+            }
+            
             return false
         }
         

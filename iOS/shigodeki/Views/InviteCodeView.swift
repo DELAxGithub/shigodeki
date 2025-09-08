@@ -13,6 +13,19 @@ struct InviteCodeView: View {
     let inviteCode: String
     let familyName: String
     
+    /// 統一システム対応表示ロジック（INV-はUI表示のみ）
+    /// 永続化は素コードのみ、表示時にINV-を付与
+    private var displayCode: String {
+        // 統一システムでは素コードが渡されるため、UI表示時にINV-を付与
+        if inviteCode.hasPrefix(InviteCodeSpec.displayPrefix) {
+            // 既にINV-付きの場合（レガシー互換）
+            return inviteCode
+        } else {
+            // 統一システムの素コード → INV-付きで表示
+            return "\(InviteCodeSpec.displayPrefix)\(inviteCode)"
+        }
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 32) {
@@ -32,13 +45,13 @@ struct InviteCodeView: View {
                 }
                 
                 VStack(spacing: 16) {
-                    Text(inviteCode)
+                    Text(displayCode)
                         .font(.system(size: 36, weight: .bold, design: .monospaced))
                         .padding()
                         .background(Color.blue.opacity(0.1))
                         .cornerRadius(12)
                         .onTapGesture {
-                            UIPasteboard.general.string = inviteCode
+                            UIPasteboard.general.string = displayCode
                         }
                     
                     Text("タップしてコピー")
@@ -47,7 +60,7 @@ struct InviteCodeView: View {
                     
                     Button(action: {
                         let activityVC = UIActivityViewController(
-                            activityItems: ["家族グループ「\(familyName)」への招待コード: \(inviteCode)"],
+                            activityItems: ["家族グループ「\(familyName)」への招待コード: \(displayCode)"],
                             applicationActivities: nil
                         )
                         
@@ -73,11 +86,11 @@ struct InviteCodeView: View {
                 Spacer()
                 
                 VStack(spacing: 8) {
-                    Text("招待コードの有効期限は7日間です")
+                    Text("招待コードの有効期限は30日間です")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    Text("メンバーは「家族グループに加入」からこのコードを入力してグループに加入できます")
+                    Text("メンバーは「家族グループに加入」からこのコードを入力してグループに加入できます。\n統一システムにより安全文字のみ使用され、混同を防止します。")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)

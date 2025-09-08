@@ -1,6 +1,18 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function authed() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is a family member
+    function isFamilyMember(familyId) {
+      return authed() && 
+        exists(/databases/$(database)/documents/families/$(familyId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.members;
+    }
+    
     // Users can access their own user data and basic info of family members
     match /users/{userId} {
       // Users can always read and write their own data
@@ -29,7 +41,26 @@ service cloud.firestore {
       allow read, write, create: if request.auth != null;
     }
     
-    // Family invitations - authenticated users can create and read  
+    // 統一招待システム - 1つのコレクション、シンプルなルール
+    match /invitations_unified/{code} {
+      // 認証済みユーザーなら誰でも招待コード作成可能
+      allow create: if authed() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.code == code;
+      
+      // 認証済みユーザーなら個別コード取得可能（参加時に必要）
+      allow get: if authed();
+      
+      // リスト表示は禁止（セキュリティ）
+      allow list: if false;
+      
+      // 作成者のみ更新・削除可能
+      allow update, delete: if authed() &&
+        request.auth.uid == resource.data.createdBy;
+    }
+    
+    // レガシーサポート - 段階的移行期間中のみ
+    // TODO: 移行完了後に削除
     match /invitations/{invitationId} {
       allow read, write, create: if request.auth != null;
     }

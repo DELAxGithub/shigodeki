@@ -13,6 +13,7 @@ struct JoinFamilyView: View {
     @State private var isJoining = false
     @State private var showSuccess = false
     @State private var successMessage = ""
+    @State private var inputError: String? = nil
     
     let viewModel: FamilyViewModel
     
@@ -45,11 +46,22 @@ struct JoinFamilyView: View {
                             Text("招待コード")
                                 .font(.headline)
                             
-                            TextField("招待コードを入力", text: $inviteCode)
+                            TextField("例: INV-V7DBKV または 915549", text: $inviteCode)
                                 .textFieldStyle(.roundedBorder)
                                 .font(.body)
                                 .textInputAutocapitalization(.characters)
                                 .accessibilityIdentifier("invite_code_field")
+                                .onChange(of: inviteCode) { newValue in
+                                    validateInput(newValue)
+                                }
+                            
+                            // 入力エラーメッセージ
+                            if let error = inputError {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                                    .padding(.top, 4)
+                            }
                         }
                         
                         // Information Section
@@ -62,6 +74,7 @@ struct JoinFamilyView: View {
                                 InfoRow(icon: "key", text: "家族グループの作成者から招待コードを受け取ってください")
                                 InfoRow(icon: "shield", text: "招待コードは安全に管理されています")
                                 InfoRow(icon: "person.3", text: "加入後は家族みんなでタスクを共有できます")
+                                InfoRow(icon: "textformat", text: "'INV-英数6桁' または '数字6桁' のどちらの形式も使用できます")
                             }
                         }
                         .padding()
@@ -75,7 +88,7 @@ struct JoinFamilyView: View {
                                 .fontWeight(.medium)
                                 .foregroundColor(.orange)
                             
-                            Text("家族グループの作成者に招待コードをお尋ねください。コードは家族グループの設定画面で確認できます。")
+                            Text("家族グループの作成者に招待コードをお尋ねください。コードは家族グループの設定画面で確認できます。\nハイフンや大文字小文字は自動で補正されます。")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -101,11 +114,12 @@ struct JoinFamilyView: View {
                             .font(.headline)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
+                            .frame(minHeight: 44) // 최소 높이 보장으로 NaN 방지
                             .padding()
-                            .background(inviteCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray : Color.green)
+                            .background(shouldDisableJoinButton ? Color.gray : Color.green)
                             .cornerRadius(12)
                         }
-                        .disabled(inviteCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isJoining)
+                        .disabled(shouldDisableJoinButton || isJoining)
                         .accessibilityIdentifier("join_family_button")
                         
                         Button("キャンセル") {
@@ -137,14 +151,48 @@ struct JoinFamilyView: View {
         }
     }
     
+    // MARK: - Helper Properties and Methods
+    
+    private var shouldDisableJoinButton: Bool {
+        inviteCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || inputError != nil
+    }
+    
+    /// 統一招待システム対応の入力検証
+    private func validateInput(_ input: String) {
+        do {
+            let normalizedCode = try InvitationCodeNormalizer.normalize(input)
+            let validationResult = InviteCodeSpec.validate(normalizedCode)
+            
+            switch validationResult {
+            case .success(let codeType):
+                inputError = nil
+                let kind = codeType.isSafe ? "safe" : "legacy"
+                print("✅ [JoinFamilyView] Validation success: input='\(input)', normalized='\(normalizedCode)', kind=\(kind)")
+            case .failure(let error):
+                if normalizedCode.isEmpty {
+                    inputError = nil
+                } else {
+                    inputError = error.localizedDescription
+                    print("❌ [JoinFamilyView] Validation error: \(error.localizedDescription)")
+                }
+            }
+        } catch let error as NormalizationError {
+            inputError = error.localizedDescription
+            print("❌ [JoinFamilyView] 正規化エラー: \(error.localizedDescription)")
+        } catch {
+            inputError = "予期しないエラーが発生しました"
+            print("❌ [JoinFamilyView] 予期しないエラー: \(error)")
+        }
+    }
+    
     private func joinFamily() {
-        let trimmedCode = inviteCode.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedCode.isEmpty else { return }
+        let rawInput = inviteCode
+        guard !rawInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         
         isJoining = true
         
         Task {
-            let success = await viewModel.joinFamily(invitationCode: trimmedCode)
+            let success = await viewModel.joinFamily(invitationCode: rawInput)
             await MainActor.run {
                 isJoining = false
                 if success {

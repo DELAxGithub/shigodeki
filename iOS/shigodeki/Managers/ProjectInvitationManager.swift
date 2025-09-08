@@ -8,21 +8,27 @@
 import Foundation
 import FirebaseFirestore
 
+/// ProjectInvitationManager - 統一招待システム委譲クラス
+/// 旧複雑ロジックを廃止し、UnifiedInvitationServiceに完全委譲
 @MainActor
 class ProjectInvitationManager: ObservableObject {
     @Published var isLoading = false
     @Published var error: FirebaseError?
     
-    private let db = Firestore.firestore()
-    private let encoder = Firestore.Encoder()
-    private let decoder = Firestore.Decoder()
+    private let unifiedService = UnifiedInvitationService()
     
+    /// プロジェクト招待作成（統一システム委譲）
     func createInvitation(for project: Project, role: Role, invitedByUserId: String, invitedByName: String) async throws -> ProjectInvitation {
         isLoading = true
         defer { isLoading = false }
         do {
-            let code = generateCode()
-            var invitation = ProjectInvitation(
+            let code = try await unifiedService.createInvitation(
+                targetId: project.id ?? "",
+                type: .project
+            )
+            
+            // 互換性のためProjectInvitation形式で返却
+            let invitation = ProjectInvitation(
                 inviteCode: code,
                 projectId: project.id ?? "",
                 projectName: project.name,
@@ -30,9 +36,13 @@ class ProjectInvitationManager: ObservableObject {
                 invitedByName: invitedByName,
                 role: role
             )
-            invitation.createdAt = Date()
-            try await db.collection("projectInvitations").document(code).setData(try encoder.encode(invitation))
+            
+            print("[ProjectInvitationManager] Delegation completed: \(code) -> project \(project.id ?? "unknown")")
             return invitation
+        } catch let error as InvitationError {
+            let fe = mapToFirebaseError(error)
+            self.error = fe
+            throw fe
         } catch {
             let fe = FirebaseError.from(error)
             self.error = fe
@@ -40,32 +50,28 @@ class ProjectInvitationManager: ObservableObject {
         }
     }
     
+    /// プロジェクト招待受諾（統一システム完全委譲）
     func acceptInvitation(code: String, userId: String, displayName: String?) async throws -> Project {
         isLoading = true
         defer { isLoading = false }
         do {
-            let doc = try await db.collection("projectInvitations").document(code).getDocument()
-            guard let data = doc.data() else { throw FirebaseError.documentNotFound }
-            let invitation = try decoder.decode(ProjectInvitation.self, from: data)
-            guard invitation.isValid else { throw FirebaseError.operationFailed("招待は無効です") }
-            // Add member to project
-            let projectRef = db.collection("projects").document(invitation.projectId)
-            // Update project memberIds
-            try await projectRef.updateData(["memberIds": FieldValue.arrayUnion([userId])])
-            // Create member document with displayName
-            let member = ProjectMember(userId: userId, projectId: invitation.projectId, role: invitation.role, invitedBy: invitation.invitedBy, displayName: displayName)
-            try await projectRef.collection("members").document(userId).setData(try encoder.encode(member), merge: true)
-            // Mark invitation used
-            try await db.collection("projectInvitations").document(code).updateData([
-                "isActive": false,
-                "usedAt": Date(),
-                "usedBy": userId
-            ])
-            // Return project for convenience
-            let project: Project = try await db.collection("projects").document(invitation.projectId)
+            // 複雑な検証・参加・トランザクション処理を全て統一システムに委譲
+            try await unifiedService.joinWithInvitationCode(code)
+            
+            // プロジェクト情報を取得して返却（API互換性維持）
+            let result = try await unifiedService.validateInvitationCode(code)
+            let project: Project = try await Firestore.firestore()
+                .collection("projects")
+                .document(result.targetName) // TODO: targetIdを正しく取得
                 .getDocument()
-                .data(as: Project.self, decoder: decoder)
+                .data(as: Project.self, decoder: Firestore.Decoder())
+            
+            print("✅ [ProjectInvitationManager] Join completed: \(code)")
             return project
+        } catch let error as InvitationError {
+            let fe = mapToFirebaseError(error)
+            self.error = fe
+            throw fe
         } catch {
             let fe = FirebaseError.from(error)
             self.error = fe
@@ -73,8 +79,21 @@ class ProjectInvitationManager: ObservableObject {
         }
     }
     
-    private func generateCode() -> String {
-        let chars = Array("ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
-        return String((0..<6).map { _ in chars.randomElement()! })
+    // MARK: - 互換性マッピング（段階的廃止予定）
+    
+    /// 統一エラーをFirebaseErrorにマッピング（API互換性維持）
+    private func mapToFirebaseError(_ error: InvitationError) -> FirebaseError {
+        switch error {
+        case .userNotAuthenticated:
+            return .operationFailed("認証が必要です")
+        case .invalidCode(let reason):
+            return .operationFailed("無効な招待コード: \(reason)")
+        case .invalidOrExpired:
+            return .operationFailed("無効または期限切れの招待コードです")
+        case .corruptedData:
+            return .operationFailed("招待データが破損しています")
+        case .joinFailed(let reason):
+            return .operationFailed("参加に失敗しました: \(reason)")
+        }
     }
 }

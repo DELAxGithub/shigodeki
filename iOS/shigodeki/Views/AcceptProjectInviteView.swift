@@ -19,10 +19,13 @@ struct AcceptProjectInviteView: View {
         NavigationView {
             Form {
                 Section("プロジェクト招待コード") {
-                    TextField("6桁コード", text: $code)
+                    TextField("例: ABC123 または INV-ABC123", text: $code)
                         .keyboardType(.asciiCapable)
                         .textInputAutocapitalization(.characters)
-                        .onChange(of: code) { _, newVal in if newVal.count > 6 { code = String(newVal.prefix(6)) } }
+                        .onChange(of: code) { _, newVal in 
+                            // 統一システム対応：8桁まで許可、表示分離
+                            if newVal.count > 8 { code = String(newVal.prefix(8)) }
+                        }
                 }
                 if let msg = message { Section { Text(msg).font(.footnote).foregroundColor(.secondary) } }
             }
@@ -31,7 +34,7 @@ struct AcceptProjectInviteView: View {
                 ToolbarItem(placement: .navigationBarLeading) { Button("閉じる") { dismiss() } }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(isAccepting ? "処理中…" : "参加") { accept() }
-                        .disabled(isAccepting || code.count != 6 || authManager.currentUserId == nil)
+                        .disabled(isAccepting || code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || authManager.currentUserId == nil)
                 }
             }
         }
@@ -43,8 +46,9 @@ struct AcceptProjectInviteView: View {
         isAccepting = true
         Task { @MainActor in
             do {
-                _ = try await invitationManager.acceptInvitation(code: code.uppercased(), userId: uid, displayName: name)
-                message = "プロジェクトに参加しました！"
+                // 統一システム経由で参加（正規化は内部で処理）
+                _ = try await invitationManager.acceptInvitation(code: code, userId: uid, displayName: name)
+                message = "プロジェクトに参加しました！（統一システム経由）"
                 isAccepting = false
             } catch {
                 message = error.localizedDescription

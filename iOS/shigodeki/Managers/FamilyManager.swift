@@ -26,7 +26,7 @@ class FamilyManager: ObservableObject {
     
     // MARK: - Family Creation
     
-    func createFamily(name: String, creatorUserId: String) async throws -> String {
+    func createFamily(name: String, creatorUserId: String) async throws -> (familyId: String, inviteCode: String?) {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
             throw FamilyError.invalidName
@@ -49,7 +49,7 @@ class FamilyManager: ObservableObject {
         
         do {
             // 2. Execute server operation
-            let realFamilyId = try await creationService.createFamilyOnServer(name: trimmedName, creatorUserId: creatorUserId)
+            let (realFamilyId, inviteCode) = try await creationService.createFamilyOnServer(name: trimmedName, creatorUserId: creatorUserId)
             
             // 3. Success: replace temp ID with real ID
             if let index = families.firstIndex(where: { $0.id == tempId }) {
@@ -57,7 +57,7 @@ class FamilyManager: ObservableObject {
                 optimisticUpdates.removePendingOperation(key: tempId)
             }
             
-            return realFamilyId
+            return (familyId: realFamilyId, inviteCode: inviteCode)
             
         } catch {
             // 4. Failure: rollback
@@ -298,8 +298,11 @@ class FamilyManager: ObservableObject {
 enum FamilyError: LocalizedError {
     case invalidName
     case creationFailed(String)
+    case userNotAuthenticated
     case invalidInvitationCode
+    case invalidInvitationCodeFormat(String)
     case expiredInvitationCode
+    case invitationCodeExhausted
     case notFound
     case permissionDenied
     
@@ -309,10 +312,16 @@ enum FamilyError: LocalizedError {
             return "家族グループ名が無効です"
         case .creationFailed(let message):
             return "家族グループの作成に失敗しました: \(message)"
+        case .userNotAuthenticated:
+            return "ユーザーが認証されていません"
         case .invalidInvitationCode:
             return "無効な招待コードです"
+        case .invalidInvitationCodeFormat(let message):
+            return message
         case .expiredInvitationCode:
             return "招待コードの有効期限が切れています"
+        case .invitationCodeExhausted:
+            return "この招待コードは使用回数の上限に達しています"
         case .notFound:
             return "家族グループが見つかりません"
         case .permissionDenied:

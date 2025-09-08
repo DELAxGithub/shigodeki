@@ -57,43 +57,29 @@ class FirestoreFamilyRepository: FamilyRepository {
     
     func joinFamily(userId: String, invitationCode: String) async throws -> JoinResult {
         do {
-            // Validate invitation code first
-            let codeDoc = try await db.collection("invitations").document(invitationCode).getDocument()
+            // 統一システム委譲：複雑なレガシーフォールバックを廃止
+            let unifiedService = UnifiedInvitationService()
+            try await unifiedService.joinWithInvitationCode(invitationCode)
             
-            guard codeDoc.exists, let data = codeDoc.data(),
-                  let isActive = data["isActive"] as? Bool, isActive,
-                  let familyId = data["familyId"] as? String,
-                  let familyName = data["familyName"] as? String else {
-                throw FirebaseError.operationFailed("Invalid invitation code")
-            }
+            // 結果取得のため検証を実施（統一システム経由）
+            let result = try await unifiedService.validateInvitationCode(invitationCode)
             
-            // Check if invitation hasn't expired
-            if let expiresAt = data["expiresAt"] as? Timestamp,
-               expiresAt.dateValue() < Date() {
-                throw FirebaseError.operationFailed("Invitation code has expired")
-            }
-            
-            // Add user to family members
-            try await db.collection("families").document(familyId).updateData([
-                "members": FieldValue.arrayUnion([userId])
-            ])
-            
-            // Add familyId to user's familyIds
-            if let currentUser = Auth.auth().currentUser {
-                try await db.collection("users").document(currentUser.uid).updateData([
-                    "familyIds": FieldValue.arrayUnion([familyId])
-                ])
-            }
+            print("✅ [FirestoreFamilyRepository] Delegation completed: \(invitationCode) -> \(result.targetName)")
             
             return JoinResult(
-                familyId: familyId,
-                familyName: familyName,
-                message: "Successfully joined \(familyName)"
+                familyId: result.targetName,
+                familyName: result.targetName,
+                message: "Successfully joined via unified system"
             )
             
+        } catch let error as InvitationError {
+            // 統一エラーを旧API形式にマッピング（互換性維持）
+            print("❌ [FirestoreFamilyRepository] Unified system error: \(error.localizedDescription)")
+            let firebaseError = mapToFirebaseError(error)
+            throw firebaseError
         } catch {
-            print("❌ FirestoreFamilyRepository: Error joining family: \(error)")
-            throw error
+            print("❌ [FirestoreFamilyRepository] 予期しないエラー: \(error)")
+            throw FirebaseError.from(error)
         }
     }
     
@@ -221,6 +207,22 @@ class FirestoreFamilyRepository: FamilyRepository {
     }
     
     // MARK: - Helper Methods (from existing FamilyManager)
+    
+    /// 統一エラーをFirebaseErrorにマッピング（API互換性維持）
+    private func mapToFirebaseError(_ error: InvitationError) -> FirebaseError {
+        switch error {
+        case .userNotAuthenticated:
+            return .operationFailed("認証が必要です")
+        case .invalidCode(let reason):
+            return .operationFailed("無効な招待コード: \(reason)")
+        case .invalidOrExpired:
+            return .operationFailed("無効または期限切れの招待コードです")
+        case .corruptedData:
+            return .operationFailed("招待データが破損しています")
+        case .joinFailed(let reason):
+            return .operationFailed("参加に失敗しました: \(reason)")
+        }
+    }
     
     private func updateUserFamilyIds(userId: String, familyId: String, action: FamilyAction) async throws {
         let userRef = db.collection("users").document(userId)

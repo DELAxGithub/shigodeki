@@ -5,7 +5,7 @@ import FirebaseAuth
 class FamilyCreationService {
     private let db = Firestore.firestore()
     
-    func createFamilyOnServer(name: String, creatorUserId: String) async throws -> String {
+    func createFamilyOnServer(name: String, creatorUserId: String) async throws -> (familyId: String, inviteCode: String?) {
         let familyData: [String: Any] = [
             "name": name,
             "members": [creatorUserId],
@@ -15,43 +15,75 @@ class FamilyCreationService {
         ]
         
         do {
+            // Step 1: Create family (critical path - must not fail)
             let familyRef = try await db.collection("families").addDocument(data: familyData)
             let familyId = familyRef.documentID
             
-            // Update user's familyIds array
+            // Step 2: Update user's familyIds array (critical path)
             try await updateUserFamilyIds(userId: creatorUserId, familyId: familyId, action: .add)
             
-            // Create invitation code for this family
-            try await generateInvitationCode(familyId: familyId, familyName: name)
+            print("✅ Family created successfully with ID: \(familyId)")
             
-            print("Family created successfully with ID: \(familyId)")
-            return familyId
+            // Step 3: Create invitation code (separate try/catch - failure won't rollback family)
+            var generatedInviteCode: String? = nil
+            do {
+                generatedInviteCode = try await generateInvitationCode(familyId: familyId, familyName: name)
+                print("✅ Invitation code generated for family: \(familyId) -> \(generatedInviteCode ?? "nil")")
+            } catch {
+                print("⚠️ [FamilyCreationService] InviteIssue failure for family \(familyId): \(error)")
+                print("   Family creation succeeded, invitation can be generated later")
+                // Don't throw - family creation should succeed even if invitation fails
+            }
+            
+            return (familyId: familyId, inviteCode: generatedInviteCode)
             
         } catch {
-            print("Error creating family: \(error)")
+            print("❌ Error creating family: \(error)")
             throw FamilyError.creationFailed(error.localizedDescription)
         }
     }
     
-    private func generateInvitationCode(familyId: String, familyName: String) async throws {
-        let invitationCode = generateRandomCode()
+    private func generateInvitationCode(familyId: String, familyName: String) async throws -> String {
+        let normalizedCode = generateRandomCode()
+        let displayCode = "\(InviteCodeSpec.displayPrefix)\(normalizedCode)"
+        
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            throw FamilyError.userNotAuthenticated
+        }
         
         let invitationData: [String: Any] = [
             "familyId": familyId,
             "familyName": familyName,
-            "code": invitationCode,
+            "code": displayCode,
+            "normalizedCode": normalizedCode,
             "isActive": true,
+            "createdBy": currentUserId,
             "createdAt": FieldValue.serverTimestamp(),
-            "expiresAt": Timestamp(date: Date().addingTimeInterval(7 * 24 * 60 * 60)) // 7 days
+            "expiresAt": Timestamp(date: Date().addingTimeInterval(7 * 24 * 60 * 60)), // 7 days
+            "remainingUses": 50,
+            "maxUses": 50
         ]
         
-        try await db.collection("invitations").document(invitationCode).setData(invitationData)
-        print("Invitation code generated: \(invitationCode)")
+        // Triple-save strategy for maximum compatibility and reliability
+        // 1. Primary save by normalized code
+        try await db.collection("invites_by_norm").document(normalizedCode).setData(invitationData)
+        
+        // 2. Mirror save by display format for compatibility  
+        try await db.collection("invitations").document(displayCode).setData(invitationData)
+        
+        // 3. Family-scoped save for reliable family member access
+        try await db.collection("families").document(familyId)
+            .collection("invites").document(normalizedCode).setData(invitationData)
+        
+        print("📝 [FamilyCreationService] InviteIssue normalized=\(normalizedCode) shown=\(displayCode) familyId=\(familyId)")
+        
+        return displayCode
     }
     
     private func generateRandomCode() -> String {
-        let characters = "0123456789"
-        return String((0..<6).map { _ in characters.randomElement()! })
+        return String((0..<InviteCodeSpec.codeLength).map { _ in 
+            InviteCodeSpec.safeCharacters.randomElement()! 
+        })
     }
     
     private func updateUserFamilyIds(userId: String, familyId: String, action: FamilyMembershipService.FamilyIdAction) async throws {
