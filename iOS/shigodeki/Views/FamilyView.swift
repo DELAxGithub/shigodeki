@@ -14,6 +14,7 @@ struct FamilyView: View {
     @EnvironmentObject var sharedManagers: SharedManagerStore
     // 🚨 CTO修正: ViewModelをEnvironmentObjectとして受け取る
     @EnvironmentObject var viewModel: FamilyViewModel
+    @Environment(\.horizontalSizeClass) private var hSizeClass
     
     // UI State - Only presentation concerns
     @State private var showingCreateFamily = false
@@ -92,23 +93,29 @@ struct FamilyView: View {
                 // The List's selection is bound to the ViewModel's selectedFamily property.
                 // This is the core of the master-detail interface.
                 List(selection: $viewModel.selectedFamily) {
-                    // Issue #84: Add top anchor for scroll-to-top functionality
-                    Rectangle()
-                        .fill(Color.clear)
-                        .frame(height: 1)
-                        .id("top")
-                        .listRowSeparator(.hidden)
+                    // Top anchor is useful on iPad for scroll-to-top via tab reselection.
+                    // Hide on iPhone (compact) to avoid a blank spacer at the top.
+                    if hSizeClass == .regular {
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(height: 1)
+                            .id("top")
+                            .listRowSeparator(.hidden)
+                    }
                     
                     ForEach(viewModel.families) { family in
                         FamilyRowView(family: family)
                             .tag(family) // The tag MUST match the selection type.
                     }
                 }
+                .listStyle(.plain)
                 .onReceive(NotificationCenter.default.publisher(for: .familyTabSelected)) { _ in
                     // Issue #84: Reset selection and scroll to top when family tab is re-selected
                     viewModel.selectedFamily = nil
                     withAnimation(.easeInOut(duration: 0.5)) {
-                        proxy.scrollTo("top", anchor: .top)
+                        if hSizeClass == .regular {
+                            proxy.scrollTo("top", anchor: .top)
+                        }
                     }
                 }
             }
