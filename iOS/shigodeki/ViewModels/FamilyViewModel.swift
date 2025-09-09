@@ -18,6 +18,8 @@ class FamilyViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: FirebaseError? = nil
     @Published var shouldShowEmptyState = false
+    @Published var isWaitingForAuth = false
+    @Published var bootstrapped = false
     
     // 🚨 CTO Requirement: State for NavigationSplitView selection
     @Published var selectedFamily: Family? = nil
@@ -107,17 +109,22 @@ class FamilyViewModel: ObservableObject {
     /// **【重要】認証状態変化ハンドラー**
     /// ViewModelが自律的に認証状態を監視し、適切なタイミングでデータロードを実行
     private func handleUserChange(_ user: User?) {
-        FamilyInitializationService.handleUserChange(
-            user: user,
-            familyManager: familyManager,
-            families: &families,
-            setupFamilyManagerCallback: { [weak self] in
+        if let user = user, let userId = user.id {
+            print("🔄 FamilyViewModel: 認証ユーザー変更を検知。ユーザーID: \(userId)。データロードを開始します。")
+            isWaitingForAuth = false
+            Task { [weak self] in
                 await self?.setupFamilyManagerIfNeeded()
-            },
-            loadFamiliesCallback: { [weak self] userId in
                 await self?.loadFamilies(for: userId)
+                await MainActor.run { self?.bootstrapped = true }
             }
-        )
+        } else {
+            print("🔄 FamilyViewModel: ユーザーがサインアウトしました。データをクリアします。")
+            self.families = []
+            self.familyManager?.stopListeningToFamilies()
+            isWaitingForAuth = true
+            bootstrapped = true // Bootstrap is complete, even if logged out.
+        }
+        updateEmptyState()
     }
     
     // MARK: - Access to Managers for Views that need it

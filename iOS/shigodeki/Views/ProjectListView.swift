@@ -50,7 +50,9 @@ struct ProjectListView: View {
             NavigationStack {
                 if let selectedProject = viewModel.selectedProject {
                     if let pm = viewModel.projectManagerForViews {
+                        // Remount detail view when selection changes to avoid stale StateObject
                         ProjectDetailView(project: selectedProject, projectManager: pm)
+                            .id(selectedProject.id ?? selectedProject.name)
                     } else {
                         LoadingStateView(message: "システムを準備中...")
                     }

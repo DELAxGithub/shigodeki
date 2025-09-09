@@ -56,6 +56,7 @@ struct FamilyView: View {
             NavigationStack {
                 if let selectedFamily = viewModel.selectedFamily {
                     FamilyDetailView(family: selectedFamily)
+                        .id(selectedFamily.id ?? selectedFamily.name)
                 } else {
                     placeholderView
                 }
@@ -80,8 +81,8 @@ struct FamilyView: View {
     @ViewBuilder
     private var sidebarView: some View {
         // The sidebar's state is derived directly from the ViewModel.
-        if viewModel.isLoading {
-            ProgressView("ユーザー情報を取得中...")
+        if !viewModel.bootstrapped || viewModel.isWaitingForAuth {
+            ProgressView(!viewModel.bootstrapped ? "初期化中..." : "ユーザー情報を取得中...")
         } else if viewModel.families.isEmpty {
             Text("家族グループがありません")
                 .foregroundColor(.secondary)

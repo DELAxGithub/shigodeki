@@ -42,6 +42,13 @@ class SharedManagerStore: ObservableObject {
         }
     }
     
+    // MARK: - Synchronous Cached Accessors (read-only)
+    // Provide immediate access to already-created managers to reduce UI flicker on view remounts.
+    var phaseManagerIfLoaded: PhaseManager? { _phaseManager }
+    var authManagerIfLoaded: AuthenticationManager? { _authManager }
+    var aiGeneratorIfLoaded: AITaskGenerator? { _aiGenerator }
+    var familyManagerIfLoaded: FamilyManager? { _familyManager }
+    
     // MARK: - Manager Access Methods
     
     func getAuthManager() async -> AuthenticationManager {

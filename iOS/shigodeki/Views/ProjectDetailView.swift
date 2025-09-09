@@ -30,6 +30,8 @@ struct ProjectDetailView: View {
         self.project = project
         self.projectManager = projectManager
         _viewModel = StateObject(wrappedValue: ProjectDetailViewModel(project: project))
+        // Seed managers synchronously if already cached to prevent loading flicker on remount
+        _phaseManager = State(initialValue: SharedManagerStore.shared.phaseManagerIfLoaded)
     }
     
     var body: some View {
@@ -84,10 +86,10 @@ struct ProjectDetailView: View {
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .animation(.easeInOut(duration: 0.3), value: phaseManager != nil)
             }
         }
-        .navigationTitle(project.name)
+        // Use live project name so title updates immediately on selection and live changes
+        .navigationTitle(liveProject.name)
         .navigationBarTitleDisplayMode(.large)
         .navigationBarBackButtonHidden(true)
         .toolbar {
