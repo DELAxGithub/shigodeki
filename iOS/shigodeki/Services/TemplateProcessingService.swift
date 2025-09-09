@@ -45,7 +45,7 @@ struct TemplateProcessingService {
         guard let provider = providers.first else { return false }
         
         provider.loadDataRepresentation(forTypeIdentifier: UTType.json.identifier) { data, error in
-            guard let data = data, error == nil else { return }
+            guard data != nil, error == nil else { return }
             // データの処理は呼び出し側で行う
         }
         

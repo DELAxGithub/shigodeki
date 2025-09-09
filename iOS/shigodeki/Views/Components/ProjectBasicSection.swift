@@ -14,7 +14,7 @@ struct ProjectBasicSection: View {
                 TextField("プロジェクト名", text: $projectName)
                     .textInputAutocapitalization(.words)
                     .disableAutocorrection(false)
-                    .onChange(of: projectName) { _ in onFieldChange() }
+                    .onChange(of: projectName) { _, _ in onFieldChange() }
                 
                 ZStack(alignment: .topLeading) {
                     if projectDescription.isEmpty {
@@ -32,13 +32,13 @@ struct ProjectBasicSection: View {
                     
                     TextEditor(text: $projectDescription)
                         .frame(minHeight: 80)
-                        .onChange(of: projectDescription) { _ in onFieldChange() }
+                        .onChange(of: projectDescription) { _, _ in onFieldChange() }
                 }
             }
             
             Section(header: Text("ステータス")) {
                 Toggle("完了済み", isOn: $isCompleted)
-                    .onChange(of: isCompleted) { _ in onFieldChange() }
+                    .onChange(of: isCompleted) { _, _ in onFieldChange() }
                 
                 if isCompleted {
                     HStack {

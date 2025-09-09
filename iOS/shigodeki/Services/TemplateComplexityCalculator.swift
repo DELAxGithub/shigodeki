@@ -99,7 +99,7 @@ class TemplateComplexityCalculator {
     private static func calculateMaxRecommendedTasks(for template: ProjectTemplate) -> Int {
         // Base recommendation based on difficulty
         let baseTasks: Int
-        switch template.metadata.difficulty ?? TemplateDifficulty.beginner {
+        switch template.metadata.difficulty {
         case .beginner: baseTasks = 30
         case .intermediate: baseTasks = 60
         case .advanced: baseTasks = 100

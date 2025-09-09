@@ -42,7 +42,7 @@ struct TaskListListenerService {
                         let model = try doc.data(as: TaskList.self)
                         return (doc.documentID, model)
                     }
-                    var remoteMap = Dictionary(uniqueKeysWithValues: remotePairs)
+                    let remoteMap = Dictionary(uniqueKeysWithValues: remotePairs)
                     var merged: [TaskList] = []
                     
                     // Merge logic would need currentTaskLists from manager

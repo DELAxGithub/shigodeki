@@ -37,11 +37,13 @@ struct AuthTestView: View {
                 }
                 .navigationTitle("認証テスト")
                 .navigationBarTitleDisplayMode(.large)
+                #if DEBUG
                 .onReceive(NotificationCenter.default.publisher(for: .testTabSelected)) { _ in
                     withAnimation(.easeInOut(duration: 0.5)) {
                         proxy.scrollTo("top", anchor: .top)
                     }
                 }
+                #endif
             }
         }
         .sheet(isPresented: $showTestResults) {

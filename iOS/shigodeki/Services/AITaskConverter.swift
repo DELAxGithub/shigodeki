@@ -62,7 +62,7 @@ struct AITaskConverter {
         )
         
         // Set phase if available
-        if let phaseIndex = phaseIndex, let phaseName = phaseName {
+        if phaseIndex != nil, phaseName != nil {
             // This would need to be handled by the calling code
             // as we'd need to create/reference phases
         }

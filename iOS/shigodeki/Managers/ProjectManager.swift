@@ -59,7 +59,7 @@ class ProjectManager: ObservableObject {
             try await ProjectCreationHelpers.debugFirebaseAuthState()
             
             print("🔄 Creating project in Firestore...")
-            var createdProject = try await projectOperations.create(optimisticProject)
+            let createdProject = try await projectOperations.create(optimisticProject)
             print("🎉 Project created successfully with ID: \(createdProject.id ?? "NO_ID")")
             
             ProjectCreationHelpers.replaceOptimisticProject(in: &projects, temporaryId: temporaryId, with: createdProject)

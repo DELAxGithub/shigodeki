@@ -93,7 +93,7 @@ class TemplateValidationLogic {
         // Validate dependencies exist
         for phase in phases {
             for taskList in phase.taskLists {
-                for task in taskList.tasks {
+                for _ in taskList.tasks {
                     // Skip dependency validation - TaskTemplate doesn't have dependencies
                     /*for dependency in task.dependencies {
                         if !taskNames.contains(dependency) {

@@ -58,7 +58,7 @@ struct ScalableFontModifier: ViewModifier {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     
     func body(content: Content) -> some View {
-        if let maxSize = maxSize {
+        if maxSize != nil {
             content
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         } else {

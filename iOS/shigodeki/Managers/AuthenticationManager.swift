@@ -174,7 +174,7 @@ class AuthenticationManager: NSObject, ObservableObject {
             userInfo: [
                 "action": "signin",
                 "newUserId": currentUserId ?? "",
-                "previousUserId": previousUserId
+                "previousUserId": previousUserId as Any
             ]
         )
         print("👤 AuthManager: User authenticated uid=\(currentUserId ?? "nil"), clearing stale uid-scoped data")
@@ -189,7 +189,7 @@ class AuthenticationManager: NSObject, ObservableObject {
         NotificationCenter.default.post(
             name: .authUserChanged, 
             object: nil, 
-            userInfo: ["action": "signout", "previousUserId": currentUserId]
+            userInfo: ["action": "signout", "previousUserId": currentUserId as Any]
         )
         print("🧹 AuthManager: User signed out, clearing all uid-scoped data")
     }

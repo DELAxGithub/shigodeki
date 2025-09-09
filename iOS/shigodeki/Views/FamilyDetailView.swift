@@ -81,7 +81,7 @@ struct FamilyDetailView: View {
             memberOperations.loadFamilyMembers(family: currentFamily)
             projectOperations.loadFamilyProjects(family: currentFamily)
         }
-        .onChange(of: liveFamily?.members ?? []) { _ in
+        .onChange(of: liveFamily?.members ?? []) { _, _ in
             // Members changed -> reload member list and projects
             if let lf = liveFamily {
                 memberOperations.loadFamilyMembers(family: lf)

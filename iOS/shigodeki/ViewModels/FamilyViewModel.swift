@@ -341,7 +341,7 @@ class FamilyViewModel: ObservableObject {
             operationState.joinSuccessMessage = "'\(familyName)'に参加しました！"
             
             // Refresh families after successful join
-            await familyManager.startListeningToFamilies(userId: userId)
+            familyManager.startListeningToFamilies(userId: userId)
             
             print("✅ FamilyViewModel: Join success familyId=..., added member uid=\(userId)")
             return true

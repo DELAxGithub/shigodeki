@@ -33,7 +33,9 @@ class FamilyMemberOperations: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            self?.handleAuthUserChanged(notification)
+            Task { @MainActor in
+                self?.handleAuthUserChanged(notification)
+            }
         }
     }
     

@@ -99,7 +99,7 @@ struct FamilyInitializationService {
     ) async {
         guard let authManager = authManager,
               let familyManager = familyManager,
-              let userId = await authManager.currentUser?.id else {
+              let userId = authManager.currentUser?.id else {
             print("⚠️ FamilyViewModel: loadInitialData() - 必要なManagerまたはユーザーIDが不足")
             return
         }
@@ -107,7 +107,7 @@ struct FamilyInitializationService {
         print("🔄 FamilyViewModel: 初期データ読み込み開始 - User: \(userId)")
         
         // 家族データの読み込みを開始
-        await familyManager.startListeningToFamilies(userId: userId)
+        familyManager.startListeningToFamilies(userId: userId)
         print("✨ FamilyViewModel: 家族データのリスニングを開始")
     }
     
@@ -143,7 +143,7 @@ struct FamilyInitializationService {
         print("👤 FamilyViewModel: 家族データの読み込みを開始 - User: \(userId)")
         
         // Start real-time listening instead of just loading
-        await familyManager.startListeningToFamilies(userId: userId)
+        familyManager.startListeningToFamilies(userId: userId)
         print("✨ FamilyViewModel: Started listening to families for user")
     }
 }

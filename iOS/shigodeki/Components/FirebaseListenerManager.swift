@@ -195,13 +195,18 @@ class FirebaseListenerManager: ObservableObject {
     
     /// 統計情報の更新 - Thread-safe implementation
     private func updateStatistics() {
+        // Take snapshots on the main actor to avoid crossing isolation in background closure
+        let active = activeListeners
+        let metadata = listenerMetadata
+        let stats = listenerStats
+        
         statsQueue.async(flags: .barrier) { [weak self] in
             guard let self = self else { return }
             
             let updatedStats = ListenerOptimizationService.updateStatistics(
-                activeListeners: self.activeListeners,
-                listenerMetadata: self.listenerMetadata,
-                currentStats: self.listenerStats
+                activeListeners: active,
+                listenerMetadata: metadata,
+                currentStats: stats
             )
             
             DispatchQueue.main.async {

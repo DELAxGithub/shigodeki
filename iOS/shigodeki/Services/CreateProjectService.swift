@@ -15,14 +15,14 @@ class CreateProjectService: ObservableObject {
     }
     
     func createInitialTasksFromAI(_ aiTasks: [ShigodekiTask], for project: Project) async {
-        guard let projectId = project.id, let userId = await authManager.currentUser?.id else {
+        guard let projectId = project.id, let userId = authManager.currentUser?.id else {
             print("⚠️ Cannot create AI tasks: missing project ID or user ID")
             return
         }
         
         do {
             // Create a default phase for AI-generated tasks
-            let phaseManager = await PhaseManager()
+            let phaseManager = PhaseManager()
             let defaultPhase = try await phaseManager.createPhase(
                 name: "初期タスク",
                 description: "AI生成によるプロジェクトの初期タスク群",
@@ -37,7 +37,7 @@ class CreateProjectService: ObservableObject {
             }
             
             // Create a default task list within the phase
-            let taskListManager = await TaskListManager()
+            let taskListManager = TaskListManager()
             let defaultTaskList = try await taskListManager.createTaskList(
                 name: "AI生成タスク",
                 phaseId: phaseId,
@@ -53,7 +53,7 @@ class CreateProjectService: ObservableObject {
             }
             
             // Create each AI-generated task in the task list
-            let enhancedTaskManager = await EnhancedTaskManager()
+            let enhancedTaskManager = EnhancedTaskManager()
             var createdCount = 0
             
             for (index, aiTask) in aiTasks.enumerated() {

@@ -101,7 +101,7 @@ struct TaskImprovementSuggestionView: View {
             
             let engine = TaskImprovementEngine(
                 aiGenerator: aiGenerator,
-                taskManager: TaskManager(),
+                taskManager: taskManager,
                 familyManager: familyManager
             )
             

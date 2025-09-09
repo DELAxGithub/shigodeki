@@ -15,19 +15,16 @@ class TemplateManager: ObservableObject {
         
         isLoading = true
         
-        // 組み込みテンプレートを非同期で読み込み
-        DispatchQueue.global(qos: .userInitiated).async {
+        // 組み込みテンプレートを読み込み（MainActorでアクセス）
+        Task { @MainActor in
             let templates = BuiltInTemplates.allTemplates
+            self.builtInTemplates = templates
+            self.allTemplates = templates + self.customTemplates
+            self.isLoading = false
             
-            DispatchQueue.main.async {
-                self.builtInTemplates = templates
-                self.allTemplates = templates + self.customTemplates
-                self.isLoading = false
-                
-                #if DEBUG
-                print("✅ TemplateManager: Loaded \(templates.count) built-in templates")
-                #endif
-            }
+            #if DEBUG
+            print("✅ TemplateManager: Loaded \(templates.count) built-in templates")
+            #endif
         }
     }
     

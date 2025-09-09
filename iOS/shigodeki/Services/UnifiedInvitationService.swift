@@ -120,7 +120,7 @@ class UnifiedInvitationService {
         }
         
         // 2. 原子的更新処理（Transaction使用 - 明示配列更新）
-        try await db.runTransaction({ (transaction, errorPointer) -> Any? in
+        _ = try await db.runTransaction({ (transaction, errorPointer) -> Any? in
             // 冪等性チェック（トランザクション内で実行）
             print("🔍 [UnifiedInvitationService] Checking existing membership in transaction for user \(currentUserId)")
             
