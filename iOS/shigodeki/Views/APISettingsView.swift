@@ -7,7 +7,7 @@ struct APISettingsView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("AI Services")) {
+                Section(header: Text("AIサービス")) {
                     ForEach(KeychainManager.APIProvider.allCases, id: \.self) { provider in
                         APIProviderRow(
                             provider: provider,
@@ -17,20 +17,20 @@ struct APISettingsView: View {
                     }
                 }
                 
-                Section(header: Text("About"), footer: footerText) {
+                Section(header: Text("情報"), footer: footerText) {
                     HStack {
                         Image(systemName: "shield.fill")
                             .foregroundColor(.green)
-                        Text("API keys are stored securely in Keychain")
+                        Text("APIキーはキーチェーンに安全に保存されます")
                             .font(.caption)
                     }
                 }
             }
-            .navigationTitle("AI Settings")
+            .navigationTitle("AI設定")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
+                    Button("完了") {
                         dismiss()
                     }
                 }
@@ -49,7 +49,7 @@ struct APISettingsView: View {
     }
     
     private var footerText: Text {
-        Text("API keys are required to generate intelligent task suggestions using AI services.")
+        Text("AIサービスを使用してスマートなタスク提案を生成するためにAPIキーが必要です。")
     }
 }
 
@@ -81,7 +81,7 @@ struct APIProviderRow: View {
     }
     
     private var statusText: String {
-        isConfigured ? "Configured" : "Not configured"
+        isConfigured ? "設定済み" : "未設定"
     }
 }
 
@@ -98,8 +98,8 @@ struct APIKeyConfigurationView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("\(provider.displayName) API Key")) {
-                    SecureField("Enter your API key", text: $apiKey)
+                Section(header: Text("\(provider.displayName) APIキー")) {
+                    SecureField("APIキーを入力", text: $apiKey)
                         .textContentType(.password)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
@@ -109,30 +109,30 @@ struct APIKeyConfigurationView: View {
                         .foregroundColor(.secondary)
                 }
                 
-                Section(header: Text("Security Notice")) {
-                    Label("Your API key will be stored securely in Keychain", systemImage: "lock.shield")
+                Section(header: Text("セキュリティの注意")) {
+                    Label("APIキーはキーチェーンに安全に保存されます", systemImage: "lock.shield")
                         .font(.caption)
-                    Label("Keys are never transmitted except to the respective AI service", systemImage: "network.badge.shield.half.filled")
+                    Label("キーは対応するAIサービス以外には絶対に送信されません", systemImage: "network.badge.shield.half.filled")
                         .font(.caption)
                 }
             }
-            .navigationTitle("Configure \(provider.displayName)")
+            .navigationTitle("\(provider.displayName)の設定")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
+                    Button("キャンセル") {
                         dismiss()
                     }
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
+                    Button("保存") {
                         saveAPIKey()
                     }
                     .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
                 }
             }
-            .alert("Configuration", isPresented: $showingAlert) {
+            .alert("設定", isPresented: $showingAlert) {
                 Button("OK") {
                     if !alertMessage.contains("Error") {
                         onComplete(true)
@@ -148,11 +148,11 @@ struct APIKeyConfigurationView: View {
     private var instructionText: String {
         switch provider {
         case .openAI:
-            return "Get your API key from platform.openai.com → API Keys"
+            return "platform.openai.com → API KeysでAPIキーを取得してください"
         case .claude:
-            return "Get your API key from console.anthropic.com → API Keys"
+            return "console.anthropic.com → API KeysでAPIキーを取得してください"
         case .gemini:
-            return "Get your API key from aistudio.google.com → Get API Key"
+            return "aistudio.google.com → Get API KeyでAPIキーを取得してください"
         }
     }
     
@@ -161,7 +161,7 @@ struct APIKeyConfigurationView: View {
         
         // Validate format
         guard KeychainManager.shared.validateAPIKey(trimmedKey, for: provider) else {
-            alertMessage = "Invalid API key format for \(provider.displayName)"
+            alertMessage = "\(provider.displayName)のAPIキーの形式が無効です"
             showingAlert = true
             return
         }
@@ -170,10 +170,10 @@ struct APIKeyConfigurationView: View {
         
         do {
             try KeychainManager.shared.storeAPIKey(trimmedKey, for: provider)
-            alertMessage = "\(provider.displayName) API key saved successfully"
+            alertMessage = "\(provider.displayName)のAPIキーを保存しました"
             showingAlert = true
         } catch {
-            alertMessage = "Error saving API key: \(error.localizedDescription)"
+            alertMessage = "APIキーの保存エラー: \(error.localizedDescription)"
             showingAlert = true
         }
         

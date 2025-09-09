@@ -42,7 +42,7 @@ final class AIIntegrationTests: XCTestCase {
         app.buttons["AI設定を開く"].tap()
         
         // 4. Verify API settings screen appears
-        XCTAssertTrue(app.navigationBars["AI Settings"].exists)
+        XCTAssertTrue(app.navigationBars["AI設定"].exists)
         
         // 5. Configure API key (mock/test key)
         configureTestAPIKey()
