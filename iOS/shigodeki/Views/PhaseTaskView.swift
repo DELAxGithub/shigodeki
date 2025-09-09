@@ -29,6 +29,9 @@ struct PhaseTaskView: View {
     @State private var selectedTaskId: String? = nil
     @State private var inlineNewTitle: String = ""
     
+    // Feature flags
+    private let taskEditEnabled = false // Hide Edit button until functionality is ready
+    
     var body: some View {
         VStack {
             BreadcrumbBar(items: [project.name, phase.name, "タスク"]) { idx in
@@ -63,7 +66,7 @@ struct PhaseTaskView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 12) {
-                    EditButton()
+                    if taskEditEnabled { EditButton() }
                     Button { showingCreateTask = true } label: { Image(systemName: "plus.circle") }
                     Button { showingCreateSection = true } label: { Image(systemName: "folder.badge.plus") }
                 }
@@ -147,4 +150,3 @@ struct PhaseTaskView: View {
         }
     }
 }
-
