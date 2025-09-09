@@ -100,7 +100,7 @@ struct TaskDetailSheetHandler {
                     continue
                 }
                 
-                try await taskManager.createTask(
+                _ = try await taskManager.createTask(
                     title: newTask.title,
                     description: newTask.description,
                     taskListId: taskListId,

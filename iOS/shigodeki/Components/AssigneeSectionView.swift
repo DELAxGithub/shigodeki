@@ -67,7 +67,7 @@ struct AssigneeSectionView: View {
                 await loadUserNames()
             }
         }
-        .onChange(of: members) { _ in
+        .onChange(of: members) { _, _ in
             Task {
                 await loadUserNames()
             }
@@ -133,14 +133,14 @@ struct AssigneeSectionView: View {
 }
 
 #Preview {
+    @Previewable @State var selectedAssignee: String? = nil
+
     let sampleMembers = [
         ProjectMember(userId: "user1", projectId: "project1", role: .owner, displayName: "田中太郎"),
         ProjectMember(userId: "user2", projectId: "project1", role: .editor, displayName: "佐藤花子"),
         ProjectMember(userId: "user3", projectId: "project1", role: .viewer)
     ]
-    
-    @State var selectedAssignee: String? = nil
-    
+
     VStack {
         AssigneeSectionView(
             members: sampleMembers,
@@ -148,9 +148,9 @@ struct AssigneeSectionView: View {
         )
         .environmentObject(SharedManagerStore.shared)
         .padding()
-        
+
         Divider()
-        
+
         Text("Selected: \(selectedAssignee ?? "None")")
             .font(.caption)
             .padding()

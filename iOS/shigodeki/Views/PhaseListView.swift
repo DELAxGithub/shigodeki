@@ -102,7 +102,7 @@ struct PhaseListView: View {
                     .onDelete(perform: deletePhases)
                 }
                 .refreshable {
-                    await loadPhases()
+                    loadPhases()
                 }
             }
         }

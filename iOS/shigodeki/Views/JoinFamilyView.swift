@@ -51,7 +51,7 @@ struct JoinFamilyView: View {
                                 .font(.body)
                                 .textInputAutocapitalization(.characters)
                                 .accessibilityIdentifier("invite_code_field")
-                                .onChange(of: inviteCode) { newValue in
+                                .onChange(of: inviteCode) { _, newValue in
                                     validateInput(newValue)
                                 }
                             

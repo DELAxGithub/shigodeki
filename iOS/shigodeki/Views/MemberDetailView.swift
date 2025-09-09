@@ -77,7 +77,7 @@ struct MemberDetailView: View {
         }
         
         guard let userId = member.id else { return }
-        let (projects, tasks) = await dataService.loadMemberData(userId: userId)
+        _ = await dataService.loadMemberData(userId: userId)
         
         // TODO: userProjects and assignedTasks properties don't exist in MemberDataService
         // await MainActor.run {

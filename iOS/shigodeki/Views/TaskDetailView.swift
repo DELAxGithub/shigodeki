@@ -66,7 +66,7 @@ struct TaskDetailView: View {
             loadData()
         }
         .refreshable {
-            await loadData()
+            loadData()
         }
         .taskDetailSheets(
             taskList: taskList,

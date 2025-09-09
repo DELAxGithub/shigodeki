@@ -138,7 +138,8 @@ struct ProjectDetailView: View {
                 
                 // Load managers in parallel (prioritize PhaseManager for fastest UI update)
                 group.addTask {
-                    if phaseManager == nil {
+                    let needs = await MainActor.run { phaseManager == nil }
+                    if needs {
                         let pm = await sharedManagers.getPhaseManager()
                         await MainActor.run {
                             phaseManager = pm
@@ -148,7 +149,8 @@ struct ProjectDetailView: View {
                 }
                 
                 group.addTask {
-                    if authManager == nil {
+                    let needs = await MainActor.run { authManager == nil }
+                    if needs {
                         let am = await sharedManagers.getAuthManager()
                         await MainActor.run {
                             authManager = am
@@ -157,7 +159,8 @@ struct ProjectDetailView: View {
                 }
                 
                 group.addTask {
-                    if aiGenerator == nil {
+                    let needs = await MainActor.run { aiGenerator == nil }
+                    if needs {
                         let ai = await sharedManagers.getAiGenerator()
                         await MainActor.run {
                             aiGenerator = ai
@@ -166,7 +169,8 @@ struct ProjectDetailView: View {
                 }
                 
                 group.addTask {
-                    if familyManager == nil {
+                    let needs = await MainActor.run { familyManager == nil }
+                    if needs {
                         let fm = await sharedManagers.getFamilyManager()
                         await MainActor.run {
                             familyManager = fm

@@ -168,69 +168,46 @@ struct TaskAISupportSection: View {
                                 subtaskCreationResult = nil
                                 return onOptimisticSubtasksUpdate(content)
                             }
+                            // 裏でFirestore永続化
+                            let tempService = PhaseTaskDetailService()
+                            let createdSubtasks = await tempService.createSubtasksFromAIContent(
+                                content: content,
+                                task: task,
+                                project: project,
+                                phase: phase
+                            )
                             
-                            do {
-                                // 裏でFirestore永続化
-                                let tempService = PhaseTaskDetailService()
-                                let createdSubtasks = await tempService.createSubtasksFromAIContent(
-                                    content: content,
-                                    task: task,
-                                    project: project,
-                                    phase: phase
-                                )
+                            // Use DispatchQueue to defer state updates to avoid publish-during-view-updates
+                            DispatchQueue.main.async {
+                                isCreatingSubtasks = false
                                 
-                                // Use DispatchQueue to defer state updates to avoid publish-during-view-updates
-                                DispatchQueue.main.async {
-                                    isCreatingSubtasks = false
+                                if !createdSubtasks.isEmpty {
+                                    // 成功: 楽観的なサブタスクを正式なものに置換
+                                    onConfirmOptimisticUpdate(tempIds, createdSubtasks)
                                     
-                                    if !createdSubtasks.isEmpty {
-                                        // 成功: 楽観的なサブタスクを正式なものに置換
-                                        onConfirmOptimisticUpdate(tempIds, createdSubtasks)
-                                        
-                                        subtaskCreationResult = "✅ \(createdSubtasks.count)個のサブタスクを作成しました"
-                                        print("✅ \(createdSubtasks.count)個のサブタスクを作成しました（楽観更新）")
-                                        
-                                        // 3秒後にメッセージを自動クリア
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                                            subtaskCreationResult = nil
-                                        }
-                                    } else {
-                                        // 失敗: 楽観的なサブタスクを削除
-                                        onRevertOptimisticUpdate(tempIds)
-                                        
-                                        subtaskCreationResult = "⚠️ AI提案からサブタスクを抽出できませんでした"
-                                        print("⚠️ AI提案からサブタスクを抽出できませんでした")
-                                        
-                                        // 5秒後にメッセージを自動クリア
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
-                                            subtaskCreationResult = nil
-                                        }
+                                    subtaskCreationResult = "✅ \(createdSubtasks.count)個のサブタスクを作成しました"
+                                    print("✅ \(createdSubtasks.count)個のサブタスクを作成しました（楽観更新）")
+                                    
+                                    // 3秒後にメッセージを自動クリア
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                                        subtaskCreationResult = nil
                                     }
-                                    
-                                    // Defer aiStateManager update to next frame
-                                    DispatchQueue.main.async {
-                                        aiStateManager.applyResult(content)
-                                    }
-                                }
-                            } catch {
-                                DispatchQueue.main.async {
-                                    isCreatingSubtasks = false
-                                    
+                                } else {
                                     // 失敗: 楽観的なサブタスクを削除
                                     onRevertOptimisticUpdate(tempIds)
                                     
-                                    subtaskCreationResult = "❌ サブタスク作成エラー: \(error.localizedDescription)"
-                                    print("❌ サブタスク作成エラー: \(error.localizedDescription)")
+                                    subtaskCreationResult = "⚠️ AI提案からサブタスクを抽出できませんでした"
+                                    print("⚠️ AI提案からサブタスクを抽出できませんでした")
                                     
-                                    // 5秒後にエラーメッセージを自動クリア
+                                    // 5秒後にメッセージを自動クリア
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
                                         subtaskCreationResult = nil
                                     }
-                                    
-                                    // Defer aiStateManager update to next frame
-                                    DispatchQueue.main.async {
-                                        aiStateManager.applyResult(content)
-                                    }
+                                }
+                                
+                                // Defer aiStateManager update to next frame
+                                DispatchQueue.main.async {
+                                    aiStateManager.applyResult(content)
                                 }
                             }
                         }

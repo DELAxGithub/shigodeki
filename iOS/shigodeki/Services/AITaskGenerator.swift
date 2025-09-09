@@ -161,7 +161,7 @@ final class AITaskGenerator: ObservableObject {
         let availableProviders = ProviderThrottleCenter.shared.getAvailableProviders(from: self.availableProviders)
         
         guard !availableProviders.isEmpty else {
-            if let nextAvailable = ProviderThrottleCenter.shared.getNextAvailableMessage() {
+            if ProviderThrottleCenter.shared.getNextAvailableMessage() != nil {
                 throw AIClientError.rateLimitExceeded // Will be handled with next available message
             } else {
                 throw AIClientError.apiKeyNotConfigured

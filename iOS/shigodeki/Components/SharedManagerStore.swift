@@ -210,7 +210,7 @@ class SharedManagerStore: ObservableObject {
     
     func smartCacheManagement() async {
         let memoryUsage = getCurrentMemoryUsage()
-        await MemoryManagementService.performSmartCacheManagement(
+        MemoryManagementService.performSmartCacheManagement(
             currentMemoryUsage: memoryUsage,
             aiGeneratorRef: &_aiGenerator,
             taskImprovementEngineRef: &_taskImprovementEngine

@@ -336,7 +336,7 @@ struct ProjectSettingsView: View {
         projectListener?.remove()
         projectListener = docRef.addSnapshotListener { snapshot, error in
             Task { @MainActor in
-                guard let data = snapshot?.data() else { return }
+                guard snapshot?.data() != nil else { return }
                 var proj = try? snapshot?.data(as: Project.self, decoder: Firestore.Decoder())
                 proj?.id = snapshot?.documentID
                 self.liveProject = proj

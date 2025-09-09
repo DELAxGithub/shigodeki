@@ -236,7 +236,7 @@ struct TaskEditorView: View {
             await aiGenerator.generateTaskSuggestions(for: base, projectType: nil)
             if let suggestions = aiGenerator.generatedSuggestions, let first = suggestions.tasks.first {
                 var desc = task.description ?? ""
-                desc += "\n\nAI提案:\n" + (first.description ?? "")
+                desc += "\n\nAI提案:\n" + first.description
                 task.description = desc
             }
         }
