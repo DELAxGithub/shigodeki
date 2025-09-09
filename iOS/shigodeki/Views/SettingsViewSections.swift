@@ -8,6 +8,9 @@
 
 import SwiftUI
 
+// Feature flags
+private let taskImprovementEnabled = false // Hide unfinished Task Improvement feature
+
 // MARK: - User Profile Section
 
 struct UserProfileSection: View {
@@ -87,28 +90,30 @@ struct AIFeaturesSection: View {
                 )
             }
             
-            Button {
-                onShowTaskImprovement()
-            } label: {
-                HStack {
-                    Image(systemName: "lightbulb.fill")
-                        .foregroundColor(.yellow)
-                        .frame(width: 24)
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("タスク改善提案")
-                            .foregroundColor(.primaryText)
+            if taskImprovementEnabled {
+                Button {
+                    onShowTaskImprovement()
+                } label: {
+                    HStack {
+                        Image(systemName: "lightbulb.fill")
+                            .foregroundColor(.yellow)
+                            .frame(width: 24)
                         
-                        Text("AIがタスクの改善案を提案")
-                            .font(.caption)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("タスク改善提案")
+                                .foregroundColor(.primaryText)
+                            
+                            Text("AIがタスクの改善案を提案")
+                                .font(.caption)
+                                .foregroundColor(.secondaryText)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
                             .foregroundColor(.secondaryText)
+                            .font(.caption)
                     }
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.secondaryText)
-                        .font(.caption)
                 }
             }
         }
@@ -138,6 +143,7 @@ struct AppearanceSection: View {
                             .tag(theme)
                     }
                 }
+                .labelsHidden()
                 .pickerStyle(MenuPickerStyle())
             }
         }

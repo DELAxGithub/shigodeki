@@ -88,12 +88,6 @@ struct SettingsView: View {
         NavigationView {
             ScrollViewReader { proxy in
                 List {
-                    // Top anchor for scroll-to-top
-                    Rectangle()
-                        .fill(Color.clear)
-                        .frame(height: 1)
-                        .id("top")
-                        .listRowSeparator(.hidden)
                     
                     // User Profile Section
                     UserProfileSection(
@@ -147,11 +141,7 @@ struct SettingsView: View {
                 } message: {
                     Text("新しいユーザー名を入力してください")
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .settingsTabSelected)) { _ in
-                    withAnimation(.easeInOut(duration: 0.5)) {
-                        proxy.scrollTo("top", anchor: .top)
-                    }
-                }
+                // Removed unused top anchor row; keep list simple and avoid blank area
             }
         }
     }
