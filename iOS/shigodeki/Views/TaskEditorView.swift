@@ -7,6 +7,7 @@
 
 import SwiftUI
 import PhotosUI
+import FirebaseFirestore
 
 struct TaskEditorView: View {
     @Environment(\.dismiss) private var dismiss
@@ -23,6 +24,7 @@ struct TaskEditorView: View {
     @State private var newSubtaskTitle: String = ""
     @State private var projectMembers: [ProjectMember] = []
     @State private var selectedAssignee: String? = nil
+    @State private var userNames: [String: String] = [:]
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var localImages: [UIImage] = []
     @StateObject private var aiGenerator = AITaskGenerator()
@@ -50,11 +52,11 @@ struct TaskEditorView: View {
                     Picker("担当者", selection: Binding(get: { selectedAssignee ?? task.assignedTo }, set: { newVal in selectedAssignee = newVal; task = updateAssigned(to: newVal) })) {
                         Text("未指定").tag(String?.none)
                         if let myId = authManager.currentUserId {
-                            Text("あなた（\(authManager.currentUser?.name ?? myId)）").tag(Optional(myId))
+                            Text("あなた（\(authManager.currentUser?.name ?? userNames[myId] ?? short(myId))）").tag(Optional(myId))
                         }
                         ForEach(projectMembers, id: \.userId) { member in
                             if member.userId != authManager.currentUserId {
-                                Text(member.displayName ?? short(member.userId)).tag(Optional(member.userId))
+                                Text(resolvedName(for: member)).tag(Optional(member.userId))
                             }
                         }
                     }
@@ -176,7 +178,45 @@ struct TaskEditorView: View {
     }
     
     private func loadMembers() {
-        Task { do { let members = try await projectManager.getProjectMembers(projectId: projectId); await MainActor.run { self.projectMembers = members } } catch { print(error) } }
+        Task {
+            do {
+                let members = try await projectManager.getProjectMembers(projectId: projectId)
+                await MainActor.run {
+                    self.projectMembers = members
+                }
+                await loadUserNamesIfNeeded(for: members)
+            } catch {
+                print(error)
+            }
+        }
+    }
+    
+    @MainActor
+    private func resolvedName(for member: ProjectMember) -> String {
+        if let dn = member.displayName, !dn.isEmpty { return dn }
+        if let cached = userNames[member.userId], !cached.isEmpty { return cached }
+        return short(member.userId)
+    }
+    
+    private func loadUserNamesIfNeeded(for members: [ProjectMember]) async {
+        // Collect members missing displayName
+        let ids = members.compactMap { m -> String? in
+            if let dn = m.displayName, !dn.isEmpty { return nil }
+            return m.userId
+        }
+        guard !ids.isEmpty else { return }
+        let db = Firestore.firestore()
+        for uid in ids {
+            do {
+                let doc = try await db.collection("users").document(uid).getDocument()
+                if let data = doc.data(), let name = data["name"] as? String, !name.isEmpty {
+                    await MainActor.run { userNames[uid] = name }
+                }
+            } catch {
+                // Silent fail; keep fallback
+                print("⚠️ TaskEditorView: Failed to resolve user name for \(uid): \(error)")
+            }
+        }
     }
     private func updateAssigned(to newVal: String?) -> ShigodekiTask { var t = task; t.assignedTo = newVal; return t }
     private func short(_ uid: String) -> String { String(uid.prefix(6)) }

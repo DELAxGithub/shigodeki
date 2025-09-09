@@ -166,8 +166,8 @@ class FamilyViewModelDI: ObservableObject {
             let familyId = try await repository.createFamily(name: trimmedName, creatorUserId: userId)
             print("✅ FamilyViewModelDI: Repository operation completed successfully. ID: \(familyId)")
             
-            // Generate invitation code
-            let invitationCode = "INV\(String(familyId.suffix(6)))"
+            // Generate display invitation code (no INV- prefix for UI)
+            let invitationCode = String(familyId.suffix(6)).uppercased()
             newFamilyInvitationCode = invitationCode
             
             // Success state - Repository listener will automatically update families array

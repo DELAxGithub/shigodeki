@@ -7,23 +7,23 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct InviteCodeView: View {
     @Environment(\.dismiss) private var dismiss
     let inviteCode: String
     let familyName: String
     
-    /// 統一システム対応表示ロジック（INV-はUI表示のみ）
-    /// 永続化は素コードのみ、表示時にINV-を付与
+    /// 表示ロジック: 常に素コードのみ表示（INV-は付けない）
     private var displayCode: String {
-        // 統一システムでは素コードが渡されるため、UI表示時にINV-を付与
-        if inviteCode.hasPrefix(InviteCodeSpec.displayPrefix) {
-            // 既にINV-付きの場合（レガシー互換）
-            return inviteCode
-        } else {
-            // 統一システムの素コード → INV-付きで表示
-            return "\(InviteCodeSpec.displayPrefix)\(inviteCode)"
+        // 入力がINV-付きでも素コードだけを見せる
+        if let normalized = try? InvitationCodeNormalizer.normalize(inviteCode) {
+            return normalized
         }
+        // フォールバック: 単純に先頭INV-を除去
+        let prefix = InviteCodeSpec.displayPrefix
+        if inviteCode.hasPrefix(prefix) { return String(inviteCode.dropFirst(prefix.count)) }
+        return inviteCode
     }
     
     var body: some View {
@@ -58,17 +58,7 @@ struct InviteCodeView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    Button(action: {
-                        let activityVC = UIActivityViewController(
-                            activityItems: ["家族グループ「\(familyName)」への招待コード: \(displayCode)"],
-                            applicationActivities: nil
-                        )
-                        
-                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                           let window = windowScene.windows.first {
-                            window.rootViewController?.present(activityVC, animated: true)
-                        }
-                    }) {
+                    ShareLink(item: "家族グループ『\(familyName)』の招待コード: \(displayCode)") {
                         HStack {
                             Image(systemName: "square.and.arrow.up")
                             Text("招待コードを共有")
