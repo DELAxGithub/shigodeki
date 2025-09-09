@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// AI機能が利用可能な場合のアクションボタン
+/// AI機能が利用可能な場合のアクションUI（誤タップを避けるため明確に分離したカード型）
 struct AIActionButtonsView: View {
     let onGenerateSubtasks: () -> Void
     let onGenerateDetails: () -> Void
@@ -15,21 +15,55 @@ struct AIActionButtonsView: View {
     }
     
     var body: some View {
-        VStack(spacing: 8) {
-            // サブタスク分割ボタン
-            Button {
+        VStack(spacing: 12) {
+            // サブタスク分割（カード）
+            ActionCard(action: {
+                print("🟦 Button pressed: Generate Subtasks")
                 onGenerateSubtasks()
-            } label: {
-                Label("AIでサブタスク分割", systemImage: "wand.and.stars")
+            }) {
+                HStack(spacing: 12) {
+                    Image(systemName: "wand.and.stars")
+                        .foregroundColor(.primaryBlue)
+                        .frame(width: 24)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("AIでサブタスク分割")
+                            .font(.headline)
+                            .foregroundColor(.primaryText)
+                        Text("実行可能な手順を自動作成")
+                            .font(.caption)
+                            .foregroundColor(.secondaryText)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.secondaryText)
+                        .font(.caption)
+                }
             }
             .disabled(isDisabled)
             .accessibilityHint("AIがタスクを複数のサブタスクに分割します")
             
-            // 詳細提案ボタン
-            Button {
+            // 詳細提案（カード）
+            ActionCard(action: {
+                print("🟦 Button pressed: Generate Detail")
                 onGenerateDetails()
-            } label: {
-                Label("AIで詳細提案", systemImage: "text.magnifyingglass")
+            }) {
+                HStack(spacing: 12) {
+                    Image(systemName: "text.magnifyingglass")
+                        .foregroundColor(.primaryBlue)
+                        .frame(width: 24)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("AIで詳細提案")
+                            .font(.headline)
+                            .foregroundColor(.primaryText)
+                        Text("説明文・手順・注意点を生成")
+                            .font(.caption)
+                            .foregroundColor(.secondaryText)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.secondaryText)
+                        .font(.caption)
+                }
             }
             .disabled(isDisabled)
             .accessibilityHint("AIがタスクの詳細な説明と手順を提案します")

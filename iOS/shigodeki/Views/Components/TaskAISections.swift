@@ -17,7 +17,7 @@ struct TaskAISupportSection: View {
     let project: Project
     let phase: Phase
     @Binding var showAISettings: Bool
-    let onGenerateSubtasks: () -> Void
+    let onGenerateSubtasks: () async -> Void
     let onOptimisticSubtasksUpdate: (String) -> [String] // 楽観更新用コールバック
     let onConfirmOptimisticUpdate: ([String], [Subtask]) -> Void // 成功時確定用
     let onRevertOptimisticUpdate: ([String]) -> Void // 失敗時巻き戻し用
@@ -63,13 +63,35 @@ struct TaskAISupportSection: View {
                 
             case .ready:
                 AIActionButtonsView(
-                    onGenerateSubtasks: onGenerateSubtasks,
+                    onGenerateSubtasks: {
+                        // Prevent concurrent actions; only allow when AI is truly ready
+                        guard case .ready = aiStateManager.state else {
+                            print("⚠️ TaskAISections: Ignoring Subtask Split - AI state not ready: \(aiStateManager.state)")
+                            return
+                        }
+                        print("🟦 Tap: AI Subtask Split")
+                        Task {
+                            await MainActor.run {
+                                isCreatingSubtasks = true
+                                subtaskCreationResult = nil
+                            }
+                            await onGenerateSubtasks()
+                            await MainActor.run {
+                                isCreatingSubtasks = false
+                                subtaskCreationResult = "✅ サブタスクの作成が完了しました"
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                                    subtaskCreationResult = nil
+                                }
+                            }
+                        }
+                    },
                     onGenerateDetails: { 
                         // Prevent multiple concurrent AI generation requests
                         guard case .ready = aiStateManager.state else { 
-                            print("⚠️ TaskAISections: Ignoring AI generation - state not ready")
+                            print("⚠️ TaskAISections: Ignoring Detail Proposal - state not ready")
                             return 
                         }
+                        print("🟦 Tap: AI Detail Proposal")
                         aiStateManager.generateDetail(for: task) 
                     },
                     isDisabled: false  // Keep false for .ready state since buttons handle their own loading state

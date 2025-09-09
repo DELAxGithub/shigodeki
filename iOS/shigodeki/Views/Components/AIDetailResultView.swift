@@ -93,7 +93,7 @@ struct AIDetailResultView: View {
         .padding(.vertical, 4)
         .sheet(isPresented: $showingEditSheet) {
             AIEditSheet(
-                content: editedContent,
+                content: $editedContent,
                 onSave: { editedText in
                     onApply(editedText)
                 },
@@ -107,7 +107,7 @@ struct AIDetailResultView: View {
 
 /// AI提案の編集シート
 private struct AIEditSheet: View {
-    @State var content: String
+    @Binding var content: String
     let onSave: (String) -> Void
     let onCancel: () -> Void
     

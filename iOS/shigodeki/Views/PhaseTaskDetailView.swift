@@ -240,13 +240,15 @@ struct PhaseTaskDetailView: View {
                 phase: phase,
                 showAISettings: $showAISettings,
                 onGenerateSubtasks: { 
-                    Task { @MainActor in
-                        subtasks = await helpers.aiSplitWithDirectSave(
-                            task: task,
-                            project: project,
-                            phase: phase
-                        )
+                    await MainActor.run {
+                        // no-op: spinner is handled in TaskAISupportSection; we just await the work
                     }
+                    let updated = await helpers.aiSplitWithDirectSave(
+                        task: task,
+                        project: project,
+                        phase: phase
+                    )
+                    await MainActor.run { subtasks = updated }
                 },
                 onOptimisticSubtasksUpdate: { content in
                     let result = optimisticManager.addOptimisticSubtasks(
@@ -345,6 +347,5 @@ struct PhaseTaskDetailView: View {
         }
     }
 }
-
 
 
