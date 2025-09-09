@@ -35,17 +35,56 @@ struct ProjectDetailView: View {
     var body: some View {
         let liveProject = viewModel.presentProject
         VStack(spacing: 0) {
-            // Project Header
+            // Project Header - Always show immediately
             ProjectHeaderView(project: liveProject, projectManager: projectManager)
                 .padding()
                 .background(Color(.systemGray6))
             
-            // Phases List
+            // Phases List with improved loading UX
             if let pm = phaseManager {
                 PhaseListView(project: liveProject, phaseManager: pm)
             } else {
-                LoadingStateView(message: "フェーズを初期化中...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Show project basic info while loading phases
+                VStack(spacing: 16) {
+                    // Quick project overview while loading
+                    VStack(spacing: 8) {
+                        if let description = liveProject.description, !description.isEmpty {
+                            Text("プロジェクト概要")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            Text(description)
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        
+                        HStack(spacing: 20) {
+                            Label("\(liveProject.memberIds.count) メンバー", systemImage: "person.2.fill")
+                                .foregroundColor(.secondary)
+                            
+                            Label(liveProject.isCompleted ? "完了" : "進行中", systemImage: liveProject.isCompleted ? "checkmark.circle.fill" : "clock.fill")
+                                .foregroundColor(liveProject.isCompleted ? .green : .orange)
+                        }
+                        .font(.subheadline)
+                    }
+                    .padding()
+                    
+                    Spacer()
+                    
+                    // Minimal loading indicator
+                    VStack(spacing: 8) {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("フェーズを読み込み中...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .animation(.easeInOut(duration: 0.3), value: phaseManager != nil)
             }
         }
         .navigationTitle(project.name)
@@ -88,12 +127,58 @@ struct ProjectDetailView: View {
             }
         }
         .task {
-            await viewModel.bootstrap(store: sharedManagers)
-            if phaseManager == nil { phaseManager = await sharedManagers.getPhaseManager() }
-            if authManager == nil { authManager = await sharedManagers.getAuthManager() }
-            if aiGenerator == nil { aiGenerator = await sharedManagers.getAiGenerator() }
-            if familyManager == nil { familyManager = await sharedManagers.getFamilyManager() }
-            if project.ownerType == .family { await loadOwnerFamily() }
+            // Parallel initialization for better performance
+            await withTaskGroup(of: Void.self) { group in
+                // Bootstrap ViewModel first (this is usually fast)
+                group.addTask {
+                    await viewModel.bootstrap(store: sharedManagers)
+                }
+                
+                // Load managers in parallel (prioritize PhaseManager for fastest UI update)
+                group.addTask {
+                    if phaseManager == nil {
+                        let pm = await sharedManagers.getPhaseManager()
+                        await MainActor.run {
+                            phaseManager = pm
+                            print("🎯 ProjectDetailView: PhaseManager loaded for project: \(project.name)")
+                        }
+                    }
+                }
+                
+                group.addTask {
+                    if authManager == nil {
+                        let am = await sharedManagers.getAuthManager()
+                        await MainActor.run {
+                            authManager = am
+                        }
+                    }
+                }
+                
+                group.addTask {
+                    if aiGenerator == nil {
+                        let ai = await sharedManagers.getAiGenerator()
+                        await MainActor.run {
+                            aiGenerator = ai
+                        }
+                    }
+                }
+                
+                group.addTask {
+                    if familyManager == nil {
+                        let fm = await sharedManagers.getFamilyManager()
+                        await MainActor.run {
+                            familyManager = fm
+                        }
+                    }
+                }
+                
+                // Load family data if needed
+                if project.ownerType == .family {
+                    group.addTask {
+                        await loadOwnerFamily()
+                    }
+                }
+            }
         }
         .sheet(isPresented: $showingCreatePhase) {
             if let pm = phaseManager {

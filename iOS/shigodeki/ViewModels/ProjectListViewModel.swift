@@ -34,6 +34,18 @@ class ProjectListViewModel: ObservableObject {
     @Published var shouldShowEmptyState = false
     @Published var showError = false
     
+    // iPad NavigationSplitView selection
+    @Published var selectedProject: Project? {
+        didSet {
+            if let project = selectedProject {
+                // Preload project-specific data when selected
+                Task.detached(priority: .userInitiated) { [weak self] in
+                    await self?.preloadProjectData(project)
+                }
+            }
+        }
+    }
+    
     /// マネージャーが注入され、ViewModelが完全に機能する状態かを示す
     @Published private(set) var isInitialized = false
     
@@ -159,6 +171,52 @@ class ProjectListViewModel: ObservableObject {
         setupBindings() // Managerが注入されたので、バインディングを再設定
         self.isInitialized = true
         print("✅ ProjectListViewModel: ProjectManagerの注入が完了しました。")
+        
+        // Preload commonly used managers for faster project detail views
+        Task.detached(priority: .utility) { [weak self] in
+            await self?.preloadDetailViewManagers()
+        }
+    }
+    
+    /// Preload managers commonly used in ProjectDetailView for better performance
+    private func preloadDetailViewManagers() async {
+        print("🚀 ProjectListViewModel: Preloading managers for faster project detail views")
+        
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                _ = await SharedManagerStore.shared.getPhaseManager()
+                print("✅ ProjectListViewModel: PhaseManager preloaded")
+            }
+            
+            group.addTask {
+                _ = await SharedManagerStore.shared.getAiGenerator()
+                print("✅ ProjectListViewModel: AITaskGenerator preloaded")
+            }
+            
+            group.addTask {
+                _ = await SharedManagerStore.shared.getFamilyManager()
+                print("✅ ProjectListViewModel: FamilyManager preloaded")
+            }
+        }
+        
+        print("🎯 ProjectListViewModel: Manager preloading completed")
+    }
+    
+    /// Preload project-specific data when a project is selected for immediate display
+    private func preloadProjectData(_ project: Project) async {
+        print("🔥 ProjectListViewModel: Preloading data for project: \(project.name)")
+        
+        guard let projectId = project.id else {
+            print("⚠️ ProjectListViewModel: Project has no ID, skipping preload")
+            return
+        }
+        
+        // Get managers if not already available - this will warm the cache for faster access
+        _ = await SharedManagerStore.shared.getPhaseManager()
+        _ = await SharedManagerStore.shared.getAuthManager()
+        
+        // Additional project-specific preloading can be added here when methods are available
+        print("🚀 ProjectListViewModel: Manager preloading initiated for: \(project.name)")
     }
     
     private func loadProjects(for userId: String) async {

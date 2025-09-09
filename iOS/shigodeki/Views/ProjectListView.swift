@@ -17,79 +17,77 @@ struct ProjectListView: View {
 
     // UI State - Only presentation concerns
     @State private var showingCreateProject = false
-    @State private var selectedProject: Project?
     @State private var showingAcceptInvite = false
-    @State private var navigationPath = NavigationPath()
-
+    
     var body: some View {
-        NavigationStack(path: $navigationPath) {
-            VStack {
-                Picker("所有者", selection: $viewModel.ownerFilter) {
-                    ForEach(OwnerFilter.allCases, id: \.self) { filter in
-                        Text(filter.rawValue).tag(filter)
+        // 🚨 CTO Requirement: This is the correct, standard implementation for NavigationSplitView.
+        NavigationSplitView {
+            // MARK: - Sidebar
+            // The sidebar is ONLY for selection.
+            sidebarView
+                .navigationTitle("プロジェクト")
+                .toolbar {
+                    // Global actions like "Create" belong on the sidebar.
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        Button {
+                            showingAcceptInvite = true
+                        } label: {
+                            Label("プロジェクトに参加", systemImage: "person.badge.plus")
+                        }
+                        
+                        Button(action: {
+                            showingCreateProject = true
+                        }) {
+                            Label("プロジェクトを作成", systemImage: "plus")
+                        }
+                        .accessibilityIdentifier("create_project_button")
+                        .accessibilityLabel("新しいプロジェクトを作成")
                     }
                 }
-                .pickerStyle(.segmented)
-                .padding([.horizontal, .top])
-                .disabled(viewModel.isLoading)
-                
-                // 🚨 CTO Requirement: Consolidate loading logic into a single source of truth.
-                contentView
-            }
-            .navigationTitle("プロジェクト")
-            .navigationDestination(for: Project.self) { project in
-                if let pm = viewModel.projectManagerForViews {
-                    ProjectDetailView(project: project, projectManager: pm)
-                } else {
-                    // Manager準備中は空のビュー
-                    LoadingStateView(message: "システムを準備中...")
-                }
-            }
-            .toolbar {
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    Button {
-                        showingAcceptInvite = true
-                    } label: {
-                        Image(systemName: "person.badge.plus")
+        } detail: {
+            // MARK: - Detail
+            // The detail pane shows the content of the selection, or a placeholder.
+            NavigationStack {
+                if let selectedProject = viewModel.selectedProject {
+                    if let pm = viewModel.projectManagerForViews {
+                        ProjectDetailView(project: selectedProject, projectManager: pm)
+                    } else {
+                        LoadingStateView(message: "システムを準備中...")
                     }
-                    Button(action: {
-                        showingCreateProject = true
-                    }) {
-                        Image(systemName: "plus")
-                    }
-                    .accessibilityIdentifier("create_project_button")
-                    .accessibilityLabel("新しいプロジェクトを作成")
-                }
-            }
-            .task {
-                await viewModel.onAppear()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
-                print("🔚 ProjectListView: App terminating, cleaning up")
-                viewModel.onDisappear()
-            }
-            .sheet(isPresented: $showingCreateProject) {
-                if let pm = viewModel.projectManagerForViews {
-                    CreateProjectView(projectManager: pm)
                 } else {
-                    // Managerがまだ準備できていない場合はローディング表示
-                    LoadingStateView(message: "システムを準備中...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    placeholderView
                 }
             }
-            .sheet(isPresented: $showingAcceptInvite) {
-                AcceptProjectInviteView()
+        }
+        .navigationSplitViewStyle(.balanced) // Ensures sidebar is visible on iPad launch
+        .task {
+            await viewModel.onAppear()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
+            print("🔚 ProjectListView: App terminating, cleaning up")
+            viewModel.onDisappear()
+        }
+        .sheet(isPresented: $showingCreateProject) {
+            if let pm = viewModel.projectManagerForViews {
+                CreateProjectView(projectManager: pm)
+            } else {
+                // Managerがまだ準備できていない場合はローディング表示
+                LoadingStateView(message: "システムを準備中...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .alert("エラー", isPresented: $viewModel.showError) {
-                Button("OK") {
-                    viewModel.clearError()
-                }
-            } message: {
-                if let error = viewModel.error {
-                    Text(error.localizedDescription)
-                } else {
-                    Text("不明なエラーが発生しました")
-                }
+        }
+        .sheet(isPresented: $showingAcceptInvite) {
+            AcceptProjectInviteView()
+        }
+        .alert("エラー", isPresented: $viewModel.showError) {
+            Button("OK") {
+                viewModel.clearError()
+            }
+        } message: {
+            if let error = viewModel.error {
+                Text(error.localizedDescription)
+            } else {
+                Text("不明なエラーが発生しました")
             }
         }
         .onChange(of: viewModel.filteredProjects.count) { _, newCount in
@@ -104,62 +102,71 @@ struct ProjectListView: View {
     // MARK: - View Components
     
     @ViewBuilder
-    private var contentView: some View {
-        // 🚨 CTO Requirement: Single source of truth for loading state display.
-        if !viewModel.bootstrapped || viewModel.isWaitingForAuth {
-            LoadingStateView(message: (!viewModel.bootstrapped) ? "初期化中..." : "ユーザー情報を取得中...")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if viewModel.shouldShowEmptyState {
-            ProjectEmptyStateView {
-                showingCreateProject = true
+    private var sidebarView: some View {
+        VStack {
+            // Owner filter picker
+            Picker("所有者", selection: $viewModel.ownerFilter) {
+                ForEach(OwnerFilter.allCases, id: \.self) { filter in
+                    Text(filter.rawValue).tag(filter)
+                }
             }
-        } else {
-            projectListView
+            .pickerStyle(.segmented)
+            .padding([.horizontal, .top])
+            .disabled(viewModel.isLoading)
+            
+            // The sidebar's state is derived directly from the ViewModel.
+            if !viewModel.bootstrapped || viewModel.isWaitingForAuth {
+                ProgressView((!viewModel.bootstrapped) ? "初期化中..." : "ユーザー情報を取得中...")
+            } else if viewModel.shouldShowEmptyState {
+                Text("プロジェクトがありません")
+                    .foregroundColor(.secondary)
+            } else {
+                // Issue #84: Add ScrollViewReader for scroll-to-top functionality
+                ScrollViewReader { proxy in
+                    // The List's selection is bound to the ViewModel's selectedProject property.
+                    // This is the core of the master-detail interface.
+                    List(selection: $viewModel.selectedProject) {
+                        // Issue #84: Add top anchor for scroll-to-top functionality
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(height: 1)
+                            .id("top")
+                            .listRowSeparator(.hidden)
+                        
+                        ForEach(viewModel.filteredProjects) { project in
+                            ProjectRowView(project: project)
+                                .tag(project) // The tag MUST match the selection type.
+                        }
+                    }
+                    .refreshable {
+                        await viewModel.refreshProjects()
+                    }
+                    .onMemoryWarning {
+                        // 🆕 統合されたキャッシュクリア
+                        CacheManager.shared.clearAll()
+                        ImageCache.shared.clearCache()
+                    }
+                    .onReceive(NotificationCenter.default.publisher(for: .projectTabSelected)) { _ in
+                        // Issue #84: Reset selection and scroll to top when project tab is re-selected
+                        viewModel.selectedProject = nil
+                        withAnimation(.easeInOut(duration: 0.5)) {
+                            proxy.scrollTo("top", anchor: .top)
+                        }
+                    }
+                }
+            }
         }
     }
     
     @ViewBuilder
-    private var projectListView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    // Issue #84: Add top anchor for scroll-to-top functionality
-                    Rectangle()
-                        .fill(Color.clear)
-                        .frame(height: 1)
-                        .id("top")
-                    
-                    ForEach(viewModel.filteredProjects) { project in
-                        Button {
-                            // Issue #84: Use programmatic navigation with NavigationPath
-                            navigationPath.append(project)
-                        } label: {
-                            OptimizedProjectRow(project: project)
-                                .optimizedForList() // 🆕 描画最適化
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .accessibilityIdentifier("project_\(project.name)")
-                        .id(project.id) // 🔧 明示的なID設定で重複防止
-                    }
-                }
-                .padding(.horizontal)
-            }
-            .refreshable {
-                await viewModel.refreshProjects()
-            }
-            .onMemoryWarning {
-                // 🆕 統合されたキャッシュクリア
-                CacheManager.shared.clearAll()
-                ImageCache.shared.clearCache()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .projectTabSelected)) { _ in
-                // Issue #84: Reset navigation stack to show the root list when project tab is selected
-                navigationPath = NavigationPath()
-                // Issue #84: Scroll to top when project tab is re-selected
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    proxy.scrollTo("top", anchor: .top)
-                }
-            }
+    private var placeholderView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "folder.fill")
+                .font(.system(size: 60))
+                .foregroundColor(.secondary)
+            Text("プロジェクトを選択してください")
+                .font(.title2)
+                .foregroundColor(.secondary)
         }
     }
     
