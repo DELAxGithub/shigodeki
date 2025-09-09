@@ -1,6 +1,9 @@
 import SwiftUI
 import FirebaseAuth
 
+// Feature flags
+private let aiCreationEnabled = false // Hide AI creation UI while keeping code for future use
+
 // MARK: - Owner Selection Section
 
 struct OwnerSelectionSection: View {
@@ -112,16 +115,18 @@ struct CreationMethodSelectionSection: View {
                     showFileImporter = true
                 }
                 
-                CreationMethodCard(
-                    title: "AI生成",
-                    subtitle: "AI を使用してタスクを自動生成",
-                    icon: "brain",
-                    isSelected: selectedCreationMethod == .ai
-                ) {
-                    if aiGenerator.availableProviders.isEmpty {
-                        showAISettings = true
-                    } else {
-                        selectedCreationMethod = .ai
+                if aiCreationEnabled {
+                    CreationMethodCard(
+                        title: "AI生成",
+                        subtitle: "AI を使用してタスクを自動生成",
+                        icon: "brain",
+                        isSelected: selectedCreationMethod == .ai
+                    ) {
+                        if aiGenerator.availableProviders.isEmpty {
+                            showAISettings = true
+                        } else {
+                            selectedCreationMethod = .ai
+                        }
                     }
                 }
             }

@@ -38,6 +38,9 @@ struct CreateProjectView: View {
     @State private var selectedOwnerType: ProjectOwnerType = .individual
     @State private var selectedFamilyId: String? = nil
     
+    // Feature flags
+    private let aiCreationEnabled = false // Hide AI UI but keep implementation for future use
+    
     enum CreationMethod {
         case scratch
         case template
@@ -84,7 +87,7 @@ struct CreateProjectView: View {
                         }
                     }
                     
-                    if selectedCreationMethod == .ai {
+                    if aiCreationEnabled && selectedCreationMethod == .ai {
                         AIPromptSection(
                             selectedProjectType: $selectedProjectType,
                             showProjectTypePicker: $showProjectTypePicker,
