@@ -17,6 +17,20 @@ struct APISettingsView: View {
                     }
                 }
                 
+                // Default provider picker (only if 1つ以上設定済み)
+                if !viewModel.configuredProviders.isEmpty {
+                    Section(header: Text("優先プロバイダ"), footer: Text("AI支援機能で優先的に使用するサービスを選択します。利用不可やレート制限時は自動で他に切り替わります。")) {
+                        Picker("優先プロバイダ", selection: Binding(
+                            get: { viewModel.defaultProvider ?? viewModel.configuredProviders.first! },
+                            set: { viewModel.setDefaultProvider($0) }
+                        )) {
+                            ForEach(viewModel.configuredProviders, id: \.self) { provider in
+                                Text(provider.displayName).tag(provider)
+                            }
+                        }
+                    }
+                }
+                
                 Section(header: Text("情報"), footer: footerText) {
                     HStack {
                         Image(systemName: "shield.fill")
@@ -185,13 +199,20 @@ struct APIKeyConfigurationView: View {
 class APISettingsViewModel: ObservableObject {
     @Published var configuredProviders: [KeychainManager.APIProvider] = []
     @Published var configurationProvider: KeychainManager.APIProvider?
+    @Published var defaultProvider: KeychainManager.APIProvider?
     
     func loadConfiguredProviders() {
         configuredProviders = KeychainManager.shared.getConfiguredProviders()
+        defaultProvider = KeychainManager.shared.getDefaultProvider()
     }
     
     func showConfiguration(for provider: KeychainManager.APIProvider) {
         configurationProvider = provider
+    }
+    
+    func setDefaultProvider(_ provider: KeychainManager.APIProvider) {
+        KeychainManager.shared.setDefaultProvider(provider)
+        defaultProvider = provider
     }
 }
 

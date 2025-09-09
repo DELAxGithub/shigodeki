@@ -145,7 +145,13 @@ final class AITaskGenerator: ObservableObject {
     func updateAvailableProviders() {
         let result = AIClientRouter.updateAvailableProviders(currentProvider: selectedProvider)
         availableProviders = result.providers
-        selectedProvider = result.selected
+        // Respect user preferred provider if it is available
+        if let preferred = KeychainManager.shared.getDefaultProvider(),
+           result.providers.contains(preferred) {
+            selectedProvider = preferred
+        } else {
+            selectedProvider = result.selected
+        }
     }
     
     // MARK: - Private Methods

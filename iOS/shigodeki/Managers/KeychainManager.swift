@@ -45,6 +45,8 @@ final class KeychainManager {
     }
     
     private let serviceName = "com.company.shigodeki.api-keys"
+    private let defaults = UserDefaults.standard
+    private let defaultProviderKey = "ai.defaultProvider"
     
     static let shared = KeychainManager()
     private init() {}
@@ -140,6 +142,23 @@ final class KeychainManager {
     /// Get all configured providers
     func getConfiguredProviders() -> [APIProvider] {
         return APIProvider.allCases.filter { hasAPIKey(for: $0) }
+    }
+    
+    // MARK: - Preferred Provider (User Defaults)
+    
+    /// Returns the user-selected default AI provider if set
+    func getDefaultProvider() -> APIProvider? {
+        guard let raw = defaults.string(forKey: defaultProviderKey) else { return nil }
+        return APIProvider(rawValue: raw)
+    }
+    
+    /// Persists the user-selected default AI provider
+    func setDefaultProvider(_ provider: APIProvider?) {
+        if let provider = provider {
+            defaults.set(provider.rawValue, forKey: defaultProviderKey)
+        } else {
+            defaults.removeObject(forKey: defaultProviderKey)
+        }
     }
     
     /// Validate API key format
