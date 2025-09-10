@@ -47,6 +47,7 @@ struct CategoryCard: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .interactiveEffect()
     }
 }
 
@@ -137,10 +138,12 @@ struct TemplateCard: View {
                 Button("Preview", action: onPreview)
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .interactiveEffect()
                 
                 Button("Select", action: onSelect)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+                    .interactiveEffect()
                 
                 Spacer()
             }
@@ -223,5 +226,6 @@ struct FilterChip: View {
             .foregroundColor(isSelected ? .white : .primary)
         }
         .buttonStyle(PlainButtonStyle())
+        .interactiveEffect()
     }
 }

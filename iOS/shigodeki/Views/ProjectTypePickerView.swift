@@ -111,6 +111,7 @@ struct ProjectTypeCard: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .interactiveEffect()
         .scaleEffect(isSelected ? 1.05 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: isSelected)
     }

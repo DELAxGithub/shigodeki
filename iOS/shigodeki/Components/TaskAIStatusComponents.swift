@@ -264,6 +264,7 @@ struct TaskPickerRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .interactiveEffect()
     }
 }
 

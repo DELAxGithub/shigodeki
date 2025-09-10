@@ -129,7 +129,7 @@ struct ProjectSettingsView: View {
                 Group {
                     if isUpdating {
                         Color.black.opacity(0.3)
-                            .edgesIgnoringSafeArea(.all)
+                            .ignoresSafeArea()
                         
                         VStack(spacing: 16) {
                             ProgressView()
@@ -176,6 +176,8 @@ struct ProjectSettingsView: View {
             } message: {
                 Text(errorMessage)
             }
+            .dismissKeyboardOnTap()
+            .keyboardToolbarDone()
         }
         .sheet(isPresented: $showingInviteSheet) {
             ProjectInvitationSheet(
@@ -183,6 +185,7 @@ struct ProjectSettingsView: View {
                 inviteCode: createdInviteCode
             )
         }
+        .presentationDragIndicator(.visible)
     }
     
     private func changeOwner() {

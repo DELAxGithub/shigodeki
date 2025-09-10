@@ -157,6 +157,7 @@ struct TaskListSelectionSection: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .interactiveEffect()
                 .disabled(taskManager.taskLists.isEmpty)
                 
                 // New task list option
@@ -178,6 +179,7 @@ struct TaskListSelectionSection: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .interactiveEffect()
                 
                 // New task list name input
                 if createNewTaskList {

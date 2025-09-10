@@ -82,25 +82,28 @@ struct PhaseListView: View {
                     ForEach(phaseManager.phases) { phase in
                         if let onSelectPhase {
                             Button { onSelectPhase(phase) } label: {
-                                PhaseRowView(phase: phase, phaseManager: phaseManager, taskListCount: listCounts[phase.id ?? ""])
+                                PhaseRowView(phase: phase, phaseManager: phaseManager, taskListCount: listCounts[phase.id ?? ""]) 
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .interactiveEffect()
                         } else {
                             Button {
                                 HapticFeedbackManager.shared.light()
                                 if let pid = phase.id { selectedPhaseId = pid }
                                 print("UI: Phase tapped -> \(phase.name) [id=\(phase.id ?? "")] ")
                             } label: {
-                                PhaseRowView(phase: phase, phaseManager: phaseManager, taskListCount: listCounts[phase.id ?? ""])
+                                PhaseRowView(phase: phase, phaseManager: phaseManager, taskListCount: listCounts[phase.id ?? ""]) 
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .interactiveEffect()
                         }
                     }
                     .onMove(perform: movePhases)
                     .onDelete(perform: deletePhases)
                 }
+                .statusBarTapScrollToTop()
                 .refreshable {
                     loadPhases()
                 }
@@ -109,6 +112,7 @@ struct PhaseListView: View {
         .loadingOverlay(phaseManager.isLoading, message: "フェーズを更新中...")
         .navigationTitle("フェーズ")
         .navigationBarBackButtonHidden(true)
+        .enableSwipeBack()
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 Button(action: {

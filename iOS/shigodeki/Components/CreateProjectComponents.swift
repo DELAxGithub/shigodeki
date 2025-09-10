@@ -55,6 +55,7 @@ struct CreationMethodCard: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .interactiveEffect()
     }
 }
 

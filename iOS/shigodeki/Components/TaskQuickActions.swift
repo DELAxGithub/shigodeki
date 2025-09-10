@@ -41,8 +41,9 @@ struct TaskQuickActions: View {
                     .foregroundColor(task.isCompleted ? .completed : .secondaryText)
                     .scaleEffect(isAnimating ? 1.2 : 1.0)
                     .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isAnimating)
-            }
+            } 
             .buttonStyle(PlainButtonStyle())
+            .interactiveEffect()
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(task.title)

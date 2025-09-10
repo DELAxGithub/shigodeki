@@ -57,7 +57,7 @@ struct CreateProjectLoadingOverlay: View {
     var body: some View {
         if isShowing {
             Color.black.opacity(0.3)
-                .edgesIgnoringSafeArea(.all)
+                .ignoresSafeArea()
             
             VStack(spacing: 16) {
                 ProgressView()

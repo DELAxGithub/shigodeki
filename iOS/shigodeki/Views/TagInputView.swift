@@ -62,6 +62,8 @@ struct TagInputView: View {
                 onShowCreateTag: { showingCreateTag = true }
             )
         }
+        .dismissKeyboardOnTap()
+        .keyboardToolbarDone()
         .sheet(isPresented: $showingCreateTag) {
             CreateTagView(
                 initialName: searchText,
@@ -162,6 +164,8 @@ struct CreateTagView: View {
                 }
             }
         }
+        .dismissKeyboardOnTap()
+        .keyboardToolbarDone()
     }
     
     private func createTag() {

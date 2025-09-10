@@ -63,5 +63,6 @@ struct AssistantModeCard: View {
             )
         }
         .buttonStyle(.plain)
+        .interactiveEffect()
     }
 }

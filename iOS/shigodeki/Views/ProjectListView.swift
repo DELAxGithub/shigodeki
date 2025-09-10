@@ -140,6 +140,7 @@ struct ProjectListView: View {
                                 .tag(project) // The tag MUST match the selection type.
                         }
                     }
+                    .statusBarTapScrollToTop()
                     .refreshable {
                         await viewModel.refreshProjects()
                     }

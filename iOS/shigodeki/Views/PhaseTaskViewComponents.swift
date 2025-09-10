@@ -280,6 +280,7 @@ struct PhaseTaskContentView: View {
                     )
                 }
             }
+            .statusBarTapScrollToTop()
         }
     }
 }

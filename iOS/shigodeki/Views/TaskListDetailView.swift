@@ -109,6 +109,7 @@ struct TaskListDetailView: View {
                         }
                     }
                 }
+                .statusBarTapScrollToTop()
             } else {
                 VStack(spacing: 16) {
                     Image(systemName: "checkmark.circle")
@@ -125,6 +126,7 @@ struct TaskListDetailView: View {
         }
         .navigationTitle(taskList.name)
         .navigationBarBackButtonHidden(true)
+        .enableSwipeBack()
         .loadingOverlay(viewModelHolder.vm?.isLoading ?? false, message: "タスクを更新中...")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -143,18 +145,20 @@ struct TaskListDetailView: View {
             )
         }
         .sheet(isPresented: $showAttachmentPreview) {
-            VStack {
-                if let url = previewURL {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .empty: ProgressView()
-                        case .success(let image): image.resizable().scaledToFit()
-                        case .failure: Image(systemName: "photo")
-                        @unknown default: EmptyView()
+            ZoomableView {
+                VStack {
+                    if let url = previewURL {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .empty: ProgressView()
+                            case .success(let image): image.resizable().scaledToFit()
+                            case .failure: Image(systemName: "photo")
+                            @unknown default: EmptyView()
+                            }
                         }
+                    } else if let img = previewImage {
+                        Image(uiImage: img).resizable().scaledToFit()
                     }
-                } else if let img = previewImage {
-                    Image(uiImage: img).resizable().scaledToFit()
                 }
             }
             .padding()

@@ -55,6 +55,7 @@ struct CreateTaskListView: View {
                                         )
                                 }
                                 .buttonStyle(.plain)
+                                .interactiveEffect()
                             }
                         }
                     }
@@ -109,6 +110,8 @@ struct CreateTaskListView: View {
                 Text("タスクリスト「\(taskListName)」が作成されました。")
             }
         }
+        .keyboardToolbarDone()
+        .dismissKeyboardOnTap()
     }
     
     private func createTaskList() {

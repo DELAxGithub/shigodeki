@@ -107,6 +107,7 @@ struct TagChip: View {
                 .cornerRadius(size.cornerRadius)
         }
         .buttonStyle(.plain)
+        .interactiveEffect()
         .accessibilityLabel(displayName)
         .accessibilityHint("タグを選択")
     }

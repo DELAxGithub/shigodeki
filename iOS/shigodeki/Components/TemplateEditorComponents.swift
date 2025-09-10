@@ -90,6 +90,8 @@ struct CategoryButton: View {
                 .cornerRadius(8)
         }
         .buttonStyle(.plain)
+        .interactiveEffect()
+        .interactiveEffect()
     }
 }
 

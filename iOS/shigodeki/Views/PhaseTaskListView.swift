@@ -88,6 +88,7 @@ struct PhaseTaskListView: View {
                                 PhaseTaskListRowView(taskList: taskList)
                             }
                             .buttonStyle(.plain)
+                            .interactiveEffect()
                         } else {
                             NavigationLink(destination: TaskListDetailView(taskList: taskList, phase: phase, project: project)) {
                                 PhaseTaskListRowView(taskList: taskList)
@@ -99,6 +100,7 @@ struct PhaseTaskListView: View {
                         }
                     }
                 }
+                .statusBarTapScrollToTop()
                 .refreshable {
                     await viewModelHolder.vm?.reload()
                 }
@@ -107,6 +109,7 @@ struct PhaseTaskListView: View {
         .loadingOverlay(viewModelHolder.vm?.isLoading ?? false, message: "タスクリストを更新中...")
         .navigationTitle(phase.name)
         .navigationBarBackButtonHidden(true)
+        .enableSwipeBack()
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 Button(action: {

@@ -51,6 +51,7 @@ struct PhaseTaskView: View {
         }
         .navigationTitle(phase.name)
         .navigationBarBackButtonHidden(true)
+        .enableSwipeBack()
         .task {
             // 🚨 クラッシュ対策: IDがnilの場合に処理を中断し、空文字でのFirestoreアクセスを防ぐ
             guard let phaseId = phase.id, !phaseId.isEmpty,

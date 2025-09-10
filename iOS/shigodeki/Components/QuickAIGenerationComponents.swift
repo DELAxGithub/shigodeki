@@ -80,6 +80,7 @@ struct GenerationTypeCard: View {
             )
         }
         .buttonStyle(.plain)
+        .interactiveEffect()
     }
 }
 
@@ -126,6 +127,7 @@ struct TaskListPickerView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .interactiveEffect()
                     }
                 }
             }

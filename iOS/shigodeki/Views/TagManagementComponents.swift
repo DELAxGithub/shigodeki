@@ -60,6 +60,7 @@ struct TagManagementRow: View {
                         .foregroundColor(.blue)
                 }
                 .buttonStyle(.plain)
+                .interactiveEffect()
                 .accessibilityLabel("タグを編集")
                 
                 Button(action: onDelete) {
@@ -67,6 +68,7 @@ struct TagManagementRow: View {
                         .foregroundColor(.red)
                 }
                 .buttonStyle(.plain)
+                .interactiveEffect()
                 .accessibilityLabel("タグを削除")
             }
         }

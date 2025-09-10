@@ -149,6 +149,8 @@ struct JoinFamilyView: View {
                 Text(successMessage)
             }
         }
+        .keyboardToolbarDone()
+        .dismissKeyboardOnTap()
     }
     
     // MARK: - Helper Properties and Methods

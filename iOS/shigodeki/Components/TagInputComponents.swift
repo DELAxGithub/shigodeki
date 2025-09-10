@@ -76,6 +76,7 @@ struct AvailableTagsGridView: View {
                         .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
+                    .interactiveEffect()
                     .accessibilityLabel("新しいタグ「\(searchText)」を作成")
                 }
                 
@@ -119,6 +120,7 @@ struct TagColorSelectionView: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    .interactiveEffect()
                     .accessibilityLabel("色を選択: \(color)")
                 }
             }

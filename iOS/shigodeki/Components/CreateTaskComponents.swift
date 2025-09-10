@@ -85,6 +85,7 @@ struct PriorityButton: View {
             .cornerRadius(20)
         }
         .buttonStyle(.plain)
+        .interactiveEffect()
     }
 }
 
@@ -163,6 +164,7 @@ struct UnassignedButton: View {
             .cornerRadius(8)
         }
         .buttonStyle(.plain)
+        .interactiveEffect()
     }
 }
 
@@ -186,6 +188,7 @@ struct AssigneeButton: View {
             .cornerRadius(8)
         }
         .buttonStyle(.plain)
+        .interactiveEffect()
     }
 }
 

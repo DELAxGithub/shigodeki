@@ -52,24 +52,12 @@ struct CreatePhaseView: View {
                         TextField("フェーズ名", text: $phaseName)
                             .textInputAutocapitalization(.words)
                             .disableAutocorrection(false)
-                        
-                        ZStack(alignment: .topLeading) {
-                            if phaseDescription.isEmpty {
-                                VStack {
-                                    HStack {
-                                        Text("フェーズの説明（オプション）")
-                                            .foregroundColor(Color(.placeholderText))
-                                        Spacer()
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.top, 8)
-                                .padding(.leading, 4)
+
+                        TextEditor(text: $phaseDescription)
+                            .frame(minHeight: 80)
+                            .placeholder(when: phaseDescription.isEmpty) {
+                                Text("フェーズの説明（オプション）").foregroundColor(Color(.placeholderText))
                             }
-                            
-                            TextEditor(text: $phaseDescription)
-                                .frame(minHeight: 80)
-                        }
                     }
                     
                     Section(header: Text("フェーズ情報")) {
@@ -117,6 +105,7 @@ struct CreatePhaseView: View {
                 
                 Spacer()
             }
+            .dismissKeyboardOnTap()
             .navigationTitle("フェーズ作成")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -138,7 +127,7 @@ struct CreatePhaseView: View {
                 Group {
                     if isCreating {
                         Color.black.opacity(0.3)
-                            .edgesIgnoringSafeArea(.all)
+                            .ignoresSafeArea()
                         
                         VStack(spacing: 16) {
                             ProgressView()
@@ -158,6 +147,22 @@ struct CreatePhaseView: View {
             } message: {
                 Text(errorMessage)
             }
+        }
+        .keyboardToolbarDone()
+        .presentationDragIndicator(.visible)
+    }
+    
+    private func createPhase() {
+        guard let projectId = project.id else {
+            errorMessage = "プロジェクトIDが見つかりません"
+            showingError = true
+            return
+        }
+        
+        guard let userId = authManager.currentUser?.id else {
+            errorMessage = "ユーザー情報が見つかりません"
+            showingError = true
+            return
         }
     }
     

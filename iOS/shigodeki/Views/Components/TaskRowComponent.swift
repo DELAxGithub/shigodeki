@@ -33,6 +33,7 @@ struct TaskRowView: View {
                     .animation(.spring(response: 0.3, dampingFraction: 0.6), value: task.isCompleted)
             }
             .buttonStyle(.plain)
+            .interactiveEffect()
             .accessibilityLabel(task.isCompleted ? "完了したタスク" : "未完了のタスク")
             .accessibilityHint(task.isCompleted ? "タップして未完了にします" : "タップして完了にします")
             

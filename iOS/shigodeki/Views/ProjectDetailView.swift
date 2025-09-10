@@ -92,6 +92,7 @@ struct ProjectDetailView: View {
         .navigationTitle(liveProject.name)
         .navigationBarTitleDisplayMode(.large)
         .navigationBarBackButtonHidden(true)
+        .enableSwipeBack()
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 if project.ownerType == .family {
