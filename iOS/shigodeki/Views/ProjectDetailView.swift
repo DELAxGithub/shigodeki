@@ -210,6 +210,7 @@ struct ProjectDetailView: View {
             APISettingsView()
                 .onDisappear {
                     aiGenerator?.updateAvailableProviders()
+                    AIStateManager.shared.checkConfiguration()
                 }
         }
         .alert("エラー", isPresented: .constant(phaseManager?.error != nil)) {

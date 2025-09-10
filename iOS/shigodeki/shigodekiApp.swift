@@ -18,10 +18,12 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         FirebaseApp.configure()
         print("🧩 App Build: \(BuildInfo.current.buildString)")
         
+        // Log Firebase project at runtime to verify correct config in all builds
+        print("🔧 Firebase Project: \(FirebaseApp.app()?.options.projectID ?? "unknown")")
+        
         // 🔧 Ensure we're using production Firebase (not emulator)
         #if DEBUG
         print("🔧 Firebase: Using production backend for dev environment")
-        print("🔧 Firebase Project: \(FirebaseApp.app()?.options.projectID ?? "unknown")")
         
         // Verify Firestore connection
         let db = Firestore.firestore()

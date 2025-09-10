@@ -294,6 +294,14 @@ struct PhaseTaskDetailView: View {
         }
         .sheet(isPresented: $showAISettings) {
             APISettingsView()
+                .onDisappear {
+                    // Refresh provider availability and AI state after settings update
+                    Task { @MainActor in
+                        let aiGen = await SharedManagerStore.shared.getAiGenerator()
+                        aiGen.updateAvailableProviders()
+                        AIStateManager.shared.checkConfiguration()
+                    }
+                }
         }
         .toolbar { 
             ToolbarItem(placement: .navigationBarTrailing) { 
@@ -347,5 +355,4 @@ struct PhaseTaskDetailView: View {
         }
     }
 }
-
 
