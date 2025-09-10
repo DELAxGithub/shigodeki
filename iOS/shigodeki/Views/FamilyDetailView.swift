@@ -269,8 +269,9 @@ struct ErrorMemberRow: View {
                     .font(.caption)
                     .foregroundColor(.blue)
                 
-                if !member.email.isEmpty && !member.email.contains("エラー") {
-                    Text(member.email)
+                if let displayEmail = EmailDisplayUtility.displayableEmail(member.email), 
+                   !member.email.contains("エラー") {
+                    Text(displayEmail)
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }

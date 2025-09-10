@@ -12,6 +12,7 @@ struct ProjectDetailView: View {
     let project: Project
     @ObservedObject var projectManager: ProjectManager
     @EnvironmentObject var sharedManagers: SharedManagerStore
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: ProjectDetailViewModel
     @State private var phaseManager: PhaseManager?
     @State private var authManager: AuthenticationManager?
@@ -42,6 +43,13 @@ struct ProjectDetailView: View {
                 .padding()
                 .background(Color(.systemGray6))
             
+
+            // Breadcrumbs placed under the header for clearer context
+            BreadcrumbBar(items: [liveProject.name, "フェーズ"]) { idx in
+                if idx == 0 { dismiss() }
+            }
+            .padding(.horizontal)
+
             // Phases List with improved loading UX
             if let pm = phaseManager {
                 PhaseListView(project: liveProject, phaseManager: pm)
@@ -88,45 +96,36 @@ struct ProjectDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        // Use live project name so title updates immediately on selection and live changes
-        .navigationTitle(liveProject.name)
-        .navigationBarTitleDisplayMode(.large)
+        // Keep nav bar minimal; header already shows project name
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .enableSwipeBack()
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
-                if project.ownerType == .family {
-                    Button {
-                        loadOwnerFamilyAndOpen()
-                    } label: {
-                        Label("チーム詳細", systemImage: "person.3.fill")
-                    }
-                }
-                Menu {
-                    Button(action: {
-                        showingCreatePhase = true
-                    }) {
-                        Label("フェーズを追加", systemImage: "plus")
-                    }
-                    
-                    Button(action: {
-                        if (aiGenerator?.availableProviders.isEmpty ?? true) {
-                            showingAISettings = true
-                        } else {
-                            showingAIAnalysis = true
-                        }
-                    }) {
-                        Label("AI分析", systemImage: "brain")
-                    }
-                    
-                    Button(action: {
-                        showingProjectSettings = true
-                    }) {
-                        Label("プロジェクト設定", systemImage: "gear")
+                // Brain: AI analysis (falls back to AI settings if not configured)
+                Button {
+                    if (aiGenerator?.availableProviders.isEmpty ?? true) {
+                        showingAISettings = true
+                    } else {
+                        showingAIAnalysis = true
                     }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "brain")
                 }
+                .accessibilityLabel("AI分析")
+
+                // Gear: Project settings
+                Button { showingProjectSettings = true } label: {
+                    Image(systemName: "gearshape")
+                }
+                .accessibilityLabel("プロジェクト設定")
+
+                // Plus: Create phase
+                Button { showingCreatePhase = true } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("フェーズを追加")
             }
         }
         .task {
@@ -214,10 +213,14 @@ struct ProjectDetailView: View {
                     AIStateManager.shared.checkConfiguration()
                 }
         }
-        .alert("エラー", isPresented: .constant(phaseManager?.error != nil)) {
-            Button("OK") {
-                phaseManager?.error = nil
-            }
+        .alert(
+            "エラー",
+            isPresented: Binding(
+                get: { phaseManager?.error != nil },
+                set: { if !$0 { phaseManager?.error = nil } }
+            )
+        ) {
+            Button("OK") { phaseManager?.error = nil }
         } message: {
             Text(phaseManager?.error?.localizedDescription ?? "")
         }

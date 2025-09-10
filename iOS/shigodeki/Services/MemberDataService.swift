@@ -14,6 +14,8 @@ class MemberDataService: ObservableObject {
     @Published var isLoadingProjects = false
     @Published var isLoadingTasks = false
     @Published var errorMessage: String?
+    @Published var userProjects: [Project] = []
+    @Published var assignedTasks: [ShigodekiTask] = []
     
     private let db = Firestore.firestore()
     
@@ -22,10 +24,10 @@ class MemberDataService: ObservableObject {
     func loadMemberData(userId: String) async -> (projects: [Project], tasks: [ShigodekiTask]) {
         async let projectsResult = loadUserProjects(userId: userId)
         async let tasksResult = loadAssignedTasks(userId: userId)
-        
         let projects = await projectsResult
         let tasks = await tasksResult
-        
+        self.userProjects = projects
+        self.assignedTasks = tasks
         return (projects: projects, tasks: tasks)
     }
     
@@ -40,44 +42,23 @@ class MemberDataService: ObservableObject {
         }
         
         do {
-            // Get all family IDs that this user is part of
-            let familyQuery = db.collection("families")
+            // New schema: projects at root with memberIds
+            let query = db.collection("projects")
                 .whereField("memberIds", arrayContains: userId)
-            
-            let familySnapshot = try await familyQuery.getDocuments()
-            
-            if familySnapshot.documents.isEmpty {
-                await diagnoseMissingProjects(userId: userId)
-                return []
+            let snapshot = try await query.getDocuments()
+            var projects: [Project] = snapshot.documents.compactMap { doc in
+                var p = try? doc.data(as: Project.self, decoder: Firestore.Decoder())
+                p?.id = doc.documentID
+                return p
             }
-            
-            let familyIds = familySnapshot.documents.map { $0.documentID }
-            print("User \(userId) is member of families: \(familyIds)")
-            
-            var allProjects: [Project] = []
-            
-            // Get projects from each family
-            for familyId in familyIds {
-                let projectQuery = db.collection("families")
-                    .document(familyId)
-                    .collection("projects")
-                    .order(by: "createdAt", descending: true)
-                
-                let projectSnapshot = try await projectQuery.getDocuments()
-                
-                for document in projectSnapshot.documents {
-                    if let project = parseProject(from: document, familyId: familyId) {
-                        // Only include projects where user is a member
-                        if project.memberIds.contains(userId) {
-                            allProjects.append(project)
-                        }
-                    }
-                }
+            // Sort locally by createdAt desc
+            projects.sort { (a, b) in
+                let ad = a.createdAt ?? .distantPast
+                let bd = b.createdAt ?? .distantPast
+                return ad > bd
             }
-            
-            print("Found \(allProjects.count) projects for user \(userId)")
-            return allProjects
-            
+            print("Found \(projects.count) projects for user \(userId)")
+            return projects
         } catch {
             print("Error loading user projects: \(error)")
             errorMessage = "プロジェクトの読み込みに失敗しました"
@@ -96,24 +77,30 @@ class MemberDataService: ObservableObject {
         }
         
         do {
-            // Use collection group query to find all tasks assigned to this user
-            let taskQuery = db.collectionGroup("tasks")
+            var tasks: [String: ShigodekiTask] = [:]
+
+            // New field name
+            let q1 = db.collectionGroup("tasks")
                 .whereField("assignedTo", isEqualTo: userId)
-                .order(by: "createdAt", descending: true)
-                .limit(to: 50) // Limit to avoid performance issues
-            
-            let taskSnapshot = try await taskQuery.getDocuments()
-            
-            var loadedTasks: [ShigodekiTask] = []
-            
-            for document in taskSnapshot.documents {
-                if let task = parseTask(from: document) {
-                    loadedTasks.append(task)
-                }
+                .limit(to: 200)
+            let s1 = try await q1.getDocuments()
+            for document in s1.documents {
+                if let t = parseTask(from: document) { tasks[t.id ?? document.documentID] = t }
             }
-            
-            print("Found \(loadedTasks.count) assigned tasks for user \(userId)")
-            return loadedTasks
+
+            // Legacy field name
+            let q2 = db.collectionGroup("tasks")
+                .whereField("assigneeId", isEqualTo: userId)
+                .limit(to: 200)
+            let s2 = try await q2.getDocuments()
+            for document in s2.documents {
+                if let t = parseTask(from: document) { tasks[t.id ?? document.documentID] = t }
+            }
+
+            var loaded = Array(tasks.values)
+            loaded.sort { (a, b) in (a.createdAt ?? .distantPast) > (b.createdAt ?? .distantPast) }
+            print("Found \(loaded.count) assigned tasks for user \(userId)")
+            return loaded
             
         } catch {
             print("Error loading assigned tasks: \(error)")
@@ -171,6 +158,16 @@ class MemberDataService: ObservableObject {
         let dueDate = (data["dueDate"] as? Timestamp)?.dateValue()
         let createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
         let completedAt = (data["completedAt"] as? Timestamp)?.dateValue()
+        // Try to extract hierarchy IDs from path
+        let comps = document.reference.path.split(separator: "/").map(String.init)
+        var projectId: String = (data["projectId"] as? String) ?? ""
+        var phaseId: String = (data["phaseId"] as? String) ?? ""
+        var listId: String = (data["listId"] as? String) ?? ""
+        if comps.count >= 8 { // projects/{pid}/phases/{phid}/lists/{lid}/tasks/{tid}
+            if comps[0] == "projects" { projectId = projectId.isEmpty ? comps[1] : projectId }
+            if comps[2] == "phases" { phaseId = phaseId.isEmpty ? comps[3] : phaseId }
+            if comps[4] == "lists" { listId = listId.isEmpty ? comps[5] : listId }
+        }
         
         var task = ShigodekiTask(
             title: title,
@@ -178,14 +175,16 @@ class MemberDataService: ObservableObject {
             assignedTo: assignedTo?.isEmpty == false ? assignedTo : nil,
             createdBy: createdBy,
             dueDate: dueDate,
-            priority: priority
+            priority: priority,
+            listId: listId,
+            phaseId: phaseId,
+            projectId: projectId,
+            order: data["order"] as? Int ?? 0
         )
-        
         task.id = document.documentID
         task.isCompleted = isCompleted
         task.createdAt = createdAt
         task.completedAt = completedAt
-        
         return task
     }
     

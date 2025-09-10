@@ -19,16 +19,12 @@ struct PhaseListView: View {
     @State private var selectedPhaseId: String? = nil
     @Environment(\.dismiss) private var dismiss
     var onSelectPhase: ((Phase) -> Void)? = nil
-    @State private var listCounts: [String: Int] = [:] // now represents section counts
+    @State private var listCounts: [String: Int] = [:] // section counts
+    @State private var taskProgress: [String: (done: Int, total: Int)] = [:]
     var onSelectTaskList: ((TaskList, Phase) -> Void)? = nil
     
     var body: some View {
         VStack {
-            BreadcrumbBar(items: [project.name, "フェーズ"]) { idx in
-                print("UI: Breadcrumb tapped idx=\(idx) at PhaseListView")
-                if idx == 0 { dismiss() }
-            }
-                .padding(.horizontal)
             if phaseManager.phases.isEmpty && !phaseManager.isLoading {
                 // Empty phases state
                 VStack(spacing: 24) {
@@ -82,7 +78,12 @@ struct PhaseListView: View {
                     ForEach(phaseManager.phases) { phase in
                         if let onSelectPhase {
                             Button { onSelectPhase(phase) } label: {
-                                PhaseRowView(phase: phase, phaseManager: phaseManager, taskListCount: listCounts[phase.id ?? ""]) 
+                                PhaseRowView(
+                                    phase: phase,
+                                    phaseManager: phaseManager,
+                                    taskListCount: listCounts[phase.id ?? ""],
+                                    taskProgress: phase.id.flatMap { taskProgress[$0] }
+                                ) 
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -93,7 +94,12 @@ struct PhaseListView: View {
                                 if let pid = phase.id { selectedPhaseId = pid }
                                 print("UI: Phase tapped -> \(phase.name) [id=\(phase.id ?? "")] ")
                             } label: {
-                                PhaseRowView(phase: phase, phaseManager: phaseManager, taskListCount: listCounts[phase.id ?? ""]) 
+                                PhaseRowView(
+                                    phase: phase,
+                                    phaseManager: phaseManager,
+                                    taskListCount: listCounts[phase.id ?? ""],
+                                    taskProgress: phase.id.flatMap { taskProgress[$0] }
+                                ) 
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -110,18 +116,9 @@ struct PhaseListView: View {
             }
         }
         .loadingOverlay(phaseManager.isLoading, message: "フェーズを更新中...")
-        .navigationTitle("フェーズ")
         .navigationBarBackButtonHidden(true)
         .enableSwipeBack()
-        .toolbar {
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
-                Button(action: {
-                    showingCreatePhase = true
-                }) {
-                    Image(systemName: "plus")
-                }
-            }
-        }
+        .toolbar { }
         .onAppear {
             loadPhases()
             startListeningToPhases()
@@ -133,10 +130,14 @@ struct PhaseListView: View {
         .sheet(isPresented: $showingCreatePhase) {
             CreatePhaseView(project: project, phaseManager: phaseManager)
         }
-        .alert("エラー", isPresented: .constant(phaseManager.error != nil)) {
-            Button("OK") {
-                phaseManager.error = nil
-            }
+        .alert(
+            "エラー",
+            isPresented: Binding(
+                get: { phaseManager.error != nil },
+                set: { if !$0 { phaseManager.error = nil } }
+            )
+        ) {
+            Button("OK") { phaseManager.error = nil }
         } message: {
             Text(phaseManager.error?.localizedDescription ?? "")
         }
@@ -160,16 +161,27 @@ struct PhaseListView: View {
     
     private func loadListCounts() async {
         guard let projectId = project.id else { return }
-        var result: [String: Int] = [:]
+        var sectionCounts: [String: Int] = [:]
+        var progress: [String: (done: Int, total: Int)] = [:]
         let sectionManager = PhaseSectionManager()
+        let enhancedManager = EnhancedTaskManager()
         for ph in phaseManager.phases {
             guard let pid = ph.id else { continue }
             do {
                 let sections = try await sectionManager.getSections(phaseId: pid, projectId: projectId)
-                result[pid] = sections.count
+                sectionCounts[pid] = sections.count
+            } catch { }
+            do {
+                let tasks = try await enhancedManager.getPhaseTasks(phaseId: pid, projectId: projectId)
+                let total = tasks.count
+                let done = tasks.filter { $0.isCompleted }.count
+                progress[pid] = (done, total)
             } catch { }
         }
-        await MainActor.run { self.listCounts = result }
+        await MainActor.run {
+            self.listCounts = sectionCounts
+            self.taskProgress = progress
+        }
     }
     
     private func startListeningToPhases() {

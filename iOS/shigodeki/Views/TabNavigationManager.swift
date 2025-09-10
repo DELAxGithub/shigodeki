@@ -59,6 +59,12 @@ class TabNavigationManager: ObservableObject {
             await MainActor.run {
                 // Issue #46 Fix: Only reset navigation when re-selecting same tab
                 handleSameTabReselection(oldValue: oldValue, newValue: newValue)
+                
+                // Team tab UX: always show team list when entering the tab
+                if newValue == familyTabIndex {
+                    print("📱 Team tab selected; forcing list root display")
+                    NotificationCenter.default.post(name: .familyTabSelected, object: nil)
+                }
             }
         }
     }

@@ -11,6 +11,7 @@ struct PhaseRowView: View {
     let phase: Phase
     @ObservedObject var phaseManager: PhaseManager
     let taskListCount: Int?
+    let taskProgress: (done: Int, total: Int)?
     // Keep purely presentational; interaction is handled by parent (NavigationLink/Button)
     
     var body: some View {
@@ -96,6 +97,21 @@ struct PhaseRowView: View {
                 .background(Color.primaryBlue.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 
+                if let tp = taskProgress {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                        Text("\(tp.done)/\(tp.total)")
+                            .font(.caption)
+                            .foregroundColor(.secondaryText)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.green.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+
                 Spacer()
                 
                 // Creation date
@@ -121,6 +137,6 @@ struct PhaseRowView: View {
 
 #Preview {
     let samplePhase = Phase(name: "Phase 1", description: "First phase", projectId: "proj1", createdBy: "user1", order: 0)
-    PhaseRowView(phase: samplePhase, phaseManager: PhaseManager(), taskListCount: nil)
+    PhaseRowView(phase: samplePhase, phaseManager: PhaseManager(), taskListCount: 2, taskProgress: (3, 10))
         .padding()
 }

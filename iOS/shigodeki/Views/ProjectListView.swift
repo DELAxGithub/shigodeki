@@ -14,6 +14,7 @@ struct ProjectListView: View {
     @EnvironmentObject var sharedManagers: SharedManagerStore
     // 🚨 CTO Requirement: ViewModel must be non-optional and autonomous.
     @StateObject private var viewModel = ProjectListViewModel()
+    @Environment(\.horizontalSizeClass) private var hSizeClass
 
     // UI State - Only presentation concerns
     @State private var showingCreateProject = false
@@ -128,18 +129,20 @@ struct ProjectListView: View {
                     // The List's selection is bound to the ViewModel's selectedProject property.
                     // This is the core of the master-detail interface.
                     List(selection: $viewModel.selectedProject) {
-                        // Issue #84: Add top anchor for scroll-to-top functionality
-                        Rectangle()
-                            .fill(Color.clear)
-                            .frame(height: 1)
-                            .id("top")
-                            .listRowSeparator(.hidden)
-                        
+                        // Add a top anchor only on iPad (regular width) to avoid empty space on iPhone
+                        if hSizeClass == .regular {
+                            Rectangle()
+                                .fill(Color.clear)
+                                .frame(height: 1)
+                                .id("top")
+                                .listRowSeparator(.hidden)
+                        }
                         ForEach(viewModel.filteredProjects) { project in
                             ProjectRowView(project: project)
                                 .tag(project) // The tag MUST match the selection type.
                         }
                     }
+                    .listStyle(.plain)
                     .statusBarTapScrollToTop()
                     .refreshable {
                         await viewModel.refreshProjects()

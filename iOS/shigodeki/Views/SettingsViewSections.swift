@@ -51,9 +51,11 @@ struct UserProfileSection: View {
                                 .disabled(isUpdatingUsername)
                             }
                             
-                            Text(user.email)
-                                .font(.subheadline)
-                                .foregroundColor(.secondaryText)
+                            if let email = displayableEmail(user.email) {
+                                Text(email)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondaryText)
+                            }
                         }
                         
                         Spacer()
@@ -69,6 +71,11 @@ struct UserProfileSection: View {
                 .listRowBackground(Color.clear)
             }
         }
+    }
+
+    // MARK: - Helpers
+    private func displayableEmail(_ raw: String) -> String? {
+        return EmailDisplayUtility.displayableEmail(raw)
     }
 }
 

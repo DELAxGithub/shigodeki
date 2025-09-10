@@ -3,7 +3,7 @@ import SwiftUI
 struct ProjectInfoSection: View {
     let project: Project
     let ownerDisplayName: String
-    let memberCount: Int
+    let memberCount: Int?
     let createdAtOverride: Date?
     
     var body: some View {
@@ -28,7 +28,7 @@ struct ProjectInfoSection: View {
                     Text("メンバー数")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text("\(memberCount)人")
+                    Text(memberCountText)
                         .font(.subheadline)
                 }
             }
@@ -68,5 +68,12 @@ struct ProjectInfoSection: View {
         formatter.timeStyle = .short
         formatter.locale = Locale(identifier: "ja_JP")
         return formatter.string(from: date)
+    }
+}
+
+private extension ProjectInfoSection {
+    var memberCountText: String {
+        if let c = memberCount { return "\(c)人" }
+        return "読み込み中..."
     }
 }

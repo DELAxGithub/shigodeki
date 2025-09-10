@@ -35,9 +35,11 @@ struct MemberInfoSection: View {
                             .font(.title2)
                             .fontWeight(.semibold)
                         
-                        Text(member.email)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                        if let displayEmail = EmailDisplayUtility.displayableEmail(member.email) {
+                            Text(displayEmail)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
                         
                         if let joinDate = member.createdAt {
                             Text("参加日: \(DateFormatter.shortDate.string(from: joinDate))")
@@ -60,33 +62,35 @@ struct ContactInfoSection: View {
     let member: User
     
     var body: some View {
-        Section("連絡先") {
-            HStack {
-                Image(systemName: "envelope")
-                    .foregroundColor(.blue)
-                    .frame(width: 20)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("メールアドレス")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    Text(member.email)
-                        .font(.body)
-                }
-                
-                Spacer()
-                
-                Button(action: {
-                    if let emailURL = URL(string: "mailto:\(member.email)") {
-                        UIApplication.shared.open(emailURL)
-                    }
-                }) {
-                    Image(systemName: "paperplane")
+        if let displayEmail = EmailDisplayUtility.displayableEmail(member.email) {
+            Section("連絡先") {
+                HStack {
+                    Image(systemName: "envelope")
                         .foregroundColor(.blue)
+                        .frame(width: 20)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("メールアドレス")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Text(displayEmail)
+                            .font(.body)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        if let emailURL = URL(string: "mailto:\(displayEmail)") {
+                            UIApplication.shared.open(emailURL)
+                        }
+                    }) {
+                        Image(systemName: "paperplane")
+                            .foregroundColor(.blue)
+                    }
                 }
+                .padding(.vertical, 4)
             }
-            .padding(.vertical, 4)
         }
     }
 }
@@ -96,6 +100,7 @@ struct ContactInfoSection: View {
 struct MemberProjectsSection: View {
     let userProjects: [Project]
     let isLoadingProjects: Bool
+    let onTapProject: (Project) -> Void
     
     var body: some View {
         Section("参加プロジェクト (\(userProjects.count))") {
@@ -119,7 +124,13 @@ struct MemberProjectsSection: View {
                 .padding(.vertical, 8)
             } else {
                 ForEach(userProjects) { project in
-                    ProjectRowCompact(project: project)
+                    Button {
+                        onTapProject(project)
+                    } label: {
+                        ProjectRowCompact(project: project)
+                    }
+                    .buttonStyle(.plain)
+                    .interactiveEffect()
                 }
             }
         }
@@ -131,6 +142,7 @@ struct MemberProjectsSection: View {
 struct MemberAssignedTasksSection: View {
     let assignedTasks: [ShigodekiTask]
     let isLoadingTasks: Bool
+    let onTapTask: (ShigodekiTask) -> Void
     
     var body: some View {
         Section("アサイン済みタスク (\(assignedTasks.count))") {
@@ -154,7 +166,13 @@ struct MemberAssignedTasksSection: View {
                 .padding(.vertical, 8)
             } else {
                 ForEach(assignedTasks) { task in
-                    TaskRowCompact(task: task)
+                    Button {
+                        onTapTask(task)
+                    } label: {
+                        TaskRowCompact(task: task)
+                    }
+                    .buttonStyle(.plain)
+                    .interactiveEffect()
                 }
             }
         }

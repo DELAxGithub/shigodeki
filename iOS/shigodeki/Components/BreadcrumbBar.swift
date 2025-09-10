@@ -17,7 +17,7 @@ struct BreadcrumbBar: View {
                 ForEach(Array(items.enumerated()), id: \.offset) { idx, label in
                     HStack(spacing: 6) {
                         Text(label)
-                            .font(.caption)
+                            .font(.footnote)
                             .foregroundColor(idx == items.count - 1 ? .primary : .secondary)
                         if idx < items.count - 1 {
                             Image(systemName: "chevron.right")

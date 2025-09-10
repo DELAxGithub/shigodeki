@@ -42,7 +42,8 @@ struct ProjectSettingsView: View {
     @State private var liveProject: Project?
     @State private var projectListener: ListenerRegistration?
     @State private var membersListener: ListenerRegistration?
-    @State private var liveMemberCount: Int = 0
+    @State private var liveMemberCount: Int? = nil
+    @State private var membersSnapshotReady: Bool = false
     
     init(project: Project, projectManager: ProjectManager) {
         self.project = project
@@ -103,7 +104,7 @@ struct ProjectSettingsView: View {
                     ProjectInfoSection(
                         project: liveProject ?? project,
                         ownerDisplayName: ownerDisplayName,
-                        memberCount: liveMemberCount > 0 ? liveMemberCount : project.memberIds.count,
+                        memberCount: membersSnapshotReady ? liveMemberCount : nil,
                         createdAtOverride: liveProject?.createdAt
                     )
                 }
@@ -333,7 +334,8 @@ struct ProjectSettingsView: View {
 
     private func startProjectListeners() {
         guard let id = project.id else { return }
-        liveMemberCount = project.memberIds.count
+        liveMemberCount = nil
+        membersSnapshotReady = false
         // Project document listener
         let docRef = Firestore.firestore().collection("projects").document(id)
         projectListener?.remove()
@@ -349,7 +351,8 @@ struct ProjectSettingsView: View {
         membersListener?.remove()
         membersListener = docRef.collection("members").addSnapshotListener { snapshot, error in
             Task { @MainActor in
-                self.liveMemberCount = snapshot?.documents.count ?? self.liveMemberCount
+                self.liveMemberCount = snapshot?.documents.count
+                self.membersSnapshotReady = true
             }
         }
     }

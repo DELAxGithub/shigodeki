@@ -37,9 +37,11 @@ struct MemberRowView: View {
                     }
                 }
                 
-                Text(member.email)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                if let displayEmail = EmailDisplayUtility.displayableEmail(member.email) {
+                    Text(displayEmail)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 
                 if let createdAt = member.createdAt {
                     // Issue #48 Fix: Show appropriate date label based on member role

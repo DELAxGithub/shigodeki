@@ -6,11 +6,14 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
 
 struct ProjectRowView: View {
     let project: Project
     @State private var isPressed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var liveMemberCount: Int? = nil
+    @State private var membersListener: ListenerRegistration? = nil
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -39,7 +42,7 @@ struct ProjectRowView: View {
             
             // Metadata row
             HStack {
-                MemberCountBadge(count: project.memberIds.count)
+                MemberCountBadge(count: effectiveMemberCount)
                 
                 Spacer()
                 
@@ -58,6 +61,8 @@ struct ProjectRowView: View {
         )
         .highContrastColors()
         .interactiveScale(isPressed: $isPressed)
+        .task { startMembersListener() }
+        .onDisappear { membersListener?.remove(); membersListener = nil }
     }
     
     private var accessibilityLabel: String {
@@ -67,7 +72,7 @@ struct ProjectRowView: View {
             label += "、説明: \(description)"
         }
         
-        label += "、メンバー数: \(project.memberIds.count)人"
+        label += "、メンバー数: \(effectiveMemberCount)人"
         label += "、作成日: \(formatDate(project.createdAt))"
         label += project.isCompleted ? "、完了済み" : "、進行中"
         
@@ -80,6 +85,34 @@ struct ProjectRowView: View {
         formatter.dateStyle = .short
         formatter.locale = Locale(identifier: "ja_JP")
         return formatter.string(from: date)
+    }
+
+    private var effectiveMemberCount: Int {
+        liveMemberCount ?? project.memberIds.count
+    }
+
+    private func startMembersListener() {
+        guard let projectId = project.id, !projectId.isEmpty else { return }
+        membersListener?.remove(); membersListener = nil
+        let docRef = Firestore.firestore().collection("projects").document(projectId)
+        membersListener = docRef.collection("members").addSnapshotListener { snapshot, _ in
+            Task { @MainActor in
+                self.liveMemberCount = snapshot?.documents.count
+            }
+        }
+        // Fallback for family-owned projects: derive from families/{ownerId}.members
+        if project.ownerType == .family {
+            Task {
+                do {
+                    let famDoc = try await Firestore.firestore().collection("families").document(project.ownerId).getDocument()
+                    if let members = famDoc.data()? ["members"] as? [String] {
+                        await MainActor.run { self.liveMemberCount = max(self.liveMemberCount ?? 0, members.count) }
+                    }
+                } catch {
+                    // Ignore fallback errors
+                }
+            }
+        }
     }
 }
 
