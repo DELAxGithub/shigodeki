@@ -81,4 +81,7 @@ setup-ph1.md
 DEMO-PREPARATION-REPORT.md
 
 # Temporary documentation
-docs/setup-ph1.md
+docs/setup-ph1.md# Build logs and temporary files
+sigodekinai/
+*.txt
+.DS_Store

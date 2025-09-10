@@ -32,6 +32,7 @@
 		DE918B162E5FC87600340EB2 /* Exceptions for "shigodeki" folder in "shigodeki" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				"GoogleService-Info.plist",
 				Info.plist,
 			);
 			target = DE918B052E5FC87300340EB2 /* shigodeki */;
@@ -217,20 +218,26 @@
 /* Begin PBXShellScriptBuildPhase section */
 		DE5F1B672E5FCAE600A91735 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/Firebase/Config/GoogleService-Info-Dev.plist",
+				"$(SRCROOT)/Firebase/Config/GoogleService-Info-Prod.plist",
+				"$(SRCROOT)/Firebase/Scripts/copy-config.sh",
 			);
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/GoogleService-Info.plist",
+				"$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/GoogleService-Info.plist",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Temporarily disabled - Firebase config file manually added to bundle\necho \"Firebase configuration handled manually\"\n";
+			shellScript = "${SRCROOT}/Firebase/Scripts/copy-config.sh\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -267,7 +274,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = shigodeki/shigodeki.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = Z88477N5ZU;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -303,7 +310,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = shigodeki/shigodeki.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = Z88477N5ZU;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;

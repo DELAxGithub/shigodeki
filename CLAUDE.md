@@ -13,8 +13,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Development: `shigodeki-dev` 
   - Production: `shigodeki-prod`
 - **Bundle ID Separation**: 
-  - Production: `com.company.shigodeki`
-  - Development: `com.company.shigodeki.dev`
+  - Production: `com.hiroshikodera.shigodeki`
+  - Development: `com.hiroshikodera.shigodeki.dev`
 
 ### Firebase Configuration
 - **Authentication Methods**: Sign in with Apple (mandatory), with optional Email/Password and Google authentication
