@@ -17,6 +17,16 @@ struct MainTabView: View {
     
     var body: some View {
         TabView(selection: $tabNavigationManager.selectedTab) {
+            // Home proxy tab: always routes to Project list root
+            HomeProxyView()
+                .tabItem {
+                    Image(systemName: "house.fill")
+                    Text("ホーム")
+                }
+                .tag(tabNavigationManager.homeTabIndex)
+                .accessibilityLabel("ホーム（プロジェクト一覧）")
+                .accessibilityHint("どこからでもプロジェクト一覧に戻ります")
+            
             ProjectListView()
                 .tabItem {
                     Image(systemName: "folder.fill")
@@ -149,4 +159,21 @@ struct SettingsView: View {
 
 #Preview {
     MainTabView()
+}
+
+// MARK: - Home Proxy View
+
+/// A lightweight proxy view that immediately routes back to the Project list root when selected.
+private struct HomeProxyView: View {
+    @EnvironmentObject private var tabNavigation: TabNavigationManager
+    
+    var body: some View {
+        // Keep it empty; redirect as soon as it appears
+        Color.clear
+            .onAppear {
+                // Trigger home navigation
+                tabNavigation.goHome()
+            }
+            .accessibilityHidden(true)
+    }
 }

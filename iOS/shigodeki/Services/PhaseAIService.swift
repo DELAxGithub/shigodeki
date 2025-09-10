@@ -103,7 +103,18 @@ struct PhaseAIService {
         logger.debug("Content preview: \(content.prefix(100))...")
         
         // AI提案テキストから実行手順を抽出
-        let extractedTasks = extractTasksFromStructuredContent(content)
+        var extractedTasks: [ExtractedTask] = []
+        // まずLLMでの抽出を試みる（実行手順セクションを優先的に抽出させる）
+        do {
+            let aiGen = await SharedManagerStore.shared.getAiGenerator()
+            extractedTasks = try await extractTasksWithLLM(from: content, using: aiGen)
+        } catch {
+            logger.warning("⚠️ LLM抽出に失敗: \(error.localizedDescription). ルール抽出にフォールバック")
+        }
+        // LLMで抽出できなかった場合のみ、ルールベース抽出にフォールバック
+        if extractedTasks.isEmpty {
+            extractedTasks = extractTasksFromStructuredContent(content)
+        }
         
         if extractedTasks.isEmpty {
             logger.warning("⚠️ AI提案から実行手順を抽出できませんでした")
@@ -141,6 +152,54 @@ struct PhaseAIService {
     }
     
     // MARK: - Private Methods
+
+    /// LLMに詳細文から実行手順のタイトルのみを抽出させる
+    private static func extractTasksWithLLM(from content: String, using aiGenerator: AITaskGenerator) async throws -> [ExtractedTask] {
+        // 明確なフォーマット指示（JSON配列の文字列のみ）
+        let prompt = """
+        次の説明文から「実行手順（ステップバイステップ）」に該当するステップのタイトルだけを抽出してください。
+        制約:
+        - 出力はJSON配列のみ。前後に説明やコードブロックは不要。
+          優先形式: [{"title":"...","description":"一言の補足"}, ...]
+          代替許容: ["タイトル1", "タイトル2"]
+        - 各タイトルは1行の短い命令文。文末の句読点は不要。
+        - 「必要な準備」「完了の判断基準」「注意点」「所要時間」などの見出しは含めない。
+        - ステップ番号は削除してタイトルのみ。
+        - 最大12件。
+
+        テキスト:
+        ---
+        \(content)
+        ---
+        """
+
+        let raw = try await aiGenerator.generateText(prompt: prompt)
+
+        if let data = raw.data(using: .utf8),
+           let arr = try? JSONSerialization.jsonObject(with: data) as? [Any] {
+            // 形式1: 配列の各要素が辞書（title/description）
+            var extracted: [ExtractedTask] = []
+            for item in arr {
+                if let dict = item as? [String: Any] {
+                    let titleRaw = (dict["title"] as? String) ?? ""
+                    let descrRaw = (dict["description"] as? String) ?? ""
+                    let title = normalizedTitle(titleRaw)
+                    let descr = descrRaw.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                    if !title.isEmpty {
+                        extracted.append(ExtractedTask(title: title, description: descr))
+                    }
+                } else if let s = item as? String {
+                    let title = normalizedTitle(s)
+                    if !title.isEmpty { extracted.append(ExtractedTask(title: title, description: "")) }
+                }
+            }
+            if !extracted.isEmpty { return extracted }
+        }
+
+        // JSONでない場合は、行抽出をフォールバックとして適用
+        let fallback = extractSteps(in: raw)
+        return fallback
+    }
     
     /// 構造化されたAI提案テキストからタスクを抽出
     /// 優先順位:
@@ -234,11 +293,16 @@ struct PhaseAIService {
 
         let sectionEnd = nextMatch?.range.lowerBound ?? fullRange.length
 
-        if sectionStart < sectionEnd,
-           let start = Range(NSRange(location: sectionStart, length: 0), in: content),
-           let end = Range(NSRange(location: sectionEnd, length: 0), in: content) {
-            let slice = String(content[start..<end])
-            return slice.trimmingCharacters(in: .whitespacesAndNewlines)
+        if sectionStart < sectionEnd {
+            // Convert NSRange offsets (UTF-16) to String.Index safely
+            let utf16 = content.utf16
+            let startUTF16 = utf16.index(utf16.startIndex, offsetBy: sectionStart)
+            let endUTF16 = utf16.index(utf16.startIndex, offsetBy: sectionEnd)
+            if let start = String.Index(startUTF16, within: content),
+               let end = String.Index(endUTF16, within: content), start <= end {
+                let slice = String(content[start..<end])
+                return slice.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            }
         }
 
         return nil
@@ -248,13 +312,27 @@ struct PhaseAIService {
     private static func extractSteps(in section: String) -> [ExtractedTask] {
         var steps: [ExtractedTask] = []
 
-        // 優先1: (1) 形式 / （1）形式 / 1) 形式
-        let parenNumberPattern = #"(?m)^\s*[\(（]?\s*(\d+)[\)）\.]?\s+([^\n]+)$"#
-        if let regex = try? NSRegularExpression(pattern: parenNumberPattern) {
+        // 優先0: "ステップ1: ..." / "Step 1: ..." の形式（医療・手順系の出力で多い）
+        let stepLabelPattern = #"(?m)^\s*(?:ステップ|Step)\s*(\d+)\s*[:：]\s*(.+)$"#
+        if let regex = try? NSRegularExpression(pattern: stepLabelPattern) {
             let matches = regex.matches(in: section, options: [], range: NSRange(section.startIndex..., in: section))
             for m in matches {
                 if let r = Range(m.range(at: 2), in: section) {
-                    let title = String(section[r]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    let title = String(section[r]).trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                    if !title.isEmpty {
+                        steps.append(ExtractedTask(title: normalizedTitle(title), description: ""))
+                    }
+                }
+            }
+        }
+        
+        // 優先1: (1) 形式 / （1）形式 / 1) 形式
+        let parenNumberPattern = #"(?m)^\s*[\(（]?\s*(\d+)[\)）\.]?\s+([^\n]+)$"#
+        if steps.isEmpty, let regex = try? NSRegularExpression(pattern: parenNumberPattern) {
+            let matches = regex.matches(in: section, options: [], range: NSRange(section.startIndex..., in: section))
+            for m in matches {
+                if let r = Range(m.range(at: 2), in: section) {
+                    let title = String(section[r]).trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                     if !title.isEmpty {
                         steps.append(ExtractedTask(title: normalizedTitle(title), description: ""))
                     }
@@ -269,7 +347,7 @@ struct PhaseAIService {
                 let matches = regex.matches(in: section, options: [], range: NSRange(section.startIndex..., in: section))
                 for m in matches {
                     if let r = Range(m.range(at: 1), in: section) {
-                        let title = String(section[r]).trimmingCharacters(in: .whitespacesAndNewlines)
+                        let title = String(section[r]).trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                         if !title.isEmpty {
                             steps.append(ExtractedTask(title: normalizedTitle(title), description: ""))
                         }
@@ -285,7 +363,7 @@ struct PhaseAIService {
                 let matches = regex.matches(in: section, options: [], range: NSRange(section.startIndex..., in: section))
                 for m in matches {
                     if let r = Range(m.range(at: 1), in: section) {
-                        let title = String(section[r]).trimmingCharacters(in: .whitespacesAndNewlines)
+                        let title = String(section[r]).trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                         if !title.isEmpty {
                             steps.append(ExtractedTask(title: normalizedTitle(title), description: ""))
                         }

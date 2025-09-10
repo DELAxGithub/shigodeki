@@ -7,6 +7,9 @@
 
 import Foundation
 
+// LLMを用いたタスク詳細生成を行うための補助
+import SwiftUI
+
 struct SubtaskPromotionService {
     
     /// サブタスクをタスクに繰り上げる
@@ -54,7 +57,22 @@ struct SubtaskPromotionService {
             throw SubtaskPromotionError.taskCreationFailed("Created task has no ID")
         }
         
-        // 2. 作成成功後にサブタスクを削除
+        // 2. （オプション）LLMで詳細説明を自動生成し、タスクに反映
+        do {
+            let aiGenerator = await SharedManagerStore.shared.getAiGenerator()
+            if let details = try? await PhaseAIService.generateTaskDetails(for: createdTask, aiGenerator: aiGenerator) {
+                var enriched = createdTask
+                // 既存説明がある場合は追記、無ければ置換
+                if let existing = createdTask.description, !existing.isEmpty {
+                    enriched.description = existing + "\n\nAI提案:\n" + details
+                } else {
+                    enriched.description = details
+                }
+                _ = try? await enhancedTaskManager.updatePhaseTask(enriched)
+            }
+        }
+        
+        // 3. 作成成功後にサブタスクを削除
         try await subtaskManager.deletePhaseSubtask(
             id: subtaskId,
             taskId: taskId,

@@ -14,15 +14,16 @@ class TabNavigationManager: ObservableObject {
     @Published var selectedTab: Int = 0
     
     private var tabSwitchDebounceTask: Task<Void, Never>?
-    
-    let projectTabIndex = 0
-    let familyTabIndex = 1
+    // Tab indices (with a dedicated Home proxy tab at index 0)
+    let homeTabIndex = 0
+    let projectTabIndex = 1
+    let familyTabIndex = 2
     
     #if DEBUG
-    let testTabIndex = 2
-    let settingsTabIndex = 3
+    let testTabIndex = 3
+    let settingsTabIndex = 4
     #else
-    let settingsTabIndex = 2
+    let settingsTabIndex = 3
     #endif
     
     deinit {
@@ -59,6 +60,16 @@ class TabNavigationManager: ObservableObject {
                 // Issue #46 Fix: Only reset navigation when re-selecting same tab
                 handleSameTabReselection(oldValue: oldValue, newValue: newValue)
             }
+        }
+    }
+    
+    /// Always return to Project list root from anywhere
+    func goHome() {
+        // Switch to Projects tab
+        selectedTab = projectTabIndex
+        // Post reset notification on next runloop to allow TabView selection to apply
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .projectTabSelected, object: nil)
         }
     }
     

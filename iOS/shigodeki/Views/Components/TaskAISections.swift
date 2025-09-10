@@ -162,6 +162,21 @@ struct TaskAISupportSection: View {
                     },
                     onCreateSubtasks: { content in
                         Task {
+                            // 先に説明文へAI提案を記録し、参考リンクも追記（自動ハイパーリンク対応はTextでは限定的なためテキストに残す）
+                            await MainActor.run {
+                                var appended = viewModel.taskDescription
+                                if !appended.isEmpty { appended += "\n\n" }
+                                appended += "AI提案:\n" + content
+                                // 簡易URL抽出して追記
+                                let urls = extractURLs(from: content)
+                                if !urls.isEmpty {
+                                    appended += "\n\n参考リンク:\n" + urls.map { "- \($0)" }.joined(separator: "\n")
+                                }
+                                viewModel.taskDescription = appended
+                            }
+                            // 保存は裏で実行（失敗してもサブタスク作成は継続）
+                            do { try await viewModel.save() } catch { print("⚠️ AI提案の説明保存に失敗: \(error.localizedDescription)") }
+                            
                             // 楽観更新: 即座にUI更新
                             let tempIds = await MainActor.run {
                                 isCreatingSubtasks = true
@@ -176,6 +191,32 @@ struct TaskAISupportSection: View {
                                 project: project,
                                 phase: phase
                             )
+                            
+                            // タグ提案（LLM）: 既存タグに追加（最大3件）。失敗しても無視。
+                            do {
+                                let aiGen = await SharedManagerStore.shared.getAiGenerator()
+                                let prompt = """
+                                次の説明に基づいて、このタスクに適した短いタグを最大3つ提案してください。
+                                - 出力はJSON配列のみ（例: [\"準備\", \"法務\"]).
+                                - 各タグは8文字以内、日本語推奨。重複・記号のみは禁止。
+                                説明:\n\(content)
+                                """
+                                let response = try await aiGen.generateText(prompt: prompt)
+                                if let data = response.data(using: .utf8), let arr = try? JSONSerialization.jsonObject(with: data) as? [Any] {
+                                    let suggested = arr.compactMap { $0 as? String }.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                                    if !suggested.isEmpty {
+                                        await MainActor.run {
+                                            let current = Set(viewModel.tags)
+                                            let merged = Array((current.union(suggested)).prefix(10))
+                                            viewModel.updateTags(merged)
+                                        }
+                                        // タグも保存（説明保存と別トランザクション）
+                                        do { try await viewModel.save() } catch { print("⚠️ タグの保存に失敗: \(error.localizedDescription)") }
+                                    }
+                                }
+                            } catch {
+                                print("⚠️ タグ提案に失敗: \(error.localizedDescription)")
+                            }
                             
                             // Use DispatchQueue to defer state updates to avoid publish-during-view-updates
                             DispatchQueue.main.async {
@@ -226,4 +267,22 @@ struct TaskAISupportSection: View {
             }
         }
     }
+}
+
+// MARK: - Local helpers
+
+private func extractURLs(from text: String) -> [String] {
+    // 粗めのURL抽出（http/https のみ）。最大5件。
+    let pattern = #"https?://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+"#
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+    let nsrange = NSRange(text.startIndex..., in: text)
+    let matches = regex.matches(in: text, options: [], range: nsrange)
+    var urls: [String] = []
+    for m in matches {
+        if let r = Range(m.range, in: text) {
+            let s = String(text[r])
+            if !urls.contains(s) { urls.append(s) }
+        }
+    }
+    return Array(urls.prefix(5))
 }
