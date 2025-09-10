@@ -53,11 +53,22 @@ struct CreatePhaseView: View {
                             .textInputAutocapitalization(.words)
                             .disableAutocorrection(false)
 
-                        TextEditor(text: $phaseDescription)
-                            .frame(minHeight: 80)
-                            .placeholder(when: phaseDescription.isEmpty) {
-                                Text("フェーズの説明（オプション）").foregroundColor(Color(.placeholderText))
+                        ZStack(alignment: .topLeading) {
+                            if phaseDescription.isEmpty {
+                                VStack {
+                                    HStack {
+                                        Text("フェーズの説明（オプション）")
+                                            .foregroundColor(Color(.placeholderText))
+                                        Spacer()
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.top, 8)
+                                .padding(.leading, 4)
                             }
+                            TextEditor(text: $phaseDescription)
+                                .frame(minHeight: 80)
+                        }
                     }
                     
                     Section(header: Text("フェーズ情報")) {
@@ -149,21 +160,8 @@ struct CreatePhaseView: View {
             }
         }
         .keyboardToolbarDone()
+        .dismissKeyboardOnTap()
         .presentationDragIndicator(.visible)
-    }
-    
-    private func createPhase() {
-        guard let projectId = project.id else {
-            errorMessage = "プロジェクトIDが見つかりません"
-            showingError = true
-            return
-        }
-        
-        guard let userId = authManager.currentUser?.id else {
-            errorMessage = "ユーザー情報が見つかりません"
-            showingError = true
-            return
-        }
     }
     
     private func createPhase() {
