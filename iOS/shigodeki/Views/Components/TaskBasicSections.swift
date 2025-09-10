@@ -26,14 +26,22 @@ struct TaskBasicInfoSection: View {
                 }
             }
             
-            DatePicker("締切", 
-                      selection: Binding(
-                        get: { task.dueDate ?? Date() },
-                        set: { _ in }
-                      ), 
-                      displayedComponents: [.date, .hourAndMinute])
+            Toggle("締切を設定", isOn: Binding(
+                get: { viewModel.hasDueDateToggle },
+                set: { viewModel.hasDueDateToggle = $0 }
+            ))
+            
+            if viewModel.hasDueDateToggle {
+                DatePicker(
+                    "締切",
+                    selection: Binding(
+                        get: { viewModel.dueDateNonOptional },
+                        set: { viewModel.dueDateNonOptional = $0 }
+                    ),
+                    displayedComponents: [.date, .hourAndMinute]
+                )
                 .environment(\.locale, Locale(identifier: "ja_JP"))
-                .opacity(task.dueDate == nil ? 0.6 : 1)
+            }
         }
     }
 }

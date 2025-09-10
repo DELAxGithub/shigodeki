@@ -26,8 +26,11 @@ class TemplateImportService: ObservableObject {
         errorMessage = nil
         
         do {
-            let data = try Data(contentsOf: url)
-            await processTemplateData(data: data)
+            // Prefer importer API which handles security-scoped access internally
+            let result = try await templateImporter.importTemplateFromFile(url: url)
+            importResult = result
+            validationResult = result
+            isProcessing = false
         } catch {
             isProcessing = false
             errorMessage = "ファイルの読み込みに失敗しました: \(error.localizedDescription)"

@@ -93,6 +93,7 @@ struct FamilyInitializationService {
     
     // MARK: - Initial Data Loading
     
+    @MainActor
     static func loadInitialData(
         authManager: AuthenticationManager?,
         familyManager: FamilyManager?
@@ -131,6 +132,7 @@ struct FamilyInitializationService {
     
     // MARK: - Family Loading
     
+    @MainActor
     static func loadFamilies(
         for userId: String,
         privateState: FamilyViewModelState.PrivateState

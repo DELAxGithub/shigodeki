@@ -138,7 +138,7 @@ class SharedManagerStore: ObservableObject {
             create: { 
                 TaskImprovementEngine(
                     aiGenerator: AITaskGenerator(),
-                    taskManager: TaskManager(),
+                    taskManager: EnhancedTaskManager(),
                     familyManager: FamilyManager()
                 )
             },

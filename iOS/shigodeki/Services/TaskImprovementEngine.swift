@@ -12,7 +12,7 @@ final class TaskImprovementEngine: ObservableObject {
     
     // MARK: - Dependencies
     private let aiGenerator: AITaskGenerator
-    private let taskManager: TaskManager
+    private let taskManager: EnhancedTaskManager
     private let familyManager: FamilyManager
     
     // MARK: - Internal State
@@ -20,7 +20,7 @@ final class TaskImprovementEngine: ObservableObject {
     private var currentUserId: String = ""
     
     // MARK: - Initialization
-    init(aiGenerator: AITaskGenerator, taskManager: TaskManager, familyManager: FamilyManager) {
+    init(aiGenerator: AITaskGenerator, taskManager: EnhancedTaskManager, familyManager: FamilyManager) {
         self.aiGenerator = aiGenerator
         self.taskManager = taskManager
         self.familyManager = familyManager
