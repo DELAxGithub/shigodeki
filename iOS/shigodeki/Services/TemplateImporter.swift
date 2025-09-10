@@ -64,6 +64,13 @@ class TemplateImporter: ObservableObject {
                 return result
             }
             
+            // 次に、緩やかな現代形式（phases/taskLists/最小タスク）の受け入れを試す
+            if let softTemplate = try? SoftTemplateDecoder.importSoftModernTemplate(from: jsonData) {
+                let result = try validator.validateAndCreateResult(template: softTemplate)
+                lastImportResult = result
+                return result
+            }
+            
             // レガシー形式（steps形式）を試す
             if let legacyTemplate = try? ModelJSONUtility.shared.importLegacyTemplate(from: jsonData) {
                 let template = try converter.convertFromLegacyFormat(legacyTemplate)

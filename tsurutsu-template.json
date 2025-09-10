@@ -3,7 +3,19 @@
     "description": "ライフステージごとのステップとカテゴリに整理し、各タスクに必要な書類・提出先・期限なども含めて網羅的に設計されたToDoリストです。",
     "goal": "親の介護から相続までの手続きを円滑に進め、利用者の不安と負担を軽減する。",
     "category": "lifestyle",
-    "version": "1.0",
+    "version": "1.1",
+    "metaSpec": {
+        "taskMetaFields": [
+            "dueDate",
+            "submitTo",
+            "requiredDocuments",
+            "references",
+            "estimateMinutes",
+            "tags",
+            "checklist",
+            "status"
+        ]
+    },
     "phases": [
         {
             "title": "両親が元気なうちに準備しておくこと",
@@ -18,7 +30,8 @@
                         {
                             "title": "家族で介護方針を話し合う",
                             "description": "両親にもしものことがあった場合に誰がどのように介護を担うか、兄弟姉妹間で十分に話し合っておきます。特に遠方に住んでいる場合は、緊急時の連絡体制や役割分担を決めておきます。",
-                            "priority": "medium"
+                            "priority": "medium",
+                            "meta": { "status": "todo" }
                         },
                         {
                             "title": "親の希望を確認する",
@@ -561,4 +574,3 @@
         ]
     }
 }
-
