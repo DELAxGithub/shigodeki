@@ -99,7 +99,7 @@ struct ProjectDetailView: View {
                     Button {
                         loadOwnerFamilyAndOpen()
                     } label: {
-                        Label("家族詳細", systemImage: "person.3.fill")
+                        Label("チーム詳細", systemImage: "person.3.fill")
                     }
                 }
                 Menu {

@@ -58,7 +58,7 @@ struct InviteCodeView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    ShareLink(item: "家族グループ『\(familyName)』の招待コード: \(displayCode)") {
+                    ShareLink(item: "チームグループ『\(familyName)』の招待コード: \(displayCode)") {
                         HStack {
                             Image(systemName: "square.and.arrow.up")
                             Text("招待コードを共有")
@@ -80,7 +80,7 @@ struct InviteCodeView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    Text("メンバーは「家族グループに加入」からこのコードを入力してグループに加入できます。\n統一システムにより安全文字のみ使用され、混同を防止します。")
+                    Text("メンバーは「チームグループに加入」からこのコードを入力してグループに加入できます。\n統一システムにより安全文字のみ使用され、混同を防止します。")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)

@@ -97,7 +97,7 @@ struct FamilyDetailView: View {
         .sheet(isPresented: $showingCreateProject) {
             CreateProjectView(projectManager: projectManager ?? ProjectManager(), defaultOwnerType: .family, defaultFamilyId: family.id)
         }
-        .alert("家族グループから退出", isPresented: $showingLeaveConfirmation) {
+        .alert("チームグループから退出", isPresented: $showingLeaveConfirmation) {
             Button("キャンセル", role: .cancel) { }
             Button("退出", role: .destructive) {
                 leaveFamily()
@@ -205,7 +205,7 @@ struct FamilyMembersSection: View {
     let onRemoveMember: (User) -> Void
     
     var body: some View {
-        Section("メンバー (家族: \(family.members.count)人, 読み込み済み: \(memberOperations.familyMembers.count)人)") {
+        Section("メンバー (チーム: \(family.members.count)人, 読み込み済み: \(memberOperations.familyMembers.count)人)") {
             if memberOperations.isLoadingMembers {
                 HStack {
                     ProgressView()
@@ -349,7 +349,7 @@ struct FamilyActionsSection: View {
                 HStack {
                     Image(systemName: "rectangle.portrait.and.arrow.right")
                         .foregroundColor(.red)
-                    Text("家族グループから退出")
+                    Text("チームグループから退出")
                         .foregroundColor(.red)
                 }
             }

@@ -23,19 +23,19 @@ struct OwnerSelectionSection: View {
                 if familyManager.isLoading {
                     HStack { 
                         ProgressView().scaleEffect(0.8) 
-                        Text("家族を読み込み中...").font(.caption).foregroundColor(.secondary) 
+                        Text("チームを読み込み中...").font(.caption).foregroundColor(.secondary) 
                     }
                 } else if familyManager.families.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Image(systemName: "info.circle")
                                 .foregroundColor(.orange)
-                            Text("家族グループがまだ作成されていません")
+                            Text("チームグループがまだ作成されていません")
                                 .font(.subheadline)
                                 .foregroundColor(.primary)
                         }
                         
-                        Text("家族プロジェクトを作成するには、先に家族グループを作成または加入する必要があります。")
+                        Text("チームプロジェクトを作成するには、先にチームグループを作成または加入する必要があります。")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
@@ -49,7 +49,7 @@ struct OwnerSelectionSection: View {
                     .background(Color.orange.opacity(0.1))
                     .cornerRadius(8)
                 } else {
-                    Picker("家族グループ", selection: $selectedFamilyId) {
+                    Picker("チームグループ", selection: $selectedFamilyId) {
                         Text("選択してください").tag(String?.none)
                         ForEach(familyManager.families) { fam in
                             Text(fam.name).tag(Optional(fam.id))
@@ -57,7 +57,7 @@ struct OwnerSelectionSection: View {
                     }
                     
                     if selectedFamilyId == nil {
-                        Text("⚠️ 家族グループを選択してください")
+                        Text("⚠️ チームグループを選択してください")
                             .font(.caption)
                             .foregroundColor(.orange)
                             .padding(.top, 4)
@@ -183,7 +183,7 @@ struct AIPromptSection: View {
                     if aiPrompt.isEmpty {
                         VStack {
                             HStack {
-                                Text("例: 「家族での旅行計画」「新商品の開発」「引っ越し準備」")
+                                Text("例: 「チームでの旅行計画」「新商品の開発」「引っ越し準備」")
                                     .foregroundColor(Color(.placeholderText))
                                     .padding(.top, 8)
                                     .padding(.leading, 4)

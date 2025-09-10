@@ -175,7 +175,7 @@ struct ProjectStatItem: View {
 struct OwnerBadge: View {
     let ownerType: ProjectOwnerType
     var body: some View {
-        Text(ownerType == .family ? "家族" : "個人")
+        Text(ownerType == .family ? "チーム" : "個人")
             .font(.caption2)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)

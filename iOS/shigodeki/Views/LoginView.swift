@@ -29,10 +29,10 @@ struct LoginView: View {
                     .foregroundColor(.primary)
                     .accessibilityAddTraits(.isHeader)
                 
-                Text("家族みんなでタスク管理")
+                Text("チームみんなでタスク管理")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
-                    .accessibilityLabel("家族全員でタスクを管理するアプリです")
+                    .accessibilityLabel("チーム全員でタスクを管理するアプリです")
             }
             
             Spacer()

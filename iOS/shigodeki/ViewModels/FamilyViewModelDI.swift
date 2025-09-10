@@ -152,7 +152,7 @@ class FamilyViewModelDI: ObservableObject {
         
         // Update UI state
         isCreatingFamily = true
-        processingMessage = "家族グループを作成中..."
+        processingMessage = "チームグループを作成中..."
         showCreateProcessing = true
         
         defer {
@@ -172,7 +172,7 @@ class FamilyViewModelDI: ObservableObject {
             
             // Success state - Repository listener will automatically update families array
             showCreateSuccess = true
-            createSuccessMessage = "家族グループ「\(trimmedName)」を作成しました！"
+            createSuccessMessage = "チームグループ「\(trimmedName)」を作成しました！"
             
             return true
             
@@ -190,7 +190,7 @@ class FamilyViewModelDI: ObservableObject {
         }
         
         isJoiningFamily = true
-        processingMessage = "家族グループに参加中..."
+        processingMessage = "チームグループに参加中..."
         showJoinProcessing = true
         
         defer {
@@ -204,7 +204,7 @@ class FamilyViewModelDI: ObservableObject {
             print("✅ FamilyViewModelDI: Repository join operation completed successfully")
             
             // Success state - Repository listener will automatically update families array
-            joinSuccessMessage = result.message ?? "家族グループに参加しました！"
+            joinSuccessMessage = result.message ?? "チームグループに参加しました！"
             showJoinSuccess = true
             
             return true
@@ -223,7 +223,7 @@ class FamilyViewModelDI: ObservableObject {
         }
         
         guard let familyId = family.id else {
-            error = FirebaseError.operationFailed("家族IDが見つかりません")
+            error = FirebaseError.operationFailed("チームIDが見つかりません")
             return
         }
         

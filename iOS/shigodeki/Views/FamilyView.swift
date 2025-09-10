@@ -35,18 +35,18 @@ struct FamilyView: View {
             // MARK: - Sidebar
             // The sidebar is ONLY for selection.
             sidebarView
-                .navigationTitle("家族")
+                .navigationTitle("チーム")
                 .toolbar {
                     // Global actions like "Create" belong on the sidebar.
                     ToolbarItemGroup(placement: .primaryAction) {
                         Button(action: createFamilyWithCooldown) {
-                            Label("家族を作成", systemImage: "plus")
+                            Label("チームを作成", systemImage: "plus")
                         }
                         .disabled(viewModel.isCreatingFamily || isCreateCooldownActive())
                         .accessibilityIdentifier("create_family_button")
                         
                         Button(action: joinFamilyWithCooldown) {
-                            Label("家族に加入", systemImage: "person.badge.plus")
+                            Label("チームに加入", systemImage: "person.badge.plus")
                         }
                         .disabled(viewModel.isJoiningFamily || isJoinCooldownActive())
                     }
@@ -85,7 +85,7 @@ struct FamilyView: View {
         if !viewModel.bootstrapped || viewModel.isWaitingForAuth {
             ProgressView(!viewModel.bootstrapped ? "初期化中..." : "ユーザー情報を取得中...")
         } else if viewModel.families.isEmpty {
-            Text("家族グループがありません")
+            Text("チームグループがありません")
                 .foregroundColor(.secondary)
         } else {
             // Issue #84: Add ScrollViewReader for scroll-to-top functionality
@@ -128,7 +128,7 @@ struct FamilyView: View {
             Image(systemName: "person.3.fill")
                 .font(.system(size: 60))
                 .foregroundColor(.secondary)
-            Text("家族を選択してください")
+            Text("チームを選択してください")
                 .font(.title2)
                 .foregroundColor(.secondary)
         }
@@ -219,9 +219,9 @@ struct AlertModifiers: ViewModifier {
                 if !viewModel.processingMessage.isEmpty {
                     Text(viewModel.processingMessage)
                 } else if viewModel.showCreateSuccess == true {
-                    Text("家族グループが作成されました！")
+                    Text("チームグループが作成されました！")
                 } else {
-                    Text("家族グループを作成中...")
+                    Text("チームグループを作成中...")
                 }
             }
             .alert(
@@ -239,9 +239,9 @@ struct AlertModifiers: ViewModifier {
                 if !viewModel.joinSuccessMessage.isEmpty {
                     Text(viewModel.joinSuccessMessage)
                 } else if viewModel.showJoinSuccess == true {
-                    Text("家族グループに加入しました！")
+                    Text("チームグループに加入しました！")
                 } else {
-                    Text("家族グループに加入中...")
+                    Text("チームグループに加入中...")
                 }
             }
     }

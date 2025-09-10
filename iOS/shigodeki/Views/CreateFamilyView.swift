@@ -28,11 +28,11 @@ struct CreateFamilyView: View {
                                 .foregroundColor(.blue)
                             
                             VStack(spacing: 8) {
-                                Text("新しい家族グループ")
+                                Text("新しいチームグループ")
                                     .font(.title2)
                                     .fontWeight(.medium)
                                 
-                                Text("家族みんなでタスクを共有し\n効率的に管理しましょう")
+                                Text("チームみんなでタスクを共有し\n効率的に管理しましょう")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                     .multilineTextAlignment(.center)
@@ -42,10 +42,10 @@ struct CreateFamilyView: View {
                         
                         // Family Name
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("家族グループ名")
+                            Text("チームグループ名")
                                 .font(.headline)
                             
-                            TextField("例: 田中家", text: $familyName)
+                            TextField("例: デベロップチーム", text: $familyName)
                                 .textFieldStyle(.roundedBorder)
                                 .font(.body)
                                 .accessibilityIdentifier("family_name_field")
@@ -56,7 +56,7 @@ struct CreateFamilyView: View {
                             Text("説明（任意）")
                                 .font(.headline)
                             
-                            TextField("家族グループの説明を入力...", text: $description, axis: .vertical)
+                            TextField("チームグループの説明を入力...", text: $description, axis: .vertical)
                                 .textFieldStyle(.roundedBorder)
                                 .font(.body)
                                 .lineLimit(3...6)
@@ -71,7 +71,7 @@ struct CreateFamilyView: View {
                             
                             VStack(alignment: .leading, spacing: 8) {
                                 InfoRow(icon: "key", text: "招待コードが自動生成されます")
-                                InfoRow(icon: "person.badge.plus", text: "家族メンバーを簡単に招待できます")
+                                InfoRow(icon: "person.badge.plus", text: "チームメンバーを簡単に招待できます")
                                 InfoRow(icon: "checklist", text: "みんなでタスクを共有・管理できます")
                             }
                         }
@@ -92,7 +92,7 @@ struct CreateFamilyView: View {
                                         .scaleEffect(0.8)
                                         .padding(.trailing, 4)
                                 }
-                                Text(isCreating ? "作成中..." : "家族グループを作成")
+                                Text(isCreating ? "作成中..." : "チームグループを作成")
                             }
                             .font(.headline)
                             .foregroundColor(.white)
@@ -114,7 +114,7 @@ struct CreateFamilyView: View {
                     .padding(.bottom, 32)
                 }
             }
-            .navigationTitle("家族グループ作成")
+            .navigationTitle("チームグループ作成")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -123,12 +123,12 @@ struct CreateFamilyView: View {
                     }
                 }
             }
-            .alert("家族グループ作成完了", isPresented: $showSuccess) {
+            .alert("チームグループ作成完了", isPresented: $showSuccess) {
                 Button("OK") {
                     dismiss()
                 }
             } message: {
-                Text("家族グループ「\(familyName)」が作成されました。")
+                Text("チームグループ「\(familyName)」が作成されました。")
             }
         }
     }

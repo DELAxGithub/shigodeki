@@ -143,7 +143,7 @@ struct CreateTaskListView: View {
 
 #Preview {
     CreateTaskListView(
-        family: Family(name: "サンプル家族", members: ["user1"]),
+        family: Family(name: "サンプルチーム", members: ["user1"]),
         taskManager: TaskManager(),
         creatorUserId: "user1"
     )

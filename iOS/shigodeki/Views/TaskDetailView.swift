@@ -142,7 +142,7 @@ struct TaskDetailView: View {
 #Preview {
     TaskDetailView(
         taskList: TaskList(name: "サンプルタスクリスト", familyId: "family1", createdBy: "user1"),
-        family: Family(name: "サンプル家族", members: ["user1", "user2"]),
+        family: Family(name: "サンプルチーム", members: ["user1", "user2"]),
         taskManager: TaskManager()
     )
 }

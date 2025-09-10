@@ -50,7 +50,7 @@ enum ProjectOwnerType: String, CaseIterable, Codable, Hashable {
     var displayName: String {
         switch self {
         case .individual: return "個人"
-        case .family: return "家族"
+        case .family: return "チーム"
         }
     }
 }

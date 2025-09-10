@@ -29,11 +29,11 @@ struct JoinFamilyView: View {
                                 .foregroundColor(.green)
                             
                             VStack(spacing: 8) {
-                                Text("家族グループに加入")
+                                Text("チームグループに加入")
                                     .font(.title2)
                                     .fontWeight(.medium)
                                 
-                                Text("招待コードを入力して\n家族グループのメンバーになりましょう")
+                                Text("招待コードを入力して\nチームグループのメンバーになりましょう")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                     .multilineTextAlignment(.center)
@@ -71,9 +71,9 @@ struct JoinFamilyView: View {
                                 .foregroundColor(.primary)
                             
                             VStack(alignment: .leading, spacing: 8) {
-                                InfoRow(icon: "key", text: "家族グループの作成者から招待コードを受け取ってください")
+                                InfoRow(icon: "key", text: "チームグループの作成者から招待コードを受け取ってください")
                                 InfoRow(icon: "shield", text: "招待コードは安全に管理されています")
-                                InfoRow(icon: "person.3", text: "加入後は家族みんなでタスクを共有できます")
+                                InfoRow(icon: "person.3", text: "加入後はチームみんなでタスクを共有できます")
                                 InfoRow(icon: "textformat", text: "'INV-英数6桁' または '数字6桁' のどちらの形式も使用できます")
                             }
                         }
@@ -88,7 +88,7 @@ struct JoinFamilyView: View {
                                 .fontWeight(.medium)
                                 .foregroundColor(.orange)
                             
-                            Text("家族グループの作成者に招待コードをお尋ねください。コードは家族グループの設定画面で確認できます。\nハイフンや大文字小文字は自動で補正されます。")
+                            Text("チームグループの作成者に招待コードをお尋ねください。コードはチームグループの設定画面で確認できます。\nハイフンや大文字小文字は自動で補正されます。")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -109,7 +109,7 @@ struct JoinFamilyView: View {
                                         .scaleEffect(0.8)
                                         .padding(.trailing, 4)
                                 }
-                                Text(isJoining ? "加入中..." : "家族グループに加入")
+                                Text(isJoining ? "加入中..." : "チームグループに加入")
                             }
                             .font(.headline)
                             .foregroundColor(.white)
@@ -132,7 +132,7 @@ struct JoinFamilyView: View {
                     .padding(.bottom, 32)
                 }
             }
-            .navigationTitle("家族グループ加入")
+            .navigationTitle("チームグループ加入")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -141,7 +141,7 @@ struct JoinFamilyView: View {
                     }
                 }
             }
-            .alert("家族グループ加入完了", isPresented: $showSuccess) {
+            .alert("チームグループ加入完了", isPresented: $showSuccess) {
                 Button("OK") {
                     dismiss()
                 }
@@ -219,7 +219,7 @@ struct JoinFamilyView: View {
             await MainActor.run {
                 isJoining = false
                 if success {
-                    successMessage = "家族グループに加入しました！"
+                    successMessage = "チームグループに加入しました！"
                     showSuccess = true
                 }
                 // エラーはviewModel内でハンドリングされる

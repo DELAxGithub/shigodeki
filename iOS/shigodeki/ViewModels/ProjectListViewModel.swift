@@ -13,7 +13,7 @@ import SwiftUI
 enum OwnerFilter: String, CaseIterable { 
     case all = "すべて"
     case individual = "個人" 
-    case family = "家族"
+    case family = "チーム"
 }
 
 @MainActor

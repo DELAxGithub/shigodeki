@@ -17,11 +17,11 @@ struct ProjectOwnerSection: View {
             
             if selectedOwnerType == .family {
                 if (familyManager?.families.isEmpty ?? true) {
-                    Text("家族グループがありません。家族タブから作成/参加してください。")
+                    Text("チームグループがありません。チームタブから作成/参加してください。")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
-                    Picker("家族グループ", selection: Binding(get: { selectedFamilyId ?? "" }, set: { selectedFamilyId = $0.isEmpty ? nil : $0 })) {
+                    Picker("チームグループ", selection: Binding(get: { selectedFamilyId ?? "" }, set: { selectedFamilyId = $0.isEmpty ? nil : $0 })) {
                         Text("選択してください").tag("")
                         ForEach(familyManager?.families ?? []) { fam in
                             Text(fam.name).tag(fam.id ?? "")
