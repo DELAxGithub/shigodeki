@@ -41,7 +41,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     // MARK: - Firebase Connection Testing
     private func testFirestoreConnectionWithRetry(db: Firestore, attempt: Int = 1, maxAttempts: Int = 3) async {
         do {
-            let document = try await db.collection("test").document("connection").getDocument()
+            _ = try await db.collection("test").document("connection").getDocument()
             print("✅ Firestore: Connection test successful on attempt \(attempt)")
         } catch {
             print("⚠️ Firestore: Connection test failed (attempt \(attempt)/\(maxAttempts)) - \(error.localizedDescription)")

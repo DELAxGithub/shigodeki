@@ -18,14 +18,14 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $tabNavigationManager.selectedTab) {
             // Home proxy tab: always routes to Project list root
-            HomeProxyView()
+            HomeHubView()
                 .tabItem {
                     Image(systemName: "house.fill")
                     Text("ホーム")
                 }
                 .tag(tabNavigationManager.homeTabIndex)
                 .accessibilityLabel("ホーム（プロジェクト一覧）")
-                .accessibilityHint("どこからでもプロジェクト一覧に戻ります")
+                .accessibilityHint("プロジェクトやチームへ素早く移動します")
             
             ProjectListView()
                 .tabItem {

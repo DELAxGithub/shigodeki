@@ -181,10 +181,28 @@ struct TaskEditorView: View {
         Task {
             do {
                 let members = try await projectManager.getProjectMembers(projectId: projectId)
-                await MainActor.run {
-                    self.projectMembers = members
-                }
+                await MainActor.run { self.projectMembers = members }
                 await loadUserNamesIfNeeded(for: members)
+                
+                // Fallback: family-owned project may rely on family.members
+                if members.isEmpty {
+                    do {
+                        let doc = try await Firestore.firestore().collection("projects").document(projectId).getDocument()
+                        if let data = doc.data(),
+                           let ownerType = data["ownerType"] as? String,
+                           ownerType == "family",
+                           let ownerId = data["ownerId"] as? String {
+                            let famDoc = try await Firestore.firestore().collection("families").document(ownerId).getDocument()
+                            if let famMembers = famDoc.data()? ["members"] as? [String] {
+                                let fallback = famMembers.map { uid in
+                                    ProjectMember(userId: uid, projectId: projectId, role: .editor)
+                                }
+                                await MainActor.run { self.projectMembers = fallback }
+                                await loadUserNamesIfNeeded(for: fallback)
+                            }
+                        }
+                    } catch { /* ignore; picker will remain minimal */ }
+                }
             } catch {
                 print(error)
             }

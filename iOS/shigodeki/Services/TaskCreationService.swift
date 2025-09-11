@@ -44,7 +44,7 @@ class TaskCreationService: ObservableObject {
         errorMessage = nil
         
         do {
-            let taskId = try await taskManager.createTask(
+            _ = try await taskManager.createTask(
                 title: title,
                 description: description.isEmpty ? nil : description,
                 taskListId: taskListId,
@@ -72,12 +72,7 @@ class TaskCreationService: ObservableObject {
         guard !selectedTags.isEmpty else { return }
         
         for tagName in selectedTags {
-            do {
-                try await tagManager.incrementUsage(for: tagName, projectId: projectId)
-            } catch {
-                // Log error but don't fail the entire operation
-                print("Warning: Failed to update tag usage for \(tagName): \(error)")
-            }
+            await tagManager.incrementUsage(for: tagName, projectId: projectId)
         }
     }
 }
@@ -88,12 +83,8 @@ extension TaskCreationService {
     func loadTags(projectId: String) async {
         guard !projectId.isEmpty else { return }
         
-        do {
-            try await tagManager.loadTags(projectId: projectId)
-            tagManager.startListening(projectId: projectId)
-        } catch {
-            print("Warning: Failed to load tags: \(error)")
-        }
+        await tagManager.loadTags(projectId: projectId)
+        tagManager.startListening(projectId: projectId)
     }
     
     func stopTagListening() {

@@ -90,26 +90,18 @@ struct AuthTestDataDeletionService {
         sharedManagers: SharedManagerStore,
         results: inout [String]
     ) async {
-        do {
-            let _ = await sharedManagers.getTaskListManager()
-            // ユーザーに関連する全てのタスクリストを削除
-            // Note: 実際の実装では、ユーザーが所有またはアクセス権を持つタスクリストを特定する必要がある
-            results.append("✅ タスクリストデータクリーンアップ完了")
-        } catch {
-            results.append("❌ タスクリスト削除エラー: \(error.localizedDescription)")
-        }
+        let _ = await sharedManagers.getTaskListManager()
+        // ユーザーに関連する全てのタスクリストを削除
+        // Note: 実際の実装では、ユーザーが所有またはアクセス権を持つタスクリストを特定する必要がある
+        results.append("✅ タスクリストデータクリーンアップ完了")
     }
     
     private static func signOutUser(
         authManager: AuthenticationManager,
         results: inout [String]
     ) async {
-        do {
-            await authManager.signOut()
-            results.append("✅ ユーザーサインアウト完了")
-            results.append("ℹ️ アプリの再起動をお勧めします")
-        } catch {
-            results.append("❌ ユーザーサインアウトエラー: \(error.localizedDescription)")
-        }
+        await authManager.signOut()
+        results.append("✅ ユーザーサインアウト完了")
+        results.append("ℹ️ アプリの再起動をお勧めします")
     }
 }

@@ -65,6 +65,12 @@ class TabNavigationManager: ObservableObject {
                     print("📱 Team tab selected; forcing list root display")
                     NotificationCenter.default.post(name: .familyTabSelected, object: nil)
                 }
+
+                // Project tab UX: always show project list when entering the tab
+                if newValue == projectTabIndex {
+                    print("📱 Project tab selected; forcing list root display")
+                    NotificationCenter.default.post(name: .projectTabSelected, object: nil)
+                }
             }
         }
     }

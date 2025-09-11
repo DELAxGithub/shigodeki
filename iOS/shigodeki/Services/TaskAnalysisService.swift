@@ -14,14 +14,14 @@ struct TaskAnalysisService {
         var allTasks: [ShigodekiTask] = []
         
         for family in families {
-            guard let familyId = family.id else { continue }
+            guard family.id != nil else { continue }
             
             // Load task lists for this family
             // Note: Using placeholder - actual TaskManager API may differ
             let taskLists: [TaskList] = []
             
             for taskList in taskLists {
-                guard let taskListId = taskList.id else { continue }
+                guard taskList.id != nil else { continue }
                 
                 // Load tasks for this task list
                 // Note: Using placeholder - actual TaskManager API may differ

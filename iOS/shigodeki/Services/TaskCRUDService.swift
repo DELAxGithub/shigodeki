@@ -257,7 +257,7 @@ class TaskCRUDService: ObservableObject {
             var u = t
             u.order = index
             let ref = getPhaseTaskCollection(phaseId: phaseId, projectId: projectId).document(t.id ?? "")
-            try batch.setData(try Firestore.Encoder().encode(u), forDocument: ref, merge: true)
+            batch.setData(try Firestore.Encoder().encode(u), forDocument: ref, merge: true)
         }
         try await batch.commit()
     }

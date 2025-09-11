@@ -114,7 +114,7 @@ class PhaseSectionManager: ObservableObject {
                 .collection("projects").document(projectId)
                 .collection("phases").document(phaseId)
                 .collection("sections").document(sec.id ?? "")
-            try batch.setData(try Firestore.Encoder().encode(s), forDocument: ref, merge: true)
+            batch.setData(try Firestore.Encoder().encode(s), forDocument: ref, merge: true)
         }
         try await batch.commit()
     }

@@ -184,7 +184,7 @@ struct TaskListDetailView: View {
         
         let snapshot = try await tasksCollection.order(by: "order").getDocuments()
         
-        return try snapshot.documents.compactMap { document in
+        return snapshot.documents.compactMap { document in
             let data = document.data()
             let title = data["title"] as? String ?? ""
             let description = data["description"] as? String
