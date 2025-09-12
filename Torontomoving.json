@@ -1,0 +1,289 @@
+{
+  "name": "トロント賃貸撤去プロジェクト 2025",
+  "description": "トロント賃貸の完全撤収と次居住地への円滑移行を目的とした実行用タスクセット。鍵返却・未請求・敷金返金を期限内に確実達成し、物品は売却/譲渡を優先して廃棄最小化を図る。",
+  "goal": "2025-11-15 までに『鍵返却＋未請求＋敷金返金』を完了し、物品の80%以上を売却または譲渡で処理する。",
+  "category": "personal",
+  "version": "1.0",
+  "phases": [
+    {
+      "name": "マイルストーン管理（必達期日の固定）",
+      "description": "退去関連の重要期日を全体に先行登録して逆算実行。",
+      "order": 0,
+      "tasks": [
+        {
+          "name": "退去予告通知を送付",
+          "description": "賃貸契約の退去通知条項（通常60日前）に従い、書面/Emailで通知。送信記録を保存。",
+          "priority": "high",
+          "estimatedHours": 0.5,
+          "tags": ["Landlord", "通知", "契約"]
+        },
+        {
+          "name": "全処分先（売却/譲渡/廃棄）を決定",
+          "description": "各物品の処理方法と受け渡し時期を確定し、台帳に反映。",
+          "priority": "high",
+          "estimatedHours": 2.0,
+          "tags": ["在庫台帳", "意思決定"]
+        },
+        {
+          "name": "不在期間の凍結計画を確定",
+          "description": "2025-10-21〜11-03 は現地作業不可。前倒し/代替手配を確定。",
+          "priority": "high",
+          "estimatedHours": 0.5,
+          "tags": ["スケジュール", "不在期間"]
+        },
+        {
+          "name": "最終撤去・立会いウィンドウの確定",
+          "description": "2025-11-04〜11-15 の鍵返却/掃除/撤去確認の詳細計画を固める。",
+          "priority": "high",
+          "estimatedHours": 0.5,
+          "tags": ["立会い", "鍵返却"]
+        }
+      ]
+    },
+    {
+      "name": "撤収準備",
+      "description": "写真記録→在庫リスト→分類→計画の順で基礎固め。",
+      "order": 1,
+      "tasks": [
+        {
+          "name": "室内写真・シリアル撮影／在庫リスト作成",
+          "description": "キズ/汚れ/付属品含め全体を撮影。台帳に型番・状態・希望処理を入力。",
+          "priority": "high",
+          "estimatedHours": 4.0,
+          "tags": ["記録", "在庫台帳", "証憑"]
+        },
+        {
+          "name": "カテゴリ分類（売却／譲渡／廃棄）",
+          "description": "在庫リストを3種に振り分け、優先順位（高額→大型→小物）を付与。",
+          "priority": "high",
+          "estimatedHours": 2.0,
+          "tags": ["在庫台帳", "優先順位"]
+        },
+        {
+          "name": "契約書で退去条件を再確認",
+          "description": "原状回復範囲・鍵返却方法・清掃条件・敷金条項を確認しメモ化。",
+          "priority": "high",
+          "estimatedHours": 1.0,
+          "tags": ["契約", "原状回復", "敷金"]
+        },
+        {
+          "name": "スケジュール立案＆週次レビュー設定",
+          "description": "Google Sheets/Slackで週1レビュー枠を作成し、WBS→期日割付。",
+          "priority": "medium",
+          "estimatedHours": 0.75,
+          "tags": ["スケジュール", "レビュー"]
+        }
+      ]
+    },
+    {
+      "name": "物品処分（売却・譲渡・廃棄）",
+      "description": "高額品を先行、家具家電→無料譲渡→廃棄の順で処理。",
+      "order": 2,
+      "tasks": [
+        {
+          "name": "高額品の売却（PS5・TV など）",
+          "description": "動作確認・清掃・写真→相場確認→FB Marketplace/Kijiji出品→受渡予約。",
+          "priority": "high",
+          "estimatedHours": 8.0,
+          "tags": ["高額品", "出品", "写真"]
+        },
+        {
+          "name": "家具・家電のMarketplace出品",
+          "description": "計測（W×D×H/重量）と搬出導線を記載。集合入口の可否も記載。",
+          "priority": "high",
+          "estimatedHours": 8.0,
+          "tags": ["家具", "家電", "Marketplace"]
+        },
+        {
+          "name": "無料譲渡（Buy Nothing 等）",
+          "description": "売れ残りを早期に譲渡へ切替。希望者重複時は先着/まとめ渡しで効率化。",
+          "priority": "medium",
+          "estimatedHours": 3.0,
+          "tags": ["GiveAway", "BuyNothing"]
+        },
+        {
+          "name": "不用品の処分と回収予約",
+          "description": "Toronto市の粗大ゴミ予約 or 民間回収を手配。搬出日と不在期間の整合を確認。",
+          "priority": "high",
+          "estimatedHours": 1.5,
+          "tags": ["粗大ゴミ", "回収予約"]
+        }
+      ]
+    },
+    {
+      "name": "インフラ手続き（郵便・光熱・ネット）",
+      "description": "停止日を退去日に合わせ、課金超過や違約なしで締める。",
+      "order": 3,
+      "tasks": [
+        {
+          "name": "Canada Post の郵便転送手配（6ヶ月）",
+          "description": "オンラインで開始日設定。転送先は次居住地または私書箱。",
+          "priority": "medium",
+          "estimatedHours": 0.5,
+          "tags": ["郵便転送", "CanadaPost"]
+        },
+        {
+          "name": "電気・水道・インターネット停止日設定",
+          "description": "最終使用日＝搬出完了日翌日を目安に停止。最終請求書の送付先を確認。",
+          "priority": "high",
+          "estimatedHours": 1.0,
+          "tags": ["Utilities停止", "最終請求"]
+        },
+        {
+          "name": "ゴミ収集日程の確認と最終回収予約",
+          "description": "大型ゴミのリードタイムを考慮し、予備日も確保。",
+          "priority": "medium",
+          "estimatedHours": 0.5,
+          "tags": ["ゴミ収集", "スケジュール"]
+        }
+      ]
+    },
+    {
+      "name": "引渡対応（掃除・立会い・鍵）",
+      "description": "原状回復の範囲で清掃を実施し、鍵返却までを証憑化。",
+      "order": 4,
+      "tasks": [
+        {
+          "name": "室内清掃・冷蔵庫清掃・消耗品撤去",
+          "description": "掃除業者を使う場合は範囲を明確化。作業前後の写真記録を保存。",
+          "priority": "high",
+          "estimatedHours": 5.0,
+          "tags": ["清掃", "証拠写真"]
+        },
+        {
+          "name": "搬出立会い・共用部養生確認",
+          "description": "エレベーター予約・養生の有無/時刻帯ルールを確認。近隣配慮の掲示。",
+          "priority": "high",
+          "estimatedHours": 1.5,
+          "tags": ["搬出", "養生", "近隣配慮"]
+        },
+        {
+          "name": "鍵返却・返却方法の記録化",
+          "description": "直接手渡し/ドロップボックス/郵送いずれかを記録。受領確認の証憑を保存。",
+          "priority": "high",
+          "estimatedHours": 0.5,
+          "tags": ["鍵返却", "証憑"]
+        },
+        {
+          "name": "敷金返金の確認と記録",
+          "description": "返金金額・振込先・期日を確認。明細のPDFを保存し、未請求/差額精算の有無を点検。",
+          "priority": "high",
+          "estimatedHours": 0.5,
+          "tags": ["敷金", "返金", "明細"]
+        }
+      ]
+    },
+    {
+      "name": "リスク対応（売れ残り/キャンセル/予約難）",
+      "description": "週次で在庫・予約状況を点検し、代替策を即応で実施。",
+      "order": 5,
+      "tasks": [
+        {
+          "name": "（週次）売れ残り→譲渡へ切替判断",
+          "description": "相場改定→まとめ売り→譲渡→廃棄の順で切替。",
+          "priority": "medium",
+          "estimatedHours": 0.25,
+          "tags": ["週次レビュー", "売れ残り対応"]
+        },
+        {
+          "name": "（週次）引取日直前キャンセルの代替確保",
+          "description": "バックアップ候補と代替日を候補化しておく。",
+          "priority": "medium",
+          "estimatedHours": 0.17,
+          "tags": ["バックアップ", "日程調整"]
+        },
+        {
+          "name": "（随時）家具付き誤認の防止",
+          "description": "契約・写真で原状確認。処分前の再チェック。",
+          "priority": "high",
+          "estimatedHours": 0.08,
+          "tags": ["原状確認", "誤処分防止"]
+        },
+        {
+          "name": "（早期）大型ゴミ予約の確保",
+          "description": "市の予約枠を早めに取得し、予備日も押さえる。",
+          "priority": "high",
+          "estimatedHours": 0.17,
+          "tags": ["粗大ゴミ", "予約"]
+        }
+      ]
+    },
+    {
+      "name": "コミュニケーション計画の運用",
+      "description": "関係者ごとに連絡手段・頻度・記録方法を固定化する。",
+      "order": 6,
+      "tasks": [
+        {
+          "name": "週1レビュー（自分/配偶者）をシートに反映",
+          "description": "ステータス・リスク・意思決定を記録。完了/未完の判断基準を一行で追記。",
+          "priority": "medium",
+          "estimatedHours": 0.25,
+          "tags": ["レビュー", "夫婦連絡"]
+        },
+        {
+          "name": "大家への退去通知・事前確認・立会い連絡（Email）",
+          "description": "やりとりはメールで記録。鍵返却方法・損傷有無も言及。",
+          "priority": "high",
+          "estimatedHours": 0.33,
+          "tags": ["Landlord", "Email"]
+        },
+        {
+          "name": "Marketplace相手との受け渡しテンプレ運用",
+          "description": "受け渡し場所・支払い（e-Transfer）・当日連絡方法をテンプレで統一。",
+          "priority": "medium",
+          "estimatedHours": 0.33,
+          "tags": ["Marketplace", "テンプレ"]
+        },
+        {
+          "name": "廃棄業者・公共サービスの予約記録",
+          "description": "予約番号・日付・費用・担当窓口を一箇所に集約。",
+          "priority": "medium",
+          "estimatedHours": 0.33,
+          "tags": ["予約管理", "公共サービス"]
+        }
+      ]
+    },
+    {
+      "name": "コスト管理（予算と実績）",
+      "description": "見積→確定→実績の順で金額を更新し、費用最適化を図る。",
+      "order": 7,
+      "tasks": [
+        {
+          "name": "清掃業者 見積取得→発注→実績登録",
+          "description": "相場 $150–200。作業範囲と日程の整合を確認。",
+          "priority": "medium",
+          "estimatedHours": 0.5,
+          "tags": ["清掃", "見積", "コスト"]
+        },
+        {
+          "name": "マットレス処分費の確定",
+          "description": "$50–100（民間回収想定）。無料回収や譲渡の可否も検討。",
+          "priority": "medium",
+          "estimatedHours": 0.25,
+          "tags": ["マットレス", "処分費"]
+        },
+        {
+          "name": "郵便転送費の登録（6ヶ月）",
+          "description": "Canada Post 約$50。開始日と支払方法を記録。",
+          "priority": "low",
+          "estimatedHours": 0.17,
+          "tags": ["郵便転送", "費用"]
+        },
+        {
+          "name": "粗大ゴミ（市回収）費用の確認",
+          "description": "市の予約制で無料枠を優先活用。超過時の民間費用を比較。",
+          "priority": "low",
+          "estimatedHours": 0.17,
+          "tags": ["粗大ゴミ", "コスト最適化"]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "author": "ChatGPT JSONマスター",
+    "createdAt": "2025-09-12",
+    "estimatedDuration": "約4ヶ月（2025-07-21〜11-15）",
+    "difficulty": "advanced",
+    "tags": ["トロント", "賃貸撤去", "引越し準備", "Marketplace", "Utilities", "鍵返却", "敷金"]
+  }
+}

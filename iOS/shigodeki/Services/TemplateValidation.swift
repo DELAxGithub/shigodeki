@@ -94,7 +94,7 @@ class TemplateValidator: ObservableObject {
             let legacy = try JSONDecoder().decode(ValidationHelperLegacyTemplate.self, from: jsonData)
             let convertedTemplate = try TemplateValidationHelpers.convertLegacyForValidation(legacy)
             
-            var result = await validate(convertedTemplate)
+            let result = await validate(convertedTemplate)
             
             // Add version warning for legacy format
             var warnings = result.warnings

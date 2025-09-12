@@ -142,7 +142,24 @@ struct MemberProjectsSection: View {
 struct MemberAssignedTasksSection: View {
     let assignedTasks: [ShigodekiTask]
     let isLoadingTasks: Bool
+    // Optional: project/phase name lookups
+    let projectNamesById: [String: String]
+    let phasesByProject: [String: [Phase]]
     let onTapTask: (ShigodekiTask) -> Void
+    
+    init(
+        assignedTasks: [ShigodekiTask],
+        isLoadingTasks: Bool,
+        projectNamesById: [String: String] = [:],
+        phasesByProject: [String: [Phase]] = [:],
+        onTapTask: @escaping (ShigodekiTask) -> Void
+    ) {
+        self.assignedTasks = assignedTasks
+        self.isLoadingTasks = isLoadingTasks
+        self.projectNamesById = projectNamesById
+        self.phasesByProject = phasesByProject
+        self.onTapTask = onTapTask
+    }
     
     var body: some View {
         Section("アサイン済みタスク (\(assignedTasks.count))") {
@@ -165,14 +182,50 @@ struct MemberAssignedTasksSection: View {
                 }
                 .padding(.vertical, 8)
             } else {
-                ForEach(assignedTasks) { task in
-                    Button {
-                        onTapTask(task)
-                    } label: {
-                        TaskRowCompact(task: task)
+                // Group by Project > Phase
+                let byProject = Dictionary(grouping: assignedTasks, by: { $0.projectId })
+                let sortedProjectIds = byProject.keys.sorted { (a, b) in
+                    let na = projectNamesById[a] ?? a
+                    let nb = projectNamesById[b] ?? b
+                    return na.localizedCaseInsensitiveCompare(nb) == .orderedAscending
+                }
+                ForEach(sortedProjectIds, id: \.self) { pid in
+                    let projectName = projectNamesById[pid] ?? (pid.isEmpty ? "(不明なプロジェクト)" : pid)
+                    // Project header
+                    HStack {
+                        Text(projectName)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
                     }
-                    .buttonStyle(.plain)
-                    .interactiveEffect()
+                    .padding(.top, 6)
+                    
+                    let tasksInProject = byProject[pid] ?? []
+                    let byPhase = Dictionary(grouping: tasksInProject, by: { $0.phaseId })
+                    let phaseNameMap: [String: String] = Dictionary(uniqueKeysWithValues: (phasesByProject[pid] ?? []).compactMap { ph in (ph.id ?? "", ph.name) })
+                    let sortedPhaseIds = byPhase.keys.sorted { (a, b) in
+                        let na = phaseNameMap[a] ?? a
+                        let nb = phaseNameMap[b] ?? b
+                        return na.localizedCaseInsensitiveCompare(nb) == .orderedAscending
+                    }
+                    ForEach(sortedPhaseIds, id: \.self) { phid in
+                        // Phase header
+                        HStack {
+                            Text(phaseNameMap[phid] ?? "(フェーズ)")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 8)
+                            Spacer()
+                        }
+                        
+                        ForEach(byPhase[phid] ?? []) { task in
+                            Button { onTapTask(task) } label: {
+                                TaskRowCompact(task: task)
+                            }
+                            .buttonStyle(.plain)
+                            .interactiveEffect()
+                        }
+                    }
                 }
             }
         }
