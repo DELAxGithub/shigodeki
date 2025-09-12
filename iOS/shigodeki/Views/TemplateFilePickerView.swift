@@ -71,6 +71,16 @@ struct TemplateFilePickerView: View {
                 }
             }
         }
+        .toolbar { // Dev helper: quick import from bundled Torontomoving.json if present
+            ToolbarItem(placement: .navigationBarTrailing) {
+                #if DEBUG
+                Button("Torontomoving.json") {
+                    Task { await importService.processTemplateFromBundle(fileName: "Torontomoving.json") }
+                }
+                .accessibilityLabel("バンドル内のTorontomoving.jsonを読み込む")
+                #endif
+            }
+        }
     }
 }
 

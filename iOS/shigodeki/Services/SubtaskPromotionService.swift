@@ -60,7 +60,7 @@ struct SubtaskPromotionService {
         // 2. （オプション）LLMで詳細説明を自動生成し、タスクに反映
         do {
             let aiGenerator = await SharedManagerStore.shared.getAiGenerator()
-            if let details = try? await PhaseAIService.generateTaskDetails(for: createdTask, aiGenerator: aiGenerator) {
+            if let details = await PhaseAIService.generateTaskDetails(for: createdTask, aiGenerator: aiGenerator) {
                 var enriched = createdTask
                 // 既存説明がある場合は追記、無ければ置換
                 if let existing = createdTask.description, !existing.isEmpty {

@@ -62,27 +62,23 @@ struct AuthTestDataDeletionService {
         sharedManagers: SharedManagerStore,
         results: inout [String]
     ) async {
-        do {
-            let familyManager = await sharedManagers.getFamilyManager()
-            await familyManager.loadFamiliesForUser(userId: userId)
-            let families = await familyManager.families
-            
-            for family in families {
-                if let familyId = family.id {
-                    do {
-                        try await familyManager.leaveFamily(familyId: familyId, userId: userId)
-                        results.append("✅ 家族グループ削除: \(family.name)")
-                    } catch {
-                        results.append("❌ 家族グループ削除エラー(\(family.name)): \(error.localizedDescription)")
-                    }
+        let familyManager = await sharedManagers.getFamilyManager()
+        await familyManager.loadFamiliesForUser(userId: userId)
+        let families = await familyManager.families
+        
+        for family in families {
+            if let familyId = family.id {
+                do {
+                    try await familyManager.leaveFamily(familyId: familyId, userId: userId)
+                    results.append("✅ 家族グループ削除: \(family.name)")
+                } catch {
+                    results.append("❌ 家族グループ削除エラー(\(family.name)): \(error.localizedDescription)")
                 }
             }
-            
-            if families.isEmpty {
-                results.append("ℹ️ 削除する家族グループはありません")
-            }
-        } catch {
-            results.append("❌ 家族グループ読み込みエラー: \(error.localizedDescription)")
+        }
+        
+        if families.isEmpty {
+            results.append("ℹ️ 削除する家族グループはありません")
         }
     }
     

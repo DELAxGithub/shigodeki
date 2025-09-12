@@ -206,7 +206,7 @@ class ProjectListViewModel: ObservableObject {
     private func preloadProjectData(_ project: Project) async {
         print("🔥 ProjectListViewModel: Preloading data for project: \(project.name)")
         
-        guard let projectId = project.id else {
+        guard project.id != nil else {
             print("⚠️ ProjectListViewModel: Project has no ID, skipping preload")
             return
         }
@@ -278,7 +278,7 @@ class ProjectListViewModel: ObservableObject {
         // Firebase リスナーが自動的にデータを更新するため、重複呼び出しを避ける
         print("🔄 ProjectListViewModel: Refresh requested - using real-time listener (no additional API call)")
 
-        guard let userId = authManager?.currentUser?.id else {
+        guard (authManager?.currentUser?.id) != nil else {
             print("⚠️ ProjectListViewModel: No authenticated user for refresh")
             return
         }

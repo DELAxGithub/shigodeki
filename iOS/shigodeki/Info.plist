@@ -43,5 +43,7 @@
 	<string>© 2025 シゴデキ開発チーム. All rights reserved.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>タスクに画像を添付するためにフォトライブラリへアクセスします。</string>
 </dict>
 </plist>

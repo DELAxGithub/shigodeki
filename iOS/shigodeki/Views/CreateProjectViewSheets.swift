@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - Create Project Sheets
 
@@ -31,16 +32,22 @@ struct CreateProjectSheets: ViewModifier {
                 }
             }
             .sheet(isPresented: $showFileImporter) {
-                TemplateFilePickerView(
+                DocumentPickerView(
                     isPresented: $showFileImporter,
-                    selectedTemplate: $selectedTemplate
-                )
-                .onDisappear {
-                    if selectedTemplate != nil {
-                        selectedCreationMethod = .file
-                        // Pre-fill project name from template
-                        if projectName.isEmpty, let template = selectedTemplate {
-                            projectName = template.name
+                    allowedTypes: [.json],
+                    allowsMultipleSelection: false
+                ) { url in
+                    Task {
+                        let importer = TemplateImporter()
+                        do {
+                            let result = try await importer.importTemplateFromFile(url: url)
+                            selectedTemplate = result.projectTemplate
+                            selectedCreationMethod = .file
+                            if projectName.isEmpty {
+                                projectName = result.projectTemplate.name
+                            }
+                        } catch {
+                            print("❌ File import failed: \(error)")
                         }
                     }
                 }

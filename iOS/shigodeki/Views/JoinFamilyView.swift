@@ -135,10 +135,16 @@ struct JoinFamilyView: View {
             .navigationTitle("チームグループ加入")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("閉じる") {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("キャンセル") {
                         dismiss()
                     }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(isJoining ? "保存中…" : "保存") {
+                        joinFamily()
+                    }
+                    .disabled(shouldDisableJoinButton || isJoining)
                 }
             }
             .alert("チームグループ加入完了", isPresented: $showSuccess) {

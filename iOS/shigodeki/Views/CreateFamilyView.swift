@@ -117,10 +117,16 @@ struct CreateFamilyView: View {
             .navigationTitle("チームグループ作成")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("閉じる") {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("キャンセル") {
                         dismiss()
                     }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(isCreating ? "保存中…" : "保存") {
+                        createFamily()
+                    }
+                    .disabled(familyName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreating)
                 }
             }
             .alert("チームグループ作成完了", isPresented: $showSuccess) {

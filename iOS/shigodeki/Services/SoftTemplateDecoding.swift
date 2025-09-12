@@ -102,6 +102,34 @@ private struct SoftPhase: Decodable {
     let description: String?
     let order: Int
     let taskLists: [SoftTaskList]
+
+    enum CodingKeys: String, CodingKey { case title, name, description, order, taskLists, tasks }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        // Accept either `title` or `name`
+        if let t = try c.decodeIfPresent(String.self, forKey: .title) {
+            self.title = t
+        } else if let n = try c.decodeIfPresent(String.self, forKey: .name) {
+            self.title = n
+        } else {
+            throw DecodingError.keyNotFound(
+                CodingKeys.title,
+                DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Missing 'title' or 'name' in phase")
+            )
+        }
+        self.description = try c.decodeIfPresent(String.self, forKey: .description)
+        self.order = (try c.decodeIfPresent(Int.self, forKey: .order)) ?? 0
+
+        // Accept either nested taskLists or direct tasks under phase
+        if let lists = try c.decodeIfPresent([SoftTaskList].self, forKey: .taskLists) {
+            self.taskLists = lists
+        } else if let tasks = try c.decodeIfPresent([SoftTask].self, forKey: .tasks) {
+            self.taskLists = [SoftTaskList(name: "基本", description: self.description, color: nil, order: 0, tasks: tasks)]
+        } else {
+            self.taskLists = []
+        }
+    }
 }
 
 private struct SoftTaskList: Decodable {
@@ -116,5 +144,22 @@ private struct SoftTask: Decodable {
     let title: String
     let description: String?
     let priority: String?
-}
 
+    enum CodingKeys: String, CodingKey { case title, name, description, priority }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if let t = try c.decodeIfPresent(String.self, forKey: .title) {
+            self.title = t
+        } else if let n = try c.decodeIfPresent(String.self, forKey: .name) {
+            self.title = n
+        } else {
+            throw DecodingError.keyNotFound(
+                CodingKeys.title,
+                DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Missing 'title' or 'name' in task")
+            )
+        }
+        self.description = try c.decodeIfPresent(String.self, forKey: .description)
+        self.priority = try c.decodeIfPresent(String.self, forKey: .priority)
+    }
+}

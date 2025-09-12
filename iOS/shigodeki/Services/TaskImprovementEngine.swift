@@ -262,7 +262,7 @@ enum TaskImprovementError: LocalizedError {
         case .analysisTimeout:
             return "分析がタイムアウトしました"
         case .applicationFailed(let details):
-            return "改善の適用に失敗しました: \\(details)"
+            return "改善の適用に失敗しました: \(details)"
         }
     }
     

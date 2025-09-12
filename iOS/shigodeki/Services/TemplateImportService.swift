@@ -54,6 +54,37 @@ class TemplateImportService: ObservableObject {
         }
     }
     
+    // MARK: - Bundle Support (Dev convenience)
+    
+    /// Loads a template JSON packaged in the app bundle.
+    /// - Parameter fileName: File name. Accepts either "name" or "name.json".
+    func processTemplateFromBundle(fileName: String) async {
+        isProcessing = true
+        errorMessage = nil
+        
+        do {
+            let name: String
+            let ext: String
+            if let dotRange = fileName.range(of: ".", options: .backwards) {
+                name = String(fileName[..<dotRange.lowerBound])
+                ext = String(fileName[dotRange.upperBound...])
+            } else {
+                name = fileName
+                ext = "json"
+            }
+            guard let url = Bundle.main.url(forResource: name, withExtension: ext) else {
+                throw NSError(domain: "TemplateImportService", code: 404, userInfo: [NSLocalizedDescriptionKey: "Bundle resource not found: \(fileName)"])
+            }
+            let result = try await templateImporter.importTemplateFromFile(url: url)
+            importResult = result
+            validationResult = result
+            isProcessing = false
+        } catch {
+            isProcessing = false
+            errorMessage = "バンドル内テンプレートの読み込みに失敗しました: \(error.localizedDescription)"
+        }
+    }
+    
     // MARK: - Drag & Drop Support
     
     func handleDrop(providers: [NSItemProvider]) -> Bool {

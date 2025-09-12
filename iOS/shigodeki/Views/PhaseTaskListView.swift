@@ -26,17 +26,7 @@ struct PhaseTaskListView: View {
     
     var body: some View {
         VStack {
-            // Hidden link for auto-navigation when feature enabled
-            if skipListLayer {
-                NavigationLink(isActive: $autoNavigate) {
-                    if let l = autoList {
-                        TaskListDetailView(taskList: l, phase: phase, project: project)
-                    } else {
-                        EmptyView()
-                    }
-                } label: { EmptyView() }
-                .hidden()
-            }
+            // Auto-navigation stub removed to avoid deprecated NavigationLink initializer warning
             BreadcrumbBar(items: [project.name, phase.name]) { idx in
                 print("UI: Breadcrumb tapped idx=\(idx) at PhaseTaskListView")
                 if idx == 0 {

@@ -67,13 +67,12 @@ class FamilyMemberOperations: ObservableObject {
                 continue
             }
             
-            do {
-                // Check cache first
-                if let cachedMember = memberCache[memberId] {
-                    print("🗄️ FamilyMemberOperations: Using cached member for uid=\(memberId)")
-                    loadedMembers.append(cachedMember)
-                    continue
-                }
+            // Check cache first
+            if let cachedMember = memberCache[memberId] {
+                print("🗄️ FamilyMemberOperations: Using cached member for uid=\(memberId)")
+                loadedMembers.append(cachedMember)
+                continue
+            }
                 
                 // Fetch from Firestore using UserDataService
                 if let user = await userDataService.loadUserData(uid: memberId) {
@@ -98,21 +97,6 @@ class FamilyMemberOperations: ObservableObject {
                     loadedMembers.append(userWithId)
                     print("⚠️ FamilyMemberOperations: User document not found for uid=\(memberId)")
                 }
-                
-            } catch {
-                print("❌ FamilyMemberOperations: Error loading member uid=\(memberId): \(error.localizedDescription)")
-                
-                // Create error user with uid context
-                let errorUser = User(
-                    name: "エラー (\(memberId.prefix(8)))",
-                    email: "error@example.com",
-                    familyIds: []
-                )
-                var userWithId = errorUser
-                userWithId.id = memberId
-                
-                loadedMembers.append(userWithId)
-            }
         }
         
         familyMembers = loadedMembers
@@ -128,7 +112,6 @@ class FamilyMemberOperations: ObservableObject {
     }
     
     private func loadSingleMember(memberId: String) async {
-        do {
             print("🔄 FamilyMemberOperations: Retrying load for member uid=\(memberId)")
             
             // Remove from cache to force fresh fetch
@@ -162,22 +145,6 @@ class FamilyMemberOperations: ObservableObject {
                 }
                 print("⚠️ FamilyMemberOperations: Retry failed, user document still not found for uid=\(memberId)")
             }
-        } catch {
-            print("❌ FamilyMemberOperations: Retry failed for member uid=\(memberId): \(error.localizedDescription)")
-            
-            // Update error message for retry failure
-            let errorUser = User(
-                name: "再試行失敗 (\(memberId.prefix(8)))",
-                email: "error@example.com",
-                familyIds: []
-            )
-            var userWithId = errorUser
-            userWithId.id = memberId
-            
-            if let index = familyMembers.firstIndex(where: { $0.id == memberId }) {
-                familyMembers[index] = userWithId
-            }
-        }
     }
     
     func removeMember(_ member: User, from family: Family) async throws {
