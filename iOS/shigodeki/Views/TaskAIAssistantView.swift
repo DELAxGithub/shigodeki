@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct TaskAIAssistantView: View {
     let taskList: TaskList
@@ -17,6 +18,7 @@ struct TaskAIAssistantView: View {
         case improvements = "improvements"
         case related = "related"
         case custom = "custom"
+        case photo = "photo"
         
         var id: String { rawValue }
         
@@ -26,6 +28,7 @@ struct TaskAIAssistantView: View {
             case .improvements: return "改善提案"
             case .related: return "関連タスク"
             case .custom: return "カスタム提案"
+            case .photo: return "写真から提案"
             }
         }
         
@@ -35,6 +38,7 @@ struct TaskAIAssistantView: View {
             case .improvements: return "wand.and.stars"
             case .related: return "link"
             case .custom: return "text.bubble"
+            case .photo: return "camera.viewfinder"
             }
         }
         
@@ -44,6 +48,7 @@ struct TaskAIAssistantView: View {
             case .improvements: return "既存タスクの効率化や改善案を提案"
             case .related: return "プロジェクトに関連する新しいタスクを提案"
             case .custom: return "自由なプロンプトでタスクを生成"
+            case .photo: return "写真から複数のタスク候補を生成"
             }
         }
     }
@@ -114,6 +119,15 @@ struct TaskAIAssistantView: View {
                                 taskList: taskList,
                                 aiGenerator: aiGenerator,
                                 onGenerate: generateCustomTasks
+                            )
+                        case .photo:
+                            PhotoTaskBulkGenerationView(
+                                taskList: taskList,
+                                existingTasks: existingTasks,
+                                onTasksReady: { tasks in
+                                    onTasksGenerated(tasks)
+                                    dismiss()
+                                }
                             )
                         }
                         
@@ -296,4 +310,103 @@ struct TaskAIAssistantView: View {
         aiGenerator: AITaskGenerator(),
         onTasksGenerated: { _ in }
     )
+}
+
+// MARK: - Photo-based bulk generation using TidyPlanKit
+
+private struct PhotoTaskBulkGenerationView: View {
+    let taskList: TaskList
+    let existingTasks: [ShigodekiTask]
+    let onTasksReady: ([ShigodekiTask]) -> Void
+
+    @State private var showCamera = false
+    @State private var showLibrary = false
+    @State private var isGenerating = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("写真から提案")
+                .font(.headline)
+            Text("部屋やモノを撮影すると、処分・整理のタスクを自動提案します。")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 12) {
+                Button { showCamera = true } label: {
+                    Label("カメラで撮影", systemImage: "camera")
+                }.buttonStyle(.bordered)
+                Button { showLibrary = true } label: {
+                    Label("写真を選択", systemImage: "photo.on.rectangle")
+                }.buttonStyle(.bordered)
+            }
+
+            if isGenerating {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("写真を解析して提案を生成中…")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.footnote)
+                    .foregroundColor(.red)
+            }
+        }
+        .sheet(isPresented: $showCamera) {
+            CameraPicker(source: .camera) { image in
+                process(image: image)
+            }
+        }
+        .sheet(isPresented: $showLibrary) {
+            CameraPicker(source: .photoLibrary) { image in
+                process(image: image)
+            }
+        }
+    }
+
+    private func process(image: UIImage) {
+        guard let data = image.jpegData(compressionQuality: 0.7) else { return }
+        generate(from: data)
+    }
+
+    private func generate(from imageData: Data) {
+        isGenerating = true
+        errorMessage = nil
+        Task {
+            defer { isGenerating = false }
+            let apiKey = try? KeychainManager.shared.retrieveAPIKey(for: .openAI)
+            let allowNetwork = (apiKey?.isEmpty == false)
+            let planner = TidyPlanner(apiKey: apiKey)
+            let locale = UserLocale(
+                country: Locale.current.regionCode ?? "JP",
+                city: (Locale.current.regionCode ?? "JP") == "JP" ? "Tokyo" : "Toronto"
+            )
+            let existing = existingTasks.prefix(6).map { "・\($0.title)" }.joined(separator: "\n")
+            let ctx = "タスクリスト: \(taskList.name)\n既存のタスク（抜粋）:\n\(existing)"
+            let plan = await planner.generate(from: imageData, locale: locale, allowNetwork: allowNetwork, context: ctx)
+            let tasks: [ShigodekiTask] = plan.tasks.enumerated().map { idx, t in
+                let desc: String? = {
+                    let checklist = (t.checklist ?? []).map { "• \($0)" }.joined(separator: "\n")
+                    return checklist.isEmpty ? nil : checklist
+                }()
+                return ShigodekiTask(
+                    title: t.title,
+                    description: desc,
+                    assignedTo: nil,
+                    createdBy: "ai-generated",
+                    dueDate: nil,
+                    priority: .medium,
+                    listId: taskList.id ?? "",
+                    phaseId: "default-phase",
+                    projectId: "default-project",
+                    order: idx
+                )
+            }
+            await MainActor.run { onTasksReady(tasks) }
+        }
+    }
 }

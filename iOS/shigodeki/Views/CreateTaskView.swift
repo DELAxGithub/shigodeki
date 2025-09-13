@@ -17,6 +17,8 @@ struct CreateTaskView: View {
     @State private var dueDate: Date = Date()
     @State private var hasDueDate: Bool = false
     @State private var selectedTags: [String] = []
+    @State private var keepAttachment: Bool = false
+    @State private var attachments: [String] = [] // base64 data URLs or remote URLs
     
     // Services
     @StateObject private var tagManager = TagManager()
@@ -58,6 +60,8 @@ struct CreateTaskView: View {
                 dueDate: $dueDate,
                 hasDueDate: $hasDueDate,
                 selectedTags: $selectedTags,
+                keepAttachment: $keepAttachment,
+                attachments: $attachments,
                 taskList: taskList,
                 familyMembers: familyMembers,
                 creatorUserId: creatorUserId,
@@ -111,7 +115,8 @@ struct CreateTaskView: View {
                 dueDate: dueDate,
                 hasDueDate: hasDueDate,
                 selectedPriority: selectedPriority,
-                selectedTags: selectedTags
+                selectedTags: selectedTags,
+                attachments: keepAttachment ? attachments : []
             )
         }
     }

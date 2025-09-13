@@ -32,7 +32,8 @@ class TaskCreationService: ObservableObject {
         dueDate: Date?,
         hasDueDate: Bool,
         selectedPriority: TaskPriority,
-        selectedTags: [String]
+        selectedTags: [String],
+        attachments: [String]
     ) async {
         guard let taskListId = taskList.id, 
               let familyId = family.id else { 
@@ -53,7 +54,8 @@ class TaskCreationService: ObservableObject {
                 assignedTo: selectedAssignee,
                 dueDate: hasDueDate ? dueDate : nil,
                 priority: selectedPriority,
-                tags: selectedTags
+                tags: selectedTags,
+                attachments: attachments
             )
             
             // Update tag usage counts with proper async handling

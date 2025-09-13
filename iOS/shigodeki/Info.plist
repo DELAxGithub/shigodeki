@@ -43,6 +43,8 @@
 	<string>© 2025 シゴデキ開発チーム. All rights reserved.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+    <key>NSCameraUsageDescription</key>
+    <string>タスク作成時に写真撮影して提案や添付に利用します。</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>タスクに画像を添付するためにフォトライブラリへアクセスします。</string>
 </dict>

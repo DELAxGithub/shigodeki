@@ -1,0 +1,35 @@
+{
+  "": {
+    "swift-dependencies": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/master.swiftdeps"
+  },
+  "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/Sources/TidyPlanKit/FallbackPlanner.swift": {
+    "dependencies": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/FallbackPlanner.d",
+    "object": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/FallbackPlanner.swift.o",
+    "swiftmodule": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/FallbackPlanner~partial.swiftmodule",
+    "swift-dependencies": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/FallbackPlanner.swiftdeps"
+  },
+  "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/Sources/TidyPlanKit/Models.swift": {
+    "dependencies": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/Models.d",
+    "object": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/Models.swift.o",
+    "swiftmodule": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/Models~partial.swiftmodule",
+    "swift-dependencies": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/Models.swiftdeps"
+  },
+  "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/Sources/TidyPlanKit/OpenAIService.swift": {
+    "dependencies": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/OpenAIService.d",
+    "object": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/OpenAIService.swift.o",
+    "swiftmodule": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/OpenAIService~partial.swiftmodule",
+    "swift-dependencies": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/OpenAIService.swiftdeps"
+  },
+  "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/Sources/TidyPlanKit/TidyPlanner.swift": {
+    "dependencies": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/TidyPlanner.d",
+    "object": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/TidyPlanner.swift.o",
+    "swiftmodule": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/TidyPlanner~partial.swiftmodule",
+    "swift-dependencies": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/TidyPlanner.swiftdeps"
+  },
+  "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/Sources/TidyPlanKit/TidySchema.swift": {
+    "dependencies": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/TidySchema.d",
+    "object": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/TidySchema.swift.o",
+    "swiftmodule": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/TidySchema~partial.swiftmodule",
+    "swift-dependencies": "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/TidySchema.swiftdeps"
+  }
+}

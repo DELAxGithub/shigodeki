@@ -16,6 +16,8 @@ struct CreateTaskFormContent: View {
     @Binding var dueDate: Date
     @Binding var hasDueDate: Bool
     @Binding var selectedTags: [String]
+    @Binding var keepAttachment: Bool
+    @Binding var attachments: [String]
     
     let taskList: TaskList
     let familyMembers: [User]
@@ -36,6 +38,8 @@ struct CreateTaskFormContent: View {
                     dueDate: $dueDate,
                     hasDueDate: $hasDueDate,
                     selectedTags: $selectedTags,
+                    keepAttachment: $keepAttachment,
+                    attachments: $attachments,
                     taskList: taskList,
                     familyMembers: familyMembers,
                     creatorUserId: creatorUserId,
@@ -65,6 +69,8 @@ struct TaskFormFields: View {
     @Binding var dueDate: Date
     @Binding var hasDueDate: Bool
     @Binding var selectedTags: [String]
+    @Binding var keepAttachment: Bool
+    @Binding var attachments: [String]
     
     let taskList: TaskList
     let familyMembers: [User]
@@ -87,12 +93,37 @@ struct TaskFormFields: View {
                 creatorUserId: creatorUserId,
                 tagManager: tagManager
             )
-            
+
             if familyMembers.count > 1 {
                 TaskAssigneeSection(
                     selectedAssignee: $selectedAssignee,
                     familyMembers: familyMembers
                 )
+            }
+
+            // Optional: capture/select photo and generate suggestions via TidyPlanKit
+            PhotoTaskSuggestionSection(
+                title: $title,
+                description: $description,
+                selectedPriority: $selectedPriority,
+                dueDate: $dueDate,
+                hasDueDate: $hasDueDate,
+                selectedTags: $selectedTags,
+                keepAttachment: $keepAttachment,
+                attachments: $attachments,
+                contextHint: "タスクリスト: \(taskList.name)"
+            )
+
+            // Attachment options
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle(isOn: $keepAttachment) {
+                    Text("添付として保持")
+                }
+                if keepAttachment {
+                    Text("現在の添付: \(attachments.count) 件")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .padding(.horizontal)

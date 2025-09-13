@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct CreatePhaseTaskListView: View {
     let phase: Phase
@@ -103,6 +104,10 @@ struct CreatePhaseTaskView: View {
     @State private var taskDescription: String = ""
     @State private var selectedPriority: TaskPriority = .medium
     @State private var isCreating = false
+    @State private var showCamera = false
+    @State private var showLibrary = false
+    @State private var isGeneratingFromPhoto = false
+    @State private var genError: String?
     
     var body: some View {
         NavigationView {
@@ -111,6 +116,43 @@ struct CreatePhaseTaskView: View {
                     TextField("タスクタイトル", text: $taskTitle)
                     TextField("説明（オプション）", text: $taskDescription, axis: .vertical)
                         .lineLimit(3...6)
+                }
+
+                Section(header: Text("写真から提案（任意）")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 12) {
+                            Button {
+                                showCamera = true
+                            } label: {
+                                Label("カメラで提案", systemImage: "camera")
+                            }
+                            .buttonStyle(.bordered)
+
+                            Button {
+                                showLibrary = true
+                            } label: {
+                                Label("写真を選択", systemImage: "photo.on.rectangle")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        if isGeneratingFromPhoto {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text("写真を解析して提案を生成中…")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        if let genError {
+                            Text(genError)
+                                .font(.footnote)
+                                .foregroundColor(.red)
+                        }
+
+                        // 内蔵のプランナーを使用します
+                    }
                 }
                 
                 Section(header: Text("優先度")) {
@@ -143,6 +185,24 @@ struct CreatePhaseTaskView: View {
                     }
                     .disabled(taskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreating)
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showCamera = true
+                    } label: {
+                        Image(systemName: "camera")
+                    }
+                    .accessibilityLabel("写真から提案")
+                }
+            }
+        }
+        .sheet(isPresented: $showCamera) {
+            CameraPicker(source: .camera) { image in
+                process(image: image)
+            }
+        }
+        .sheet(isPresented: $showLibrary) {
+            CameraPicker(source: .photoLibrary) { image in
+                process(image: image)
             }
         }
     }
@@ -173,6 +233,43 @@ struct CreatePhaseTaskView: View {
             } catch {
                 print("Error creating task: \(error)")
                 isCreating = false
+            }
+        }
+    }
+
+    private func process(image: UIImage) {
+        genError = nil
+        guard let data = image.jpegData(compressionQuality: 0.7) else {
+            genError = "画像の処理に失敗しました"
+            return
+        }
+        generate(from: data)
+    }
+
+    private func generate(from imageData: Data) {
+        isGeneratingFromPhoto = true
+        Task {
+            defer { isGeneratingFromPhoto = false }
+            let apiKey = try? KeychainManager.shared.retrieveAPIKey(for: .openAI)
+            let allowNetwork = (apiKey?.isEmpty == false)
+            let planner = TidyPlanner(apiKey: apiKey)
+            let locale = UserLocale(
+                country: Locale.current.regionCode ?? "JP",
+                city: (Locale.current.regionCode ?? "JP") == "JP" ? "Tokyo" : "Toronto"
+            )
+            let ctx = "プロジェクト: \(project.name)\nフェーズ: \(phase.name)"
+            let plan = await planner.generate(from: imageData, locale: locale, allowNetwork: allowNetwork, context: ctx)
+            if let first = plan.tasks.first {
+                await MainActor.run {
+                    taskTitle = first.title
+                    let checklist = (first.checklist ?? []).map { "• \($0)" }.joined(separator: "\n")
+                    if !checklist.isEmpty { taskDescription = checklist }
+                    if let p = first.priority {
+                        selectedPriority = (p >= 4 ? .high : (p <= 2 ? .low : .medium))
+                    }
+                }
+            } else {
+                await MainActor.run { genError = "写真から提案を生成できませんでした" }
             }
         }
     }

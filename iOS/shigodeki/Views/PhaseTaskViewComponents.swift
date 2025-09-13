@@ -8,6 +8,7 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 // MARK: - Task Creation Sheet
 
@@ -17,6 +18,10 @@ struct TaskCreationSheet: View {
     @Binding var newTaskSectionId: String?
     let groupedSections: [PhaseSection]
     let onCreate: (String, PhaseSection?) -> Void
+    @State private var showCamera = false
+    @State private var showLibrary = false
+    @State private var isGeneratingFromPhoto = false
+    @State private var genError: String?
     
     var body: some View {
         NavigationView {
@@ -24,6 +29,42 @@ struct TaskCreationSheet: View {
                 Section("タイトル") {
                     TextField("新しいタスク", text: $newTaskTitle)
                         .submitLabel(.done)
+                }
+                Section("写真から提案（任意）") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 12) {
+                            Button {
+                                showCamera = true
+                            } label: {
+                                Label("カメラで提案", systemImage: "camera")
+                            }
+                            .buttonStyle(.bordered)
+
+                            Button {
+                                showLibrary = true
+                            } label: {
+                                Label("写真を選択", systemImage: "photo.on.rectangle")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        if isGeneratingFromPhoto {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text("写真を解析して提案を生成中…")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        if let genError {
+                            Text(genError)
+                                .font(.footnote)
+                                .foregroundColor(.red)
+                        }
+
+                        // 内蔵のプランナーを使用します
+                    }
                 }
                 Section("セクション") {
                     Picker("セクション", selection: Binding(
@@ -37,6 +78,16 @@ struct TaskCreationSheet: View {
                             }
                         }
                     }
+                }
+            }
+            .sheet(isPresented: $showCamera) {
+                CameraPicker(source: .camera) { image in
+                    process(image: image)
+                }
+            }
+            .sheet(isPresented: $showLibrary) {
+                CameraPicker(source: .photoLibrary) { image in
+                    process(image: image)
                 }
             }
             .navigationTitle("タスクを追加")
@@ -58,6 +109,45 @@ struct TaskCreationSheet: View {
                     }
                     .disabled(newTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showCamera = true
+                    } label: {
+                        Image(systemName: "camera")
+                    }
+                    .accessibilityLabel("写真から提案")
+                }
+            }
+        }
+    }
+
+    private func process(image: UIImage) {
+        genError = nil
+        guard let data = image.jpegData(compressionQuality: 0.7) else {
+            genError = "画像の処理に失敗しました"
+            return
+        }
+        generate(from: data)
+    }
+
+    private func generate(from imageData: Data) {
+        isGeneratingFromPhoto = true
+        Task {
+            defer { isGeneratingFromPhoto = false }
+            let apiKey = try? KeychainManager.shared.retrieveAPIKey(for: .openAI)
+            let allowNetwork = (apiKey?.isEmpty == false)
+            let planner = TidyPlanner(apiKey: apiKey)
+            let locale = UserLocale(
+                country: Locale.current.regionCode ?? "JP",
+                city: (Locale.current.regionCode ?? "JP") == "JP" ? "Tokyo" : "Toronto"
+            )
+            let plan = await planner.generate(from: imageData, locale: locale, allowNetwork: allowNetwork)
+            if let first = plan.tasks.first {
+                await MainActor.run {
+                    newTaskTitle = first.title
+                }
+            } else {
+                await MainActor.run { genError = "写真から提案を生成できませんでした" }
             }
         }
     }

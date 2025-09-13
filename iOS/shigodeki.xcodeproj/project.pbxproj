@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        
 		DE5F1BC92E5FD21500A91735 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = DE5F1B682E5FCB0100A91735 /* FirebaseAuth */; };
 		DE5F1BCA2E5FD21500A91735 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = DE5F1B6A2E5FCB0100A91735 /* FirebaseCore */; };
 		DE5F1BCB2E5FD21500A91735 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = DE5F1B6C2E5FCB0100A91735 /* FirebaseFirestore */; };
@@ -24,6 +25,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+        
 		DE918B062E5FC87300340EB2 /* shigodeki.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = shigodeki.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DE918BFF2E5FC87600340EB3 /* shigodekiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = shigodekiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -77,23 +79,23 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		DE5F1BE62E5FD31100A91735 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		DE918AFD2E5FC87300340EB2 = {
-			isa = PBXGroup;
-			children = (
-				DE918B082E5FC87300340EB2 /* shigodeki */,
-				DE918BFE2E5FC87600340EB3 /* shigodekiTests */,
-				DE5F1BE62E5FD31100A91735 /* Frameworks */,
-				DE918B072E5FC87300340EB2 /* Products */,
-			);
-			sourceTree = "<group>";
-		};
+        DE5F1BE62E5FD31100A91735 /* Frameworks */ = {
+            isa = PBXGroup;
+            children = (
+            );
+            name = Frameworks;
+            sourceTree = "<group>";
+        };
+        DE918AFD2E5FC87300340EB2 = {
+            isa = PBXGroup;
+            children = (
+                DE918B082E5FC87300340EB2 /* shigodeki */,
+                DE918BFE2E5FC87600340EB3 /* shigodekiTests */,
+                DE5F1BE62E5FD31100A91735 /* Frameworks */,
+                DE918B072E5FC87300340EB2 /* Products */,
+            );
+            sourceTree = "<group>";
+        };
 		DE918B072E5FC87300340EB2 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -241,13 +243,13 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		DE918B022E5FC87300340EB2 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
+        DE918B022E5FC87300340EB2 /* Sources */ = {
+            isa = PBXSourcesBuildPhase;
+            buildActionMask = 2147483647;
+            files = (
+            );
+            runOnlyForDeploymentPostprocessing = 0;
+        };
 		DE918BF92E5FC87600340EB3 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -274,6 +276,7 @@
 				CODE_SIGN_ENTITLEMENTS = shigodeki/shigodeki.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
+                DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = Z88477N5ZU;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -310,6 +313,7 @@
 				CODE_SIGN_ENTITLEMENTS = shigodeki/shigodeki.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
+                DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = Z88477N5ZU;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;

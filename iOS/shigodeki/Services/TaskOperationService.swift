@@ -78,6 +78,7 @@ struct TaskOperationService {
         dueDate: Date? = nil, 
         priority: TaskPriority = .medium, 
         tags: [String] = [],
+        attachments: [String] = [],
         db: Firestore
     ) async throws -> String {
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -103,6 +104,7 @@ struct TaskOperationService {
             "createdBy": task.createdBy,
             "priority": task.priority.rawValue,
             "tags": task.tags,
+            "attachments": attachments,
             "createdAt": FieldValue.serverTimestamp(),
             "completedAt": NSNull(),
             "dueDate": task.dueDate != nil ? Timestamp(date: task.dueDate!) : NSNull()
@@ -205,12 +207,15 @@ struct TaskOperationService {
             dueDate: dueDate,
             priority: priority
         )
-        
+
         task.id = document.documentID
         task.isCompleted = data["isCompleted"] as? Bool ?? false
         task.createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
         task.completedAt = (data["completedAt"] as? Timestamp)?.dateValue()
-        
+        if let atts = data["attachments"] as? [String], !atts.isEmpty {
+            task.attachments = atts
+        }
+
         return task
     }
 }

@@ -85,7 +85,7 @@ class TaskManager: ObservableObject {
         }
     }
 
-    func createTask(title: String, description: String? = nil, taskListId: String, familyId: String, creatorUserId: String, assignedTo: String? = nil, dueDate: Date? = nil, priority: TaskPriority = .medium, tags: [String] = []) async throws -> String {
+    func createTask(title: String, description: String? = nil, taskListId: String, familyId: String, creatorUserId: String, assignedTo: String? = nil, dueDate: Date? = nil, priority: TaskPriority = .medium, tags: [String] = [], attachments: [String] = []) async throws -> String {
         isLoading = true
         errorMessage = nil
         
@@ -102,6 +102,7 @@ class TaskManager: ObservableObject {
                 dueDate: dueDate,
                 priority: priority,
                 tags: tags,
+                attachments: attachments,
                 db: db
             )
         } catch {

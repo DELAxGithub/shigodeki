@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct TaskRowView: View {
     let task: ShigodekiTask
@@ -61,6 +62,45 @@ struct TaskRowView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .lineLimit(2)
+                }
+
+                // Attachments thumbnails (show up to 3)
+                if let atts = task.attachments, !atts.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(Array(atts.prefix(3).enumerated()), id: \.offset) { _, att in
+                                if att.hasPrefix("http") || att.hasPrefix("https") {
+                                    if let url = URL(string: att) {
+                                        AsyncImage(url: url) { phase in
+                                            switch phase {
+                                            case .empty:
+                                                ProgressView().frame(width: 28, height: 28)
+                                            case .success(let image):
+                                                image.resizable().scaledToFill()
+                                                    .frame(width: 28, height: 28)
+                                                    .clipped()
+                                                    .cornerRadius(4)
+                                            case .failure:
+                                                Image(systemName: "photo")
+                                                    .frame(width: 28, height: 28)
+                                            @unknown default:
+                                                EmptyView()
+                                            }
+                                        }
+                                    }
+                                } else if let dataRange = att.range(of: ","),
+                                          let data = Data(base64Encoded: String(att[dataRange.upperBound...])),
+                                          let ui = UIImage(data: data) {
+                                    Image(uiImage: ui)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 28, height: 28)
+                                        .clipped()
+                                        .cornerRadius(4)
+                                }
+                            }
+                        }
+                    }
                 }
                 
                 // Task metadata

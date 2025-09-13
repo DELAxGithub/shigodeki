@@ -1,0 +1,4 @@
+module TidyPlanKit {
+    header "/Users/hiroshikodera/repos/_active/apps/shigodeki/TidyPlanKit/.build/index-build/arm64-apple-macosx/debug/TidyPlanKit.build/TidyPlanKit-Swift.h"
+    requires objc
+}
