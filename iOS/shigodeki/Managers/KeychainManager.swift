@@ -108,6 +108,20 @@ final class KeychainManager {
             throw KeychainError.unhandledError(status: status)
         }
     }
+
+    /// Convenience: returns key if available, otherwise nil and logs the reason
+    func getAPIKeyIfAvailable(for provider: APIProvider) -> String? {
+        do {
+            let key = try retrieveAPIKey(for: provider)
+            return key
+        } catch let e as KeychainError {
+            print("[Keychain] No API key for \(provider.rawValue): \(e.localizedDescription)")
+            return nil
+        } catch {
+            print("[Keychain] Unexpected error for \(provider.rawValue): \(error)")
+            return nil
+        }
+    }
     
     /// Remove API key from Keychain
     func removeAPIKey(for provider: APIProvider) throws {

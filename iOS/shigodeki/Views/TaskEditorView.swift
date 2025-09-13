@@ -63,6 +63,44 @@ struct TaskEditorView: View {
                 }
                 
                 Section("添付画像") {
+                    // 既存の添付（URL/base64）を表示
+                    if let atts = task.attachments, !atts.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(Array(atts.enumerated()), id: \.offset) { _, att in
+                                    if att.hasPrefix("http"), let url = URL(string: att) {
+                                        AsyncImage(url: url) { phase in
+                                            switch phase {
+                                            case .empty:
+                                                ProgressView().frame(width: 72, height: 72)
+                                            case .success(let image):
+                                                image.resizable().scaledToFill()
+                                                    .frame(width: 72, height: 72)
+                                                    .clipped()
+                                                    .cornerRadius(8)
+                                            case .failure:
+                                                Image(systemName: "photo")
+                                                    .frame(width: 72, height: 72)
+                                            @unknown default:
+                                                EmptyView()
+                                            }
+                                        }
+                                    } else if let comma = att.firstIndex(of: ",") {
+                                        let base64 = String(att[att.index(after: comma)...])
+                                        if let data = Data(base64Encoded: base64), let ui = UIImage(data: data) {
+                                            Image(uiImage: ui)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 72, height: 72)
+                                                .clipped()
+                                                .cornerRadius(8)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // この画面で新規に選択したローカル画像
                     if !(localImages.isEmpty) {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
@@ -91,6 +129,7 @@ struct TaskEditorView: View {
                                             var atts = task.attachments ?? []
                                             atts.append(url)
                                             task.attachments = atts
+                                            if !localImages.isEmpty { _ = localImages.popLast() }
                                         } catch {
                                             print("Upload failed: \(error)")
                                         }
@@ -100,6 +139,7 @@ struct TaskEditorView: View {
                                         var atts = task.attachments ?? []
                                         atts.append("data:image/jpeg;base64,\(base64)")
                                         task.attachments = atts
+                                        if !localImages.isEmpty { _ = localImages.popLast() }
                                     }
                                 }
                             }

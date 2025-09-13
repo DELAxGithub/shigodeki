@@ -15,6 +15,10 @@ struct TaskRowView: View {
     let family: Family
     let taskManager: TaskManager
     let familyMembers: [User]
+    @State private var showAttachPicker = false
+    @State private var showPreview = false
+    @State private var previewURL: URL?
+    @State private var previewImage: UIImage?
     
     private var assignedMember: User? {
         guard let assignedTo = task.assignedTo else { return nil }
@@ -80,6 +84,7 @@ struct TaskRowView: View {
                                                     .frame(width: 28, height: 28)
                                                     .clipped()
                                                     .cornerRadius(4)
+                                                    .onTapGesture { previewURL = url; previewImage = nil; showPreview = true }
                                             case .failure:
                                                 Image(systemName: "photo")
                                                     .frame(width: 28, height: 28)
@@ -97,6 +102,7 @@ struct TaskRowView: View {
                                         .frame(width: 28, height: 28)
                                         .clipped()
                                         .cornerRadius(4)
+                                        .onTapGesture { previewImage = ui; previewURL = nil; showPreview = true }
                                 }
                             }
                         }
@@ -139,6 +145,35 @@ struct TaskRowView: View {
             }
         }
         .padding(.vertical, 4)
+        .contextMenu {
+            Button {
+                showAttachPicker = true
+            } label: {
+                Label("画像を添付", systemImage: "photo.on.rectangle")
+            }
+        }
+        .sheet(isPresented: $showAttachPicker) {
+            CameraPicker(source: .photoLibrary) { image in
+                Task { await addAttachment(image: image) }
+            }
+        }
+        .sheet(isPresented: $showPreview) {
+            ZoomableView {
+                if let url = previewURL {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty: ProgressView()
+                        case .success(let image): image.resizable().scaledToFit()
+                        case .failure: Image(systemName: "photo")
+                        @unknown default: EmptyView()
+                        }
+                    }
+                } else if let img = previewImage {
+                    Image(uiImage: img).resizable().scaledToFit()
+                }
+            }
+            .padding()
+        }
     }
     
     private func toggleCompletion() {
@@ -169,6 +204,18 @@ struct TaskRowView: View {
                 let errorFeedback = UINotificationFeedbackGenerator()
                 errorFeedback.notificationOccurred(.error)
             }
+        }
+    }
+
+    private func addAttachment(image: UIImage) async {
+        guard let taskId = task.id, let listId = taskList.id, let familyId = family.id,
+              let data = image.jpegData(compressionQuality: 0.7) else { return }
+        var atts = task.attachments ?? []
+        atts.append("data:image/jpeg;base64,\(data.base64EncodedString())")
+        do {
+            try await taskManager.updateTaskAttachments(taskId: taskId, taskListId: listId, familyId: familyId, attachments: atts)
+        } catch {
+            print("Error updating attachments: \(error)")
         }
     }
 }

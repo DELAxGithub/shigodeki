@@ -60,7 +60,7 @@ class TaskManager: ObservableObject {
     
     // MARK: - Phase-based Task Creation
     
-    func createPhaseTask(title: String, description: String? = nil, taskListId: String, projectId: String, phaseId: String, creatorUserId: String, assignedTo: String? = nil, dueDate: Date? = nil, priority: TaskPriority = .medium) async throws -> String {
+    func createPhaseTask(title: String, description: String? = nil, taskListId: String, projectId: String, phaseId: String, creatorUserId: String, assignedTo: String? = nil, dueDate: Date? = nil, priority: TaskPriority = .medium, attachments: [String] = []) async throws -> String {
         isLoading = true
         errorMessage = nil
         
@@ -77,6 +77,7 @@ class TaskManager: ObservableObject {
                 assignedTo: assignedTo,
                 dueDate: dueDate,
                 priority: priority,
+                attachments: attachments,
                 db: db
             )
         } catch {
@@ -134,6 +135,23 @@ class TaskManager: ObservableObject {
             )
         } catch {
             errorMessage = "タスクの読み込みに失敗しました"
+        }
+    }
+    
+    // MARK: - Attachments
+    
+    func updateTaskAttachments(taskId: String, taskListId: String, familyId: String, attachments: [String]) async throws {
+        do {
+            try await TaskOperationService.updateTaskAttachments(
+                taskId: taskId,
+                taskListId: taskListId,
+                familyId: familyId,
+                attachments: attachments,
+                db: db
+            )
+        } catch {
+            errorMessage = "添付の更新に失敗しました"
+            throw error
         }
     }
     

@@ -68,13 +68,86 @@ struct PhaseTaskDetailView: View {
                 showingTagEditor: $showingTagEditor,
                 selectedSectionId: $selectedSectionId
             )
-            
-            // TODO: Implement AttachmentsSectionView component
-            // AttachmentsSectionView(
-            //     selectedPhotos: $selectedPhotos,
-            //     localImages: $localImages,
-            //     onImageData: { _ in }
-            // )
+
+            // 添付画像
+            Section("添付画像") {
+                // 既存の添付表示
+                if !viewModel.attachments.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(Array(viewModel.attachments.enumerated()), id: \.offset) { _, att in
+                                if att.hasPrefix("http"), let url = URL(string: att) {
+                                    AsyncImage(url: url) { phase in
+                                        switch phase {
+                                        case .empty:
+                                            ProgressView().frame(width: 72, height: 72)
+                                        case .success(let image):
+                                            image.resizable().scaledToFill()
+                                                .frame(width: 72, height: 72)
+                                                .clipped()
+                                                .cornerRadius(8)
+                                        case .failure:
+                                            Image(systemName: "photo").frame(width: 72, height: 72)
+                                        @unknown default: EmptyView()
+                                        }
+                                    }
+                                } else if let comma = att.firstIndex(of: ",") {
+                                    let base64 = String(att[att.index(after: comma)...])
+                                    if let data = Data(base64Encoded: base64), let ui = UIImage(data: data) {
+                                        Image(uiImage: ui)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 72, height: 72)
+                                            .clipped()
+                                            .cornerRadius(8)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // この画面で新規に選択したローカル画像（未アップロードのプレビュー）
+                if !(localImages.isEmpty) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(Array(localImages.enumerated()), id: \.offset) { _, img in
+                                Image(uiImage: img)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 72, height: 72)
+                                    .clipped()
+                                    .cornerRadius(8)
+                            }
+                        }
+                    }
+                }
+                PhotosPicker(selection: $selectedPhotos, matching: .images, photoLibrary: .shared()) {
+                    Label("画像を追加", systemImage: "photo.on.rectangle")
+                }
+                .onChange(of: selectedPhotos) { _, items in
+                    Task { @MainActor in
+                        for item in items {
+                            if let data = try? await item.loadTransferable(type: Data.self), let img = UIImage(data: data) {
+                                localImages.append(img)
+                                if let tid = task.id, let pid = project.id {
+                                    do {
+                                        let url = try await StorageManager.shared.uploadImage(data: data, projectId: pid, taskId: tid)
+                                        viewModel.attachments.append(url)
+                                        if !localImages.isEmpty { _ = localImages.popLast() }
+                                    } catch {
+                                        print("Upload failed: \(error)")
+                                    }
+                                } else {
+                                    // Fallback to inline dataURL if ID 解決前
+                                    let dataURL = "data:image/jpeg;base64,\(data.base64EncodedString())"
+                                    viewModel.attachments.append(dataURL)
+                                    if !localImages.isEmpty { _ = localImages.popLast() }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             
             TaskSubtasksSection(
                 subtasks: subtasks,
@@ -355,4 +428,3 @@ struct PhaseTaskDetailView: View {
         }
     }
 }
-

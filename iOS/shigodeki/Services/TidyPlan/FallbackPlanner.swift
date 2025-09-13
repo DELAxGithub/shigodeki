@@ -17,17 +17,17 @@ struct FallbackPlanner {
     private static func createSellTask() -> TidyTask {
         TidyTask(
             id: "FB01",
-            title: "Sell large electronics (TV, etc.)",
-            area: "living",
+            title: "大型家電を出品する（テレビ等）",
+            area: "リビング",
             exit_tag: .sell,
             priority: 4,
             effort_min: 30,
-            labels: ["sell", "electronics"],
+            labels: ["売却", "家電"],
             checklist: [
-                "Check model number on back",
-                "Take photos: front, sides, back, model label",
-                "Research recent sold prices",
-                "Post on Facebook Marketplace"
+                "背面で型番を確認する",
+                "正面・側面・背面・型番ラベルを撮影",
+                "直近の相場を調べる",
+                "フリマサイトに出品する"
             ],
             links: ["https://www.facebook.com/marketplace/"],
             url: "https://www.facebook.com/marketplace/",
@@ -38,16 +38,16 @@ struct FallbackPlanner {
     private static func createRecycleTask() -> TidyTask {
         TidyTask(
             id: "RC01",
-            title: "Bundle cables for e-waste drop-off",
-            area: "electronics",
+            title: "不要なケーブルを束ねて資源回収へ",
+            area: "電子機器",
             exit_tag: .recycle,
             priority: 2,
             effort_min: 15,
-            labels: ["recycle", "cables"],
+            labels: ["リサイクル", "ケーブル"],
             checklist: [
-                "Collect all unused cables",
-                "Find nearest e-waste location",
-                "Schedule drop-off trip"
+                "使っていないケーブルを集める",
+                "最寄りの回収拠点を調べる",
+                "持ち込み日時を決める"
             ],
             links: ["https://www.toronto.ca/services-payments/recycling-organics-garbage/waste-wizard/"],
             url: nil,
@@ -58,16 +58,16 @@ struct FallbackPlanner {
     private static func createGiveTask() -> TidyTask {
         TidyTask(
             id: "GV01",
-            title: "Give away books and magazines",
-            area: "books",
+            title: "本・雑誌を譲渡/寄付する",
+            area: "書籍",
             exit_tag: .give,
             priority: 2,
             effort_min: 20,
-            labels: ["give", "books"],
+            labels: ["譲渡", "本"],
             checklist: [
-                "Sort books by condition",
-                "Post good ones in local groups",
-                "Remainder to Little Free Library"
+                "状態で仕分けする",
+                "良品は地域グループに投稿",
+                "残りはブックポスト等へ寄付"
             ],
             links: ["https://www.facebook.com/groups/"],
             url: nil,
@@ -82,4 +82,3 @@ private struct DateHelper {
         return ISO8601DateFormatter().string(from: futureDate)
     }
 }
-

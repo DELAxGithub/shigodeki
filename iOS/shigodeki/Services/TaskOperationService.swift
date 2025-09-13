@@ -23,6 +23,7 @@ struct TaskOperationService {
         assignedTo: String? = nil, 
         dueDate: Date? = nil, 
         priority: TaskPriority = .medium,
+        attachments: [String] = [],
         db: Firestore
     ) async throws -> String {
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -46,6 +47,7 @@ struct TaskOperationService {
             "assignedTo": task.assignedTo ?? "",
             "createdBy": task.createdBy,
             "priority": task.priority.rawValue,
+            "attachments": attachments,
             "createdAt": FieldValue.serverTimestamp(),
             "completedAt": NSNull(),
             "dueDate": task.dueDate != nil ? Timestamp(date: task.dueDate!) : NSNull()

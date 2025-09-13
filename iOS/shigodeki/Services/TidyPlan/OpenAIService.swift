@@ -18,8 +18,29 @@ final class OpenAIService {
     func generatePlan(from imageData: Data, locale: UserLocale, context: String? = nil) async throws -> Plan {
         let base64Image = imageData.base64EncodedString()
         let request = try buildRequest(base64Image: base64Image, locale: locale, context: context)
-        let data = try await performRequest(request)
-        return try parsePlanResponse(data)
+        var lastError: Error?
+        let maxAttempts = 3
+        for attempt in 1...maxAttempts {
+            do {
+                let data = try await performRequest(request)
+                return try parsePlanResponse(data)
+            } catch let TidyPlanError.networkError(code) {
+                // Handle rate limiting with simple exponential backoff
+                if code == 429 && attempt < maxAttempts {
+                    let delayMs = Int(pow(2.0, Double(attempt - 1))) * 1500 // 1500ms, 3000ms
+                    print("[OpenAIService] 429 rate limited. Retrying in \(delayMs)ms (attempt \(attempt)/\(maxAttempts))")
+                    try? await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
+                    continue
+                }
+                lastError = TidyPlanError.networkError(code)
+                break
+            } catch {
+                lastError = error
+                break
+            }
+        }
+        if let err = lastError { throw err }
+        throw TidyPlanError.planningFailed
     }
     
     private func buildRequest(base64Image: String, locale: UserLocale, context: String?) throws -> URLRequest {

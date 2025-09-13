@@ -134,7 +134,7 @@ struct TaskCreationSheet: View {
         isGeneratingFromPhoto = true
         Task {
             defer { isGeneratingFromPhoto = false }
-            let apiKey = try? KeychainManager.shared.retrieveAPIKey(for: .openAI)
+            let apiKey = KeychainManager.shared.getAPIKeyIfAvailable(for: .openAI)
             let allowNetwork = (apiKey?.isEmpty == false)
             let planner = TidyPlanner(apiKey: apiKey)
             let locale = UserLocale(
@@ -142,6 +142,9 @@ struct TaskCreationSheet: View {
                 city: (Locale.current.regionCode ?? "JP") == "JP" ? "Tokyo" : "Toronto"
             )
             let plan = await planner.generate(from: imageData, locale: locale, allowNetwork: allowNetwork)
+            if plan.project == "Fallback Moving Plan" {
+                await MainActor.run { genError = "OpenAI未使用: フォールバック結果（キー未設定・通信/JSONエラー）" }
+            }
             if let first = plan.tasks.first {
                 await MainActor.run {
                     newTaskTitle = first.title

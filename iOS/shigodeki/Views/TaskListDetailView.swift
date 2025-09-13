@@ -24,6 +24,8 @@ struct TaskListDetailView: View {
     @State private var showAttachmentPreview = false
     @State private var previewURL: URL? = nil
     @State private var previewImage: UIImage? = nil
+    @State private var showAddAttachment = false
+    @State private var selectedTaskForAttachment: ShigodekiTask?
     
     var body: some View {
         VStack {
@@ -65,22 +67,24 @@ struct TaskListDetailView: View {
                                         HStack(spacing: 6) {
                                             ForEach(Array(atts.prefix(3).enumerated()), id: \.offset) { _, att in
                                                 if att.hasPrefix("http") || att.hasPrefix("https") {
-                                                    if let url = URL(string: att) {
-                                                        AsyncImage(url: url) { phase in
-                                                            switch phase {
-                                                            case .empty: ProgressView().frame(width: 28, height: 28)
-                                                            case .success(let image): image.resizable().scaledToFill()
+                                                if let url = URL(string: att) {
+                                                    AsyncImage(url: url) { phase in
+                                                        switch phase {
+                                                        case .empty: ProgressView().frame(width: 28, height: 28)
+                                                        case .success(let image): image.resizable().scaledToFill()
                                                                 .frame(width: 28, height: 28).clipped().cornerRadius(4)
-                                                            case .failure: Image(systemName: "photo").frame(width: 28, height: 28)
-                                                            @unknown default: EmptyView()
-                                                            }
+                                                                .onTapGesture { previewURL = url; previewImage = nil; showAttachmentPreview = true }
+                                                        case .failure: Image(systemName: "photo").frame(width: 28, height: 28)
+                                                        @unknown default: EmptyView()
                                                         }
                                                     }
-                                                } else if let dataRange = att.range(of: ","), let data = Data(base64Encoded: String(att[dataRange.upperBound...])) {
-                                                    if let ui = UIImage(data: data) {
-                                                        Image(uiImage: ui).resizable().scaledToFill().frame(width: 28, height: 28).clipped().cornerRadius(4)
-                                                    }
                                                 }
+                                            } else if let dataRange = att.range(of: ","), let data = Data(base64Encoded: String(att[dataRange.upperBound...])) {
+                                                if let ui = UIImage(data: data) {
+                                                    Image(uiImage: ui).resizable().scaledToFill().frame(width: 28, height: 28).clipped().cornerRadius(4)
+                                                        .onTapGesture { previewImage = ui; previewURL = nil; showAttachmentPreview = true }
+                                                }
+                                            }
                                             }
                                         }
                                     }
@@ -106,6 +110,13 @@ struct TaskListDetailView: View {
                             } label: {
                                 Label("編集", systemImage: "pencil")
                             }
+                            Button {
+                                selectedTaskForAttachment = task
+                                showAddAttachment = true
+                            } label: {
+                                Label("画像添付", systemImage: "photo.on.rectangle")
+                            }
+                            .tint(.blue)
                         }
                     }
                 }
@@ -169,10 +180,28 @@ struct TaskListDetailView: View {
                 TaskEditorView(task: t, listId: listId, phaseId: phaseId, projectId: projectId, enhancedTaskManager: m)
             }
         }
+        .sheet(isPresented: $showAddAttachment) {
+            if let t = selectedTaskForAttachment {
+                CameraPicker(source: .photoLibrary) { image in
+                    Task { await addAttachment(image: image, to: t) }
+                }
+            }
+        }
     }
     
     private func toggleCompletion(_ task: ShigodekiTask) {
         Task { await viewModelHolder.vm?.toggleCompletion(task) }
+    }
+
+    private func addAttachment(image: UIImage, to task: ShigodekiTask) async {
+        guard let data = image.jpegData(compressionQuality: 0.7) else { return }
+        var updated = task
+        var atts = updated.attachments ?? []
+        atts.append("data:image/jpeg;base64,\(data.base64EncodedString())")
+        updated.attachments = atts
+        if let manager = viewModelHolder.vm?.getManager() {
+            do { _ = try await manager.updateTask(updated) } catch { print("添付更新失敗: \(error)") }
+        }
     }
     
     private func loadPhaseTasksFromFirestore(projectId: String, phaseId: String, taskListId: String) async throws -> [ShigodekiTask] {

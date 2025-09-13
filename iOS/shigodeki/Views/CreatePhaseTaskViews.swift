@@ -108,6 +108,8 @@ struct CreatePhaseTaskView: View {
     @State private var showLibrary = false
     @State private var isGeneratingFromPhoto = false
     @State private var genError: String?
+    @State private var keepAttachment: Bool = false
+    @State private var attachments: [String] = []
     
     var body: some View {
         NavigationView {
@@ -152,6 +154,14 @@ struct CreatePhaseTaskView: View {
                         }
 
                         // 内蔵のプランナーを使用します
+                        Toggle(isOn: $keepAttachment) {
+                            Text("添付として保持")
+                        }
+                        if keepAttachment {
+                            Text("現在の添付: \(attachments.count) 件")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 
@@ -224,7 +234,8 @@ struct CreatePhaseTaskView: View {
                     projectId: projectId,
                     phaseId: phaseId,
                     creatorUserId: userId,
-                    priority: selectedPriority
+                    priority: selectedPriority,
+                    attachments: keepAttachment ? attachments : []
                 )
                 
                 await MainActor.run {
@@ -243,14 +254,20 @@ struct CreatePhaseTaskView: View {
             genError = "画像の処理に失敗しました"
             return
         }
+        // 解析に回す
         generate(from: data)
+        // 添付として保持する場合は data URL を追加
+        if keepAttachment {
+            let dataURL = "data:image/jpeg;base64,\(data.base64EncodedString())"
+            attachments.append(dataURL)
+        }
     }
 
     private func generate(from imageData: Data) {
         isGeneratingFromPhoto = true
         Task {
             defer { isGeneratingFromPhoto = false }
-            let apiKey = try? KeychainManager.shared.retrieveAPIKey(for: .openAI)
+            let apiKey = KeychainManager.shared.getAPIKeyIfAvailable(for: .openAI)
             let allowNetwork = (apiKey?.isEmpty == false)
             let planner = TidyPlanner(apiKey: apiKey)
             let locale = UserLocale(
@@ -259,6 +276,9 @@ struct CreatePhaseTaskView: View {
             )
             let ctx = "プロジェクト: \(project.name)\nフェーズ: \(phase.name)"
             let plan = await planner.generate(from: imageData, locale: locale, allowNetwork: allowNetwork, context: ctx)
+            if plan.project == "Fallback Moving Plan" {
+                await MainActor.run { genError = "OpenAI未使用: フォールバック結果（キー未設定・通信/JSONエラー）" }
+            }
             if let first = plan.tasks.first {
                 await MainActor.run {
                     taskTitle = first.title

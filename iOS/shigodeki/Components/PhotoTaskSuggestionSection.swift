@@ -158,12 +158,15 @@ struct PhotoTaskSuggestionSection: View {
             defer { isGenerating = false }
 
             // Try to use OpenAI key if present; fall back to local
-            let apiKey = try? KeychainManager.shared.retrieveAPIKey(for: .openAI)
+            let apiKey = KeychainManager.shared.getAPIKeyIfAvailable(for: .openAI)
             let allowNetwork = (apiKey?.isEmpty == false)
             let planner = TidyPlanner(apiKey: apiKey)
 
             let locale = currentUserLocale()
             let plan = await planner.generate(from: imageData, locale: locale, allowNetwork: allowNetwork, context: contextHint)
+            if plan.project == "Fallback Moving Plan" {
+                await MainActor.run { errorMessage = "OpenAI未使用: フォールバック結果（キー未設定・通信/JSONエラー）" }
+            }
 
             // Map to lightweight suggestions for UI consumption
             let mapped: [Suggestion] = plan.tasks.map { t in

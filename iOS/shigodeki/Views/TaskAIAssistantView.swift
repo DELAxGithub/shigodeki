@@ -378,7 +378,7 @@ private struct PhotoTaskBulkGenerationView: View {
         errorMessage = nil
         Task {
             defer { isGenerating = false }
-            let apiKey = try? KeychainManager.shared.retrieveAPIKey(for: .openAI)
+            let apiKey = KeychainManager.shared.getAPIKeyIfAvailable(for: .openAI)
             let allowNetwork = (apiKey?.isEmpty == false)
             let planner = TidyPlanner(apiKey: apiKey)
             let locale = UserLocale(
@@ -388,6 +388,9 @@ private struct PhotoTaskBulkGenerationView: View {
             let existing = existingTasks.prefix(6).map { "・\($0.title)" }.joined(separator: "\n")
             let ctx = "タスクリスト: \(taskList.name)\n既存のタスク（抜粋）:\n\(existing)"
             let plan = await planner.generate(from: imageData, locale: locale, allowNetwork: allowNetwork, context: ctx)
+            if plan.project == "Fallback Moving Plan" {
+                await MainActor.run { errorMessage = "OpenAI未使用: フォールバック結果（キー未設定・通信/JSONエラー）" }
+            }
             let tasks: [ShigodekiTask] = plan.tasks.enumerated().map { idx, t in
                 let desc: String? = {
                     let checklist = (t.checklist ?? []).map { "• \($0)" }.joined(separator: "\n")

@@ -49,6 +49,11 @@ class PhaseTaskDetailViewModel: ObservableObject {
         didSet { evaluateChanges() }
     }
 
+    // 添付（画像 URL / dataURL）
+    @Published var attachments: [String] {
+        didSet { evaluateChanges() }
+    }
+
     // 締切（オプション）
     @Published var dueDate: Date? {
         didSet { evaluateChanges() }
@@ -70,6 +75,7 @@ class PhaseTaskDetailViewModel: ObservableObject {
     private let originalAssignedTo: String?
     private let originalTags: [String]
     private let originalDueDate: Date?
+    private let originalAttachments: [String]
     
     // MARK: - Dependencies
     
@@ -89,6 +95,7 @@ class PhaseTaskDetailViewModel: ObservableObject {
         self.originalAssignedTo = task.assignedTo
         self.originalTags = task.tags
         self.originalDueDate = task.dueDate
+        self.originalAttachments = task.attachments ?? []
         
         // Initialize current editable values
         self.isCompleted = task.isCompleted
@@ -98,6 +105,7 @@ class PhaseTaskDetailViewModel: ObservableObject {
         self.assignedTo = task.assignedTo
         self.tags = task.tags
         self.dueDate = task.dueDate
+        self.attachments = task.attachments ?? []
         
         // Store dependencies
         self.project = project
@@ -144,8 +152,9 @@ class PhaseTaskDetailViewModel: ObservableObject {
         let hasAssigneeChanged = assignedTo != originalAssignedTo
         let hasTagsChanged = tags != originalTags
         let hasDueDateChanged = dueDate != originalDueDate
-        
-        hasChanges = hasCompletionChanged || hasPriorityChanged || hasTitleChanged || hasDescriptionChanged || hasAssigneeChanged || hasTagsChanged || hasDueDateChanged
+        let hasAttachmentsChanged = attachments != originalAttachments
+
+        hasChanges = hasCompletionChanged || hasPriorityChanged || hasTitleChanged || hasDescriptionChanged || hasAssigneeChanged || hasTagsChanged || hasDueDateChanged || hasAttachmentsChanged
         shouldEnableSaveButton = hasChanges
     }
     
@@ -166,6 +175,7 @@ class PhaseTaskDetailViewModel: ObservableObject {
         updatedTask.assignedTo = assignedTo
         updatedTask.tags = tags
         updatedTask.dueDate = dueDate
+        updatedTask.attachments = attachments.isEmpty ? nil : attachments
         
         // Issue #63 Fix: Update completedAt timestamp when completion status changes
         if isCompleted != originalIsCompleted {
