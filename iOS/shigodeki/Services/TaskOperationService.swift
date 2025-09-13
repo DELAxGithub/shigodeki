@@ -218,4 +218,24 @@ struct TaskOperationService {
 
         return task
     }
+    
+    // MARK: - Attachments Update (Family tasks)
+    
+    static func updateTaskAttachments(
+        taskId: String,
+        taskListId: String,
+        familyId: String,
+        attachments: [String],
+        db: Firestore
+    ) async throws {
+        let taskRef = db.collection("families").document(familyId)
+            .collection("taskLists").document(taskListId)
+            .collection("tasks").document(taskId)
+        do {
+            try await taskRef.updateData(["attachments": attachments])
+        } catch {
+            print("Error updating attachments: \(error)")
+            throw TaskError.updateFailed(error.localizedDescription)
+        }
+    }
 }
