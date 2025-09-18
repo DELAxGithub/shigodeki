@@ -98,7 +98,7 @@ final class GeminiClient: UniversalAIClient, AIClient {
     
     // MARK: - Legacy AIClient Implementation (using UniversalAIClient)
     
-    func generateTaskSuggestions(for prompt: String) async throws -> AITaskSuggestion {
+    func generateTaskSuggestions(for prompt: String) async throws -> AITaskParseResult {
         // Use the new UniversalAIClient implementation
         let request = AIRequest(
             model: "gemini-pro",
@@ -108,8 +108,15 @@ final class GeminiClient: UniversalAIClient, AIClient {
             maxTokens: 2000
         )
         
-        let response = try await complete(request)
-        return try AITaskSuggestionParser.parse(from: response.text)
+        do {
+            let response = try await complete(request)
+            return try AITaskSuggestionParser.parse(from: response.text)
+        } catch let parserError as AITaskSuggestionParserError {
+            switch parserError {
+            case .invalidJSON, .missingTasks:
+                throw AIClientError.invalidJSON
+            }
+        }
     }
 }
 

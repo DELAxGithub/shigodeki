@@ -191,7 +191,7 @@ struct QuickAIResultsView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                 
-                ForEach(suggestions.tasks.prefix(5), id: \.title) { task in
+                ForEach(Array(suggestions.tasks.prefix(5))) { task in
                     HStack(spacing: 8) {
                         Circle()
                             .fill(priorityColor(task.priority))
@@ -203,17 +203,26 @@ struct QuickAIResultsView: View {
                                 .fontWeight(.medium)
                                 .lineLimit(2)
                             
-                            if !task.description.isEmpty {
-                                Text(task.description)
+                            if let rationale = preferredRationale(from: task) {
+                                Text(rationale)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                    .lineLimit(1)
+                                    .lineLimit(2)
+                            }
+
+                            if let dueLabel = formattedDue(task.due) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "calendar")
+                                    Text(dueLabel)
+                                }
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
                             }
                         }
                         
                         Spacer()
                         
-                        Text(task.priority.displayName)
+                        Text(priorityDisplayName(task.priority))
                             .font(.caption)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 2)
@@ -261,18 +270,19 @@ struct QuickAIResultsView: View {
                         taskList = selectedTaskList!
                     }
                     
-                    let tasks = suggestions.tasks.map { taskSuggestion in
+                    let baseOrder = selectedTaskList?.order ?? 0
+                    let tasks = suggestions.tasks.enumerated().map { offset, taskSuggestion in
                         ShigodekiTask(
                             title: taskSuggestion.title,
-                            description: taskSuggestion.description,
+                            description: preferredRationale(from: taskSuggestion),
                             assignedTo: nil,
                             createdBy: "ai-generated",
-                            dueDate: nil,
+                            dueDate: parseDueDate(taskSuggestion.due),
                             priority: mapAIPriority(taskSuggestion.priority),
                             listId: taskList.id ?? "",
-                            phaseId: "default-phase",
-                            projectId: "default-project",
-                            order: 0
+                            phaseId: taskList.phaseId,
+                            projectId: taskList.projectId,
+                            order: baseOrder + offset
                         )
                     }
                     
@@ -289,19 +299,69 @@ struct QuickAIResultsView: View {
         )
     }
     
-    private func priorityColor(_ priority: AITaskPriority) -> Color {
+    private func priorityColor(_ priority: AITaskPriority?) -> Color {
+        guard let priority else { return .gray }
         switch priority {
         case .low: return .green
-        case .medium: return .yellow
+        case .normal, .medium: return .yellow
         case .high, .urgent: return .red
         }
     }
     
-    private func mapAIPriority(_ aiPriority: AITaskPriority) -> TaskPriority {
+    private func mapAIPriority(_ aiPriority: AITaskPriority?) -> TaskPriority {
+        guard let aiPriority else { return .medium }
         switch aiPriority {
         case .low: return .low
-        case .medium: return .medium
+        case .normal, .medium: return .medium
         case .high, .urgent: return .high
         }
+    }
+
+    private func priorityDisplayName(_ priority: AITaskPriority?) -> String {
+        switch priority {
+        case .low: return "Low"
+        case .normal, .medium: return "Medium"
+        case .high, .urgent: return "High"
+        case .none: return "Normal"
+        }
+    }
+
+    private func preferredRationale(from suggestion: AITaskSuggestion.TaskSuggestion) -> String? {
+        if let rationale = suggestion.rationale, rationale.isEmpty == false {
+            return rationale
+        }
+        if let description = suggestion.description, description.isEmpty == false {
+            return description
+        }
+        if let subtasks = suggestion.subtasks, subtasks.isEmpty == false {
+            return subtasks.joined(separator: "\n")
+        }
+        return nil
+    }
+
+    private func formattedDue(_ raw: String?) -> String? {
+        guard let raw = raw, raw.isEmpty == false else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "yyyy-MM-dd"
+        if let date = formatter.date(from: raw) {
+            formatter.dateFormat = "yyyy年M月d日"
+            return formatter.string(from: date)
+        }
+        return raw
+    }
+
+    private func parseDueDate(_ raw: String?) -> Date? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withFullDate]
+        if let date = isoFormatter.date(from: raw) {
+            return date
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: raw)
     }
 }

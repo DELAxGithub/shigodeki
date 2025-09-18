@@ -128,6 +128,8 @@ struct TemplateStatisticsSection: View {
 struct PhasesPreviewSection: View {
     let template: ProjectTemplate
     @Binding var selectedPhaseIndex: Int
+    let teaserConfig: TemplateTeaserConfig?
+    let isLocked: Bool
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -154,7 +156,11 @@ struct PhasesPreviewSection: View {
                 
                 // 選択されたフェーズの詳細
                 if selectedPhaseIndex < template.phases.count {
-                    PhaseDetailView(phase: template.phases[selectedPhaseIndex])
+                    PhaseDetailView(
+                        phase: template.phases[selectedPhaseIndex],
+                        teaserConfig: teaserConfig,
+                        isLocked: isLocked
+                    )
                 }
             } else {
                 Text("このテンプレートにはフェーズが定義されていません")

@@ -53,6 +53,7 @@ struct CategoryCard: View {
 
 struct TemplateCard: View {
     let template: ProjectTemplate
+    let monetizationBadge: MonetizationBadge?
     let onTap: () -> Void
     let onPreview: () -> Void
     let onSelect: () -> Void
@@ -61,14 +62,19 @@ struct TemplateCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack {
+                    HStack(spacing: 8) {
                         Text(template.name)
                             .font(.headline)
                             .fontWeight(.semibold)
                             .lineLimit(2)
-                        
+
                         Spacer()
-                        
+
+                        if FeatureFlags.templateIAPEnabled,
+                           let badge = monetizationBadge {
+                            TemplatePriceBadge(badge: badge)
+                        }
+
                         DifficultyBadge(difficulty: template.metadata.difficulty)
                     }
                     
@@ -198,6 +204,23 @@ struct DifficultyBadge: View {
             Capsule()
                 .fill(Color(.systemGray6))
         )
+    }
+}
+
+struct TemplatePriceBadge: View {
+    let badge: MonetizationBadge
+
+    var body: some View {
+        Label(badge.displayText, systemImage: badge.systemImageName)
+            .font(.caption2)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(Color(.systemOrange).opacity(0.15))
+            )
+            .foregroundColor(.orange)
+            .accessibilityLabel(Text(badge.displayText))
     }
 }
 

@@ -80,12 +80,21 @@ public final class OpenAIService {
     
     private func parsePlanResponse(_ data: Data) throws -> Plan {
         let openAIResponse = try JSONDecoder().decode(OpenAIResponse.self, from: data)
-        guard let content = openAIResponse.choices.first?.message.content else {
+        guard let message = openAIResponse.choices.first?.message else {
             throw TidyPlanError.invalidJSON
         }
-        let planData = content.data(using: .utf8)!
-        let plan = try JSONDecoder().decode(Plan.self, from: planData)
-        return plan.validated()
+
+        if let jsonPlan = message.content.first(where: { $0.type == "output_json" && $0.json != nil })?.json {
+            return jsonPlan.validated()
+        }
+
+        if let text = message.content.first(where: { $0.text?.isEmpty == false })?.text,
+           let planData = text.data(using: .utf8) {
+            let plan = try JSONDecoder().decode(Plan.self, from: planData)
+            return plan.validated()
+        }
+
+        throw TidyPlanError.invalidJSON
     }
     
     private func createPrompt(for locale: UserLocale) -> String {
@@ -107,9 +116,26 @@ public final class OpenAIService {
 
 // MARK: - OpenAI Response Models
 
-private struct OpenAIResponse: Codable {
+private struct OpenAIResponse: Decodable {
     let choices: [Choice]
-    struct Choice: Codable { let message: Message }
-    struct Message: Codable { let content: String }
-}
 
+    struct Choice: Decodable {
+        let message: Message
+    }
+
+    struct Message: Decodable {
+        let content: [Content]
+
+        struct Content: Decodable {
+            let type: String
+            let text: String?
+            let json: Plan?
+
+            enum CodingKeys: String, CodingKey {
+                case type
+                case text
+                case json
+            }
+        }
+    }
+}

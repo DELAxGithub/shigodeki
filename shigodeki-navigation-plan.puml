@@ -1,0 +1,101 @@
+@startuml
+title Shigodeki ナビゲーション層プラン
+
+skinparam shadowing false
+skinparam state {
+  FontSize 13
+}
+
+state "MainTabView" as MainTabs {
+  state "Family Layer (Simple)" as FamilyLayer {
+    state FamilyHub {
+      [*] --> FamilyList
+      FamilyList : `FamilyView`
+      FamilyList : チーム一覧 / 作成 / 参加
+
+      FamilyList --> FamilyDetail : チームを選択
+      FamilyDetail : `FamilyDetailView`
+      FamilyDetail : メンバー / 家族プロジェクト概要
+
+      FamilyDetail --> FamilyProjects : プロジェクトカード
+      FamilyProjects : `FamilyProjectOperations`
+      FamilyProjects --> ProjectLayerEntry : 「プロジェクト詳細へ」
+    }
+  }
+
+  state "Project Layer (Deep)" as ProjectLayer {
+    state ProjectLayerEntry {
+      [*] --> ProjectLanding
+      ProjectLanding : `ProjectListView`
+      ProjectLanding : 自分/家族/共有プロジェクトフィルタ
+
+      ProjectLanding --> ProjectDetail : プロジェクト選択
+      ProjectDetail : `ProjectDetailView`
+      ProjectDetail : フェーズ概要 + KPI
+
+      ProjectDetail --> TaskList : タスクリストを開く
+      TaskList : `TaskListDetailView`
+      TaskList : リアルタイムタスク / 添付
+
+      TaskList --> TaskCompose : タスク追加
+      TaskCompose : `CreatePhaseTaskView`
+      TaskCompose --> AIInline : AI アシスト
+      AIInline : `TaskAIAssistantView`
+      TaskCompose --> PhotoInline : 写真提案
+      PhotoInline : `PhotoTaskSuggestionSection`
+      TaskCompose --> TemplatesInline : テンプレ
+      TemplatesInline : `TemplateLibraryComponents`
+
+      AIInline --> TaskCompose : サジェスト反映
+      PhotoInline --> TaskCompose
+      TemplatesInline --> TaskCompose
+
+      TaskCompose --> TaskList : 保存
+      TaskList --> ProjectDetail : パンくずで戻る
+      ProjectDetail --> ProjectLanding : ナビゲーション戻り
+    }
+  }
+}
+
+note top of FamilyHub
+  目的: 家族単位の活動をざっくり把握。
+  詳細編集はプロジェクト層に委譲する。
+end note
+
+note right of ProjectLayerEntry
+  深い編集・AI・テンプレは
+  すべてプロジェクト層で提供。
+  家族層とは NavigationLink で接続。
+end note
+
+note bottom of FamilyProjects
+  現状カードは `ProjectRowView`
+  (タイトル/説明/メンバー数/作成日のみ)。
+  進捗バー・未完了数や次のタスク表示は未実装。
+end note
+
+note left of TaskCompose
+  `CreatePhaseTaskView` では
+  AI/写真/テンプレを別ボタンで起動。
+  単一モーダルでの分岐選択は無し。
+end note
+
+note right of TaskList
+  Familyから遷移した場合は
+  NavigationStackの戻るボタンで復帰。
+  固定タブや「Back to Family」ボタンは未配置。
+end note
+
+note right of PhotoInline
+  `PhotoTaskSuggestionSection` は
+  最初の候補をそのままフォームへ反映。
+  プレビュー承認ステップは無し。
+end note
+
+note right of AIInline
+  `TaskAIAssistantView` では
+  サジェスト一覧を表示→受け入れで作成。
+  事前プレビューは存在。
+end note
+
+@enduml

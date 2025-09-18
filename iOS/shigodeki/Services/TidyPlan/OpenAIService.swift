@@ -23,7 +23,7 @@ final class OpenAIService {
         for attempt in 1...maxAttempts {
             do {
                 let data = try await performRequest(request)
-                return try parsePlanResponse(data)
+                return try parsePlanResponse(data, locale: locale)
             } catch let TidyPlanError.networkError(code) {
                 // Handle rate limiting with simple exponential backoff
                 if code == 429 && attempt < maxAttempts {
@@ -99,28 +99,67 @@ final class OpenAIService {
         return data
     }
     
-    private func parsePlanResponse(_ data: Data) throws -> Plan {
-        let openAIResponse = try JSONDecoder().decode(TidyPlanOpenAIResponse.self, from: data)
-        guard let content = openAIResponse.choices.first?.message.content else {
+    private func parsePlanResponse(_ data: Data, locale: UserLocale) throws -> Plan {
+        let openAIResponse = try JSONDecoder().decode(OpenAIPlanResponse.self, from: data)
+        guard let message = openAIResponse.choices.first?.message else {
             throw TidyPlanError.invalidJSON
         }
-        let planData = content.data(using: .utf8)!
-        let plan = try JSONDecoder().decode(Plan.self, from: planData)
-        return plan.validated()
+
+        if let jsonPlan = message.content.first(where: { $0.type == "output_json" && $0.outputJSON != nil })?.outputJSON {
+            return jsonPlan.validated()
+        }
+
+        if let text = message.content.first(where: { $0.text?.isEmpty == false })?.text {
+            do {
+                return try PlanNormalization.normalizePlan(from: text, defaultLocale: locale)
+            } catch {
+                throw TidyPlanError.invalidJSON
+            }
+        }
+
+        throw TidyPlanError.invalidJSON
     }
-    
+
     private func createPrompt(for locale: UserLocale, context: String?) -> String {
         let ctx = (context?.isEmpty == false) ? "\n【コンテクスト】\n\(context!)\n" : ""
         return """
-        あなたは片付け・引越し前整理の日本語アシスタントです。写真とコンテクストを解析し、処分・譲渡・保管などの具体的タスクを日本語で提案してください。\n\n【出力要件】\n- JSONのみを返す（テキストや説明は不要）\n- スキーマに従う（tasks配列の各要素に必ず id, title, exit_tag）\n- title は実行可能で短い日本語命令文\n- checklist は手順を箇条書き（各1行）\n- priority は 1〜4（4=緊急）\n- effort_min は 5〜120 の目安\n- \(locale.city), \(locale.country) に関連するリンクがあれば links に含める\n\n【タスクの観点】\n- 何を捨てる/売る/譲る/保管するかを明確に\n- 5〜25分程度で進められる粒度に分割\n\(ctx)\n写真を解析して、スキーマ準拠のJSONのみを出力してください。
+        あなたは提供された写真とコンテクストをもとに、プロジェクトやフェーズの目的に沿った実行可能なタスクを日本語で提案するアシスタントです。写真の内容を観察しつつ、プロジェクト情報・フェーズ情報・既存タスクを最優先に考慮してください。片付けが目的でない場合は、学習や作業などコンテクストに合わせたタスクを生成します。\n\nYou MUST output a single JSON object matching this exact schema. No explanations, no code fences, no additional text.\n\n{
+          "project": { "title": string, "locale": { "lang": string, "region": string } },
+          "tasks": [
+            {
+              "title": string,
+              "due": string|null,
+              "priority": "low"|"normal"|"high"|null,
+              "rationale": string|null
+            }
+          ]
+        }\n\n制約:\n- project は必須。写真およびコンテクストに合う title を設定。\n- locale.lang と locale.region が無い場合は ja / JP を推奨。\n- tasks は 1〜8 件。title が空のものは禁止。\n- due は "YYYY-MM-DD" 形式または null。\n- priority は low / normal / high のいずれか、判断できなければ null。\n- rationale は背景や根拠を 200 文字以内で記述。\n- JSON 以外は絶対に出力しない。\n- 200 件を超えるタスクは生成しない。\n\n【タスク生成ガイド】\n- プロジェクト・フェーズ・タスクリストの目的と既存タスクを最優先。\n- 5〜25分程度で完了できる粒度に分割。\n- 写真から得られるヒントは補助に用い、文脈と矛盾しないように調整。\n\(ctx)\n写真とコンテクストを解析し、このスキーマに完全準拠した JSON のみを返してください。
         """
     }
 }
 
 // MARK: - OpenAI Response Models
 
-private struct TidyPlanOpenAIResponse: Codable {
+private struct OpenAIPlanResponse: Decodable {
     let choices: [Choice]
-    struct Choice: Codable { let message: Message }
-    struct Message: Codable { let content: String }
+
+    struct Choice: Decodable {
+        let message: Message
+    }
+
+    struct Message: Decodable {
+        let content: [Content]
+
+        struct Content: Decodable {
+            let type: String
+            let text: String?
+            let outputJSON: Plan?
+
+            enum CodingKeys: String, CodingKey {
+                case type
+                case text
+                case outputJSON = "output_json"
+            }
+        }
+    }
 }

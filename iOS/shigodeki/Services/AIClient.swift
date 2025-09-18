@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Legacy AIClient (preserved for compatibility)
 
 protocol AIClient {
-    func generateTaskSuggestions(for prompt: String) async throws -> AITaskSuggestion
+    func generateTaskSuggestions(for prompt: String) async throws -> AITaskParseResult
 }
 
 // MARK: - Universal AI Client (new stable boundary)
@@ -79,7 +79,7 @@ final class CompatAIClient: AIClient {
         self.universalClient = universalClient
     }
     
-    func generateTaskSuggestions(for prompt: String) async throws -> AITaskSuggestion {
+    func generateTaskSuggestions(for prompt: String) async throws -> AITaskParseResult {
         // Create request with task-specific system prompt
         let request = AIRequest(
             system: AIPromptTemplate.systemPrompt,
@@ -91,10 +91,17 @@ final class CompatAIClient: AIClient {
         
         do {
             let response = try await universalClient.complete(request)
-            
+
             // Parse the JSON response into AITaskSuggestion
             return try AITaskSuggestionParser.parse(from: response.text)
-            
+
+        } catch let parserError as AITaskSuggestionParserError {
+            switch parserError {
+            case .invalidJSON:
+                throw AIClientError.invalidJSON
+            case .missingTasks:
+                throw AIClientError.invalidJSON
+            }
         } catch let error as AIClientError {
             throw error
         } catch {
@@ -159,39 +166,70 @@ extension UniversalAIClient {
 }
 
 struct AITaskSuggestion {
+    let projectTitle: String?
+    let localeLang: String?
+    let localeRegion: String?
     let tasks: [TaskSuggestion]
     let phases: [PhaseSuggestion]?
-    
-    struct TaskSuggestion {
+
+    struct TaskSuggestion: Identifiable, Equatable {
+        let id = UUID()
         let title: String
-        let description: String
-        let estimatedDuration: String
-        let priority: AITaskPriority
+        let description: String?
+        let estimatedDuration: String?
+        let priority: AITaskPriority?
         let tags: [String]
         let subtasks: [String]?
+        let due: String?
+        let rationale: String?
     }
-    
+
     struct PhaseSuggestion {
         let name: String
-        let description: String
+        let description: String?
         let tasks: [TaskSuggestion]
     }
 }
 
 enum AITaskPriority: String, CaseIterable {
     case low = "low"
+    case normal = "normal"
     case medium = "medium"
     case high = "high"
     case urgent = "urgent"
-    
+
     var displayName: String {
         switch self {
         case .low: return "Low"
-        case .medium: return "Medium"
+        case .normal, .medium: return "Medium"
         case .high: return "High"
         case .urgent: return "Urgent"
         }
     }
+
+    static func from(_ raw: String?) -> AITaskPriority? {
+        guard let raw else { return nil }
+        let normalized = raw.lowercased()
+        switch normalized {
+        case "low": return .low
+        case "normal": return .normal
+        case "medium": return .medium
+        case "high": return .high
+        case "urgent": return .urgent
+        default: return nil
+        }
+    }
+}
+
+enum AITaskParseStatus: String {
+    case ok = "ok"
+    case missingProject = "missing_project"
+    case legacy = "legacy_format"
+}
+
+struct AITaskParseResult {
+    let suggestion: AITaskSuggestion
+    let status: AITaskParseStatus
 }
 
 enum AIClientError: Error, LocalizedError, Equatable {

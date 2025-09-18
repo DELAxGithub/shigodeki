@@ -22,6 +22,7 @@ struct TaskCreationSheet: View {
     @State private var showLibrary = false
     @State private var isGeneratingFromPhoto = false
     @State private var genError: String?
+    @EnvironmentObject private var toastCenter: ToastCenter
     
     var body: some View {
         NavigationView {
@@ -134,16 +135,28 @@ struct TaskCreationSheet: View {
         isGeneratingFromPhoto = true
         Task {
             defer { isGeneratingFromPhoto = false }
-            let apiKey = KeychainManager.shared.getAPIKeyIfAvailable(for: .openAI)
-            let allowNetwork = (apiKey?.isEmpty == false)
-            let planner = TidyPlanner(apiKey: apiKey)
+            let hasProvider = KeychainManager.APIProvider.allCases.contains { provider in
+                KeychainManager.shared.getAPIKeyIfAvailable(for: provider)?.isEmpty == false
+            }
+            let allowNetwork = hasProvider
+            let planner = VisionPlanCoordinator()
+            let regionCode = Locale.current.region?.identifier ?? "JP"
             let locale = UserLocale(
-                country: Locale.current.regionCode ?? "JP",
-                city: (Locale.current.regionCode ?? "JP") == "JP" ? "Tokyo" : "Toronto"
+                country: regionCode,
+                city: regionCode == "JP" ? "Tokyo" : "Toronto"
             )
-            let plan = await planner.generate(from: imageData, locale: locale, allowNetwork: allowNetwork)
+            let context = VisionPlanContextBuilder.build(
+                project: nil,
+                phase: nil,
+                taskList: nil,
+                additionalNotes: ["コンテクスト未設定: セクション追加用の写真解析"]
+            )
+            let plan = await planner.generatePlan(from: imageData, locale: locale, allowNetwork: allowNetwork, context: context)
             if plan.project == "Fallback Moving Plan" {
-                await MainActor.run { genError = "OpenAI未使用: フォールバック結果（キー未設定・通信/JSONエラー）" }
+                await MainActor.run {
+                    genError = nil
+                    toastCenter.show("AIが混雑中のため、テンプレート候補を表示しました")
+                }
             }
             if let first = plan.tasks.first {
                 await MainActor.run {

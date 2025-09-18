@@ -284,7 +284,10 @@ struct TaskEditorView: View {
         Task { @MainActor in
             await aiGenerator.generateTaskSuggestions(for: base, projectType: nil)
             if let suggestions = aiGenerator.generatedSuggestions {
-                for s in suggestions.tasks { newSubtaskTitle = s.title; addSubtask() }
+                for suggestion in suggestions.tasks {
+                    newSubtaskTitle = suggestion.title
+                    addSubtask()
+                }
             }
         }
     }
@@ -294,7 +297,9 @@ struct TaskEditorView: View {
             await aiGenerator.generateTaskSuggestions(for: base, projectType: nil)
             if let suggestions = aiGenerator.generatedSuggestions, let first = suggestions.tasks.first {
                 var desc = task.description ?? ""
-                desc += "\n\nAI提案:\n" + first.description
+                let addition = first.rationale ?? first.description ?? first.subtasks?.joined(separator: "\n") ?? ""
+                guard addition.isEmpty == false else { return }
+                desc += "\n\nAI提案:\n" + addition
                 task.description = desc
             }
         }

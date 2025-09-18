@@ -1,0 +1,55 @@
+@startuml
+title Shigodeki iOS アーキテクチャ概要
+
+actor User
+
+package "iOSアプリ" {
+  [SwiftUI Views] as Views
+  [ViewModels] as ViewModels
+  [Services層] as Services
+  [Managers / Utilities] as Managers
+  [Core Data Persistence] as Persistence
+}
+
+package "クラウド" {
+  [Firebase Auth] as Auth
+  [Firestore DB] as Firestore
+  [Firebase Storage] as Storage
+}
+
+package "AI / プランナー" {
+  [TidyPlanner] as Planner
+  [OpenAI API] as OpenAI
+  [Fallback Planner] as Fallback
+}
+
+node "端末" {
+  [Apple Keychain] as Keychain
+}
+
+User --> Views : タスク/家族機能を操作
+Views --> ViewModels : 状態バインディング
+ViewModels --> Services : データ取得/更新リクエスト
+
+Services --> Firestore : 家族・プロジェクト・タスクCRUD
+Services --> Auth : 認証・ユーザー情報
+Services --> Storage : 添付ファイルアップロード
+Services --> Persistence : ローカルキャッシュ
+Services --> Managers : 設定/リスナー管理/Keychainアクセス
+Managers --> Keychain : APIキー / 資格情報
+
+Services --> Planner : 写真からタスク提案
+Planner --> OpenAI : 画像+コンテキスト解析
+Planner --> Fallback : ネット不可/エラー時の固定プラン
+
+note right of Services
+  Firestoreは addSnapshotListener で
+  リアルタイム同期を維持
+end note
+
+note bottom of Planner
+  APIキーが無い・JSON失敗時は
+  Fallback Plannerが実行される
+end note
+
+@enduml

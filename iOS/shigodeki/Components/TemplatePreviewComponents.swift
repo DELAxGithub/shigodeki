@@ -55,6 +55,22 @@ struct PhaseNavigationButton: View {
 
 struct PhaseDetailView: View {
     let phase: PhaseTemplate
+    let teaserConfig: TemplateTeaserConfig?
+    let isLocked: Bool
+
+    private var displayedTaskLists: [TaskListTemplate] {
+        if let config = teaserConfig {
+            return Array(phase.taskLists.prefix(config.maxTaskLists))
+        }
+        return Array(phase.taskLists.prefix(3))
+    }
+
+    private var hasHiddenTaskLists: Bool {
+        if let config = teaserConfig {
+            return phase.taskLists.count > config.maxTaskLists
+        }
+        return phase.taskLists.count > 3
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -78,13 +94,20 @@ struct PhaseDetailView: View {
                     Text("タスクリスト (\(phase.taskLists.count))")
                         .font(.subheadline)
                         .fontWeight(.medium)
-                    
-                    ForEach(phase.taskLists.prefix(3), id: \.id) { taskList in
-                        TaskListPreview(taskList: taskList)
+
+                    ForEach(displayedTaskLists, id: \.id) { taskList in
+                        TaskListPreview(
+                            taskList: taskList,
+                            teaserConfig: teaserConfig,
+                            isLocked: isLocked
+                        )
                     }
-                    
-                    if phase.taskLists.count > 3 {
-                        Text("他に\(phase.taskLists.count - 3)個のタスクリスト...")
+
+                    if isLocked && hasHiddenTaskLists {
+                        LockedContentNotice()
+                            .padding(.leading, 8)
+                    } else if !isLocked && hasHiddenTaskLists {
+                        Text("他に\(phase.taskLists.count - displayedTaskLists.count)個のタスクリスト...")
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .padding(.leading, 8)
@@ -102,7 +125,23 @@ struct PhaseDetailView: View {
 
 struct TaskListPreview: View {
     let taskList: TaskListTemplate
+    let teaserConfig: TemplateTeaserConfig?
+    let isLocked: Bool
     @State private var isExpanded = false
+
+    private var displayedTasks: [TaskTemplate] {
+        if let config = teaserConfig {
+            return Array(taskList.tasks.prefix(config.maxTasksPerList))
+        }
+        return Array(taskList.tasks.prefix(5))
+    }
+
+    private var hasHiddenTasks: Bool {
+        if let config = teaserConfig {
+            return taskList.tasks.count > config.maxTasksPerList
+        }
+        return taskList.tasks.count > 5
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -141,12 +180,12 @@ struct TaskListPreview: View {
             }
             .buttonStyle(PlainButtonStyle())
             
-            if isExpanded && !taskList.tasks.isEmpty {
+            if isExpanded && !displayedTasks.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(taskList.tasks.prefix(5), id: \.id) { task in
+                    ForEach(displayedTasks, id: \.id) { task in
                         HStack(spacing: 8) {
                             PriorityIndicator(priority: task.priority)
-                            
+
                             Text(task.title)
                                 .font(.caption)
                                 .foregroundColor(.primary)
@@ -168,8 +207,11 @@ struct TaskListPreview: View {
                         .padding(.leading, 20)
                     }
                     
-                    if taskList.tasks.count > 5 {
-                        Text("他に\(taskList.tasks.count - 5)個のタスク...")
+                    if isLocked && hasHiddenTasks {
+                        LockedContentNotice()
+                            .padding(.leading, 20)
+                    } else if !isLocked && taskList.tasks.count > displayedTasks.count {
+                        Text("他に\(taskList.tasks.count - displayedTasks.count)個のタスク...")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                             .padding(.leading, 20)
@@ -219,6 +261,25 @@ struct StatCard: View {
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.systemGray6))
+        )
+    }
+}
+
+struct LockedContentNotice: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lock.fill")
+                .foregroundColor(.orange)
+            
+            Text(NSLocalizedString("template.preview.locked_notice", tableName: nil, bundle: .main, value: "残りのコンテンツはPROでロック解除できます", comment: "Indicates additional content is locked"))
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(.systemGray5))
         )
     }
 }

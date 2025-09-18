@@ -11,12 +11,12 @@ struct AITaskConverter {
         if let phases = suggestions.phases {
             for (phaseIndex, phase) in phases.enumerated() {
                 for (taskIndex, taskSuggestion) in phase.tasks.enumerated() {
-                    let task = createTask(
-                        from: taskSuggestion,
-                        project: project,
-                        phaseIndex: phaseIndex,
-                        taskIndex: taskIndex,
-                        phaseName: phase.name
+                let task = createTask(
+                    from: taskSuggestion,
+                    project: project,
+                    phaseIndex: phaseIndex,
+                    taskIndex: taskIndex,
+                    phaseName: phase.name
                     )
                     tasks.append(task)
                 }
@@ -50,10 +50,10 @@ struct AITaskConverter {
         // For now, use placeholder values since we'd need proper IDs
         let task = ShigodekiTask(
             title: suggestion.title,
-            description: suggestion.description,
+            description: preferredRationale(from: suggestion),
             assignedTo: nil,
             createdBy: project.ownerId,
-            dueDate: nil,
+            dueDate: parseDueDate(suggestion.due),
             priority: mapPriority(suggestion.priority),
             listId: "temp-list-id", // Would need proper list creation
             phaseId: "temp-phase-id", // Would need proper phase creation
@@ -70,15 +70,14 @@ struct AITaskConverter {
         return task
     }
     
-    private static func mapPriority(_ aiPriority: AITaskPriority) -> TaskPriority {
+    private static func mapPriority(_ aiPriority: AITaskPriority?) -> TaskPriority {
+        guard let aiPriority else { return .medium }
         switch aiPriority {
         case .low:
             return .low
-        case .medium:
+        case .normal, .medium:
             return .medium
-        case .high:
-            return .high
-        case .urgent:
+        case .high, .urgent:
             return .high // Map urgent to high as our app only has 3 levels
         }
     }
@@ -105,5 +104,34 @@ struct AITaskConverter {
         }
         
         return nil
+    }
+}
+
+private extension AITaskConverter {
+    static func preferredRationale(from suggestion: AITaskSuggestion.TaskSuggestion) -> String? {
+        if let rationale = suggestion.rationale, rationale.isEmpty == false {
+            return rationale
+        }
+        if let description = suggestion.description, description.isEmpty == false {
+            return description
+        }
+        if let subtasks = suggestion.subtasks, subtasks.isEmpty == false {
+            return subtasks.joined(separator: "\n")
+        }
+        return nil
+    }
+
+    static func parseDueDate(_ raw: String?) -> Date? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withFullDate]
+        if let date = isoFormatter.date(from: raw) {
+            return date
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: raw)
     }
 }

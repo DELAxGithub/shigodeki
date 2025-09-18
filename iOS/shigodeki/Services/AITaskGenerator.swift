@@ -9,6 +9,7 @@ final class AITaskGenerator: ObservableObject {
     @Published var availableProviders: [KeychainManager.APIProvider] = []
     @Published var selectedProvider: KeychainManager.APIProvider = .openAI
     @Published var progressMessage = ""
+    @Published var lastParseStatus: AITaskParseStatus = .ok
     
     private var currentClient: AIClient?
     private var universalClient: UniversalAIClient?
@@ -28,11 +29,12 @@ final class AITaskGenerator: ObservableObject {
             error = .apiKeyNotConfigured
             return
         }
-        
+
         isGenerating = true
         error = nil
         progressMessage = "Generating intelligent task suggestions..."
-        
+        lastParseStatus = .ok
+
         do {
             let enhancedPrompt = AITaskPromptBuilder.buildEnhancedPrompt(userPrompt: prompt, projectType: projectType)
             
@@ -45,8 +47,12 @@ final class AITaskGenerator: ObservableObject {
             // レスポンシブなUIのため、遅延なしで即座に結果を表示
             
             generatedSuggestions = suggestions
-            progressMessage = "Task suggestions generated successfully!"
-            
+            if lastParseStatus == .missingProject {
+                progressMessage = "コンテクスト不足があったため、既定のプロジェクト名を使用しました"
+            } else {
+                progressMessage = "Task suggestions generated successfully!"
+            }
+
         } catch let aiError as AIClientError {
             // Set final error message with next available info if all providers failed
             if let nextAvailable = ProviderThrottleCenter.shared.getNextAvailableMessage() {
@@ -171,19 +177,50 @@ final class AITaskGenerator: ObservableObject {
         // Start with selected provider if not in cooldown, otherwise use first available
         var currentProvider = availableProviders.contains(selectedProvider) ? selectedProvider : availableProviders.first!
         var hasTriedFailover = false
+        var lastError: AIClientError?
+        var lastProvider: KeychainManager.APIProvider = currentProvider
         
         for attempt in 0...2 { // 3 attempts with backoff
             do {
                 let client = AIClientRouter.getClient(for: currentProvider)
                 
                 progressMessage = "Connecting to \(currentProvider.displayName)..."
-                let suggestions = try await client.generateTaskSuggestions(for: prompt)
-                
-                return suggestions
+                Telemetry.fire(
+                    .onAIGenerationAttempt,
+                    TelemetryPayload(aiProvider: currentProvider.rawValue, jsonMode: true)
+                )
+
+                let result = try await client.generateTaskSuggestions(for: prompt)
+                let normalizedStatus: AITaskParseStatus = (result.status == .legacy) ? .ok : result.status
+                lastParseStatus = normalizedStatus
+
+                Telemetry.fire(
+                    .onAIGenerationParsed,
+                    TelemetryPayload(
+                        aiProvider: currentProvider.rawValue,
+                        aiParse: normalizedStatus.rawValue,
+                        fellBack: hasTriedFailover
+                    )
+                )
+
+                return result.suggestion
                 
             } catch let aiError as AIClientError {
                 // Check if this is a retryable error that should trigger cooldown
                 let shouldCooldown = aiError == .rateLimitExceeded || aiError == .quotaExceeded || aiError == .serviceUnavailable
+                lastError = aiError
+                lastProvider = currentProvider
+
+                let parseLabel = (aiError == .invalidJSON) ? "invalid_json" : "error"
+                Telemetry.fire(
+                    .onAIGenerationParsed,
+                    TelemetryPayload(
+                        aiProvider: currentProvider.rawValue,
+                        aiParse: parseLabel,
+                        fellBack: hasTriedFailover,
+                        reason: telemetryReason(for: aiError)
+                    )
+                )
                 
                 if shouldCooldown {
                     // Mark this provider for cooldown
@@ -214,8 +251,18 @@ final class AITaskGenerator: ObservableObject {
                 throw aiError
             }
         }
-        
-        throw AIClientError.rateLimitExceeded
+
+        Telemetry.fire(
+            .onAIGenerationFallback,
+            TelemetryPayload(
+                aiProvider: lastProvider.rawValue,
+                aiParse: nil,
+                fellBack: true,
+                reason: telemetryReason(for: lastError ?? .serviceUnavailable)
+            )
+        )
+
+        throw lastError ?? AIClientError.rateLimitExceeded
     }
     
     /// Generate text with automatic provider failover
@@ -294,6 +341,25 @@ final class AITaskGenerator: ObservableObject {
         error = rateLimitError
         progressMessage = ""
         throw rateLimitError
+    }
+
+    private func telemetryReason(for error: AIClientError) -> String {
+        switch error {
+        case .apiKeyNotConfigured:
+            return "api_key_missing"
+        case .rateLimitExceeded:
+            return "rate_limited"
+        case .quotaExceeded:
+            return "quota_exceeded"
+        case .serviceUnavailable:
+            return "service_unavailable"
+        case .invalidJSON:
+            return "invalid_json"
+        case .invalidResponse:
+            return "invalid_response"
+        case .networkError:
+            return "network_error"
+        }
     }
 }
 

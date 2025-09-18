@@ -13,14 +13,23 @@ struct CreateProjectSheets: ViewModifier {
     @Binding var projectName: String
     @Binding var selectedCreationMethod: CreateProjectView.CreationMethod
     @ObservedObject var aiGenerator: AITaskGenerator
+    @Environment(\.entitlementStore) private var entitlementStore
     
     func body(content: Content) -> some View {
         content
             .sheet(isPresented: $showTemplateLibrary) {
+                let resolver: TemplateEntitlementResolving = {
+                    if FeatureFlags.purchasesEnabled, let store = entitlementStore {
+                        return EntitlementResolverLive(entitlementStore: store)
+                    }
+                    return DefaultTemplateEntitlementResolver()
+                }()
                 TemplateLibraryView(
                     isPresented: $showTemplateLibrary,
-                    selectedTemplate: $selectedTemplate
+                    selectedTemplate: $selectedTemplate,
+                    entitlementResolver: resolver
                 )
+                .environment(\.entitlementStore, entitlementStore)
                 .onDisappear {
                     if selectedTemplate != nil {
                         selectedCreationMethod = .template

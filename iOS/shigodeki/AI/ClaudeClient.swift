@@ -80,7 +80,7 @@ final class ClaudeClient: UniversalAIClient, AIClient {
     
     // MARK: - Legacy AIClient Implementation (using UniversalAIClient)
     
-    func generateTaskSuggestions(for prompt: String) async throws -> AITaskSuggestion {
+    func generateTaskSuggestions(for prompt: String) async throws -> AITaskParseResult {
         // Use the new UniversalAIClient implementation
         let request = AIRequest(
             model: "claude-3-haiku-20240307",
@@ -90,8 +90,15 @@ final class ClaudeClient: UniversalAIClient, AIClient {
             maxTokens: 2000
         )
         
-        let response = try await complete(request)
-        return try AITaskSuggestionParser.parse(from: response.text)
+        do {
+            let response = try await complete(request)
+            return try AITaskSuggestionParser.parse(from: response.text)
+        } catch let parserError as AITaskSuggestionParserError {
+            switch parserError {
+            case .invalidJSON, .missingTasks:
+                throw AIClientError.invalidJSON
+            }
+        }
     }
 }
 

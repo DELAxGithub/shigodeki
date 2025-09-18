@@ -1,0 +1,42 @@
+//
+//  ProSubscriptionCoordinator.swift
+//  shigodeki
+//
+//  Handles PRO subscription purchases.
+//
+
+import Foundation
+#if canImport(StoreKit)
+
+@available(iOS 15.0, *)
+final class ProSubscriptionCoordinator {
+    private let purchaseService: PurchaseServicing
+    private let entitlementRefresher: EntitlementRefreshing
+
+    init(purchaseService: PurchaseServicing, entitlementRefresher: EntitlementRefreshing) {
+        self.purchaseService = purchaseService
+        self.entitlementRefresher = entitlementRefresher
+    }
+
+    func buyPro(productID: String) async -> PurchaseOutcome {
+        guard FeatureFlags.purchasesEnabled else {
+            return .failed(.purchasesDisabled)
+        }
+
+        let result = await purchaseService.purchase(productID: productID)
+        let outcome = PurchaseOutcomeMapper.map(result)
+
+        if case .success = outcome {
+            await entitlementRefresher.refresh()
+        }
+
+        return outcome
+    }
+}
+
+#if canImport(StoreKit)
+@available(iOS 15.0, *)
+extension ProSubscriptionCoordinator: ProSubscriptionCoordinating {}
+#endif
+
+#endif

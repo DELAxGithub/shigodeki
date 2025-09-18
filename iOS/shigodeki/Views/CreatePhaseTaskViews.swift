@@ -99,6 +99,7 @@ struct CreatePhaseTaskView: View {
     @ObservedObject var taskManager: TaskManager
     @ObservedObject private var authManager = AuthenticationManager.shared
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var toastCenter: ToastCenter
     
     @State private var taskTitle: String = ""
     @State private var taskDescription: String = ""
@@ -267,17 +268,28 @@ struct CreatePhaseTaskView: View {
         isGeneratingFromPhoto = true
         Task {
             defer { isGeneratingFromPhoto = false }
-            let apiKey = KeychainManager.shared.getAPIKeyIfAvailable(for: .openAI)
-            let allowNetwork = (apiKey?.isEmpty == false)
-            let planner = TidyPlanner(apiKey: apiKey)
+            let hasProvider = KeychainManager.APIProvider.allCases.contains { provider in
+                KeychainManager.shared.getAPIKeyIfAvailable(for: provider)?.isEmpty == false
+            }
+            let allowNetwork = hasProvider
+            let planner = VisionPlanCoordinator()
+            let regionCode = Locale.current.region?.identifier ?? "JP"
             let locale = UserLocale(
-                country: Locale.current.regionCode ?? "JP",
-                city: (Locale.current.regionCode ?? "JP") == "JP" ? "Tokyo" : "Toronto"
+                country: regionCode,
+                city: regionCode == "JP" ? "Tokyo" : "Toronto"
             )
-            let ctx = "プロジェクト: \(project.name)\nフェーズ: \(phase.name)"
-            let plan = await planner.generate(from: imageData, locale: locale, allowNetwork: allowNetwork, context: ctx)
+            let context = VisionPlanContextBuilder.build(
+                project: project,
+                phase: phase,
+                taskList: taskList,
+                additionalNotes: ["入力画像: フェーズ用の新規タスク候補を抽出する"]
+            )
+            let plan = await planner.generatePlan(from: imageData, locale: locale, allowNetwork: allowNetwork, context: context)
             if plan.project == "Fallback Moving Plan" {
-                await MainActor.run { genError = "OpenAI未使用: フォールバック結果（キー未設定・通信/JSONエラー）" }
+                await MainActor.run {
+                    genError = nil
+                    toastCenter.show("AIが混雑中のため、テンプレート候補を表示しました")
+                }
             }
             if let first = plan.tasks.first {
                 await MainActor.run {

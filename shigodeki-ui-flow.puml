@@ -1,0 +1,72 @@
+@startuml
+title Shigodeki iOS UI フロー概要
+
+skinparam shadowing false
+skinparam state {
+  BackgroundColor White
+  BorderColor #888888
+}
+
+[*] --> Login
+Login : `LoginView`
+Login : メール/Appleでサインイン
+
+Login --> MainTabs : 認証成功
+MainTabs : `MainTabView`
+MainTabs : タブ=ホーム/プロジェクト/チーム/設定
+
+state MainTabs {
+  [*] --> Projects
+  state Projects {
+    Projects : `ProjectListView`
+    Projects --> ProjectDetail : プロジェクト選択
+    ProjectDetail : `TaskListDetailView`
+    ProjectDetail --> TaskCreation : +タスク
+    TaskCreation : `CreatePhaseView`
+    TaskCreation --> PhotoSuggest : 写真で提案
+    PhotoSuggest : `PhotoTaskSuggestionSection`
+    PhotoSuggest --> TaskCreation : 案を反映
+    TaskCreation --> ProjectDetail : 保存
+    ProjectDetail --> Projects : 戻る
+  }
+
+  state HomeHub {
+    [*] --> Shortcut
+    Shortcut : `HomeHubView`
+    Shortcut --> Projects : プロジェクトへ遷移
+  }
+
+  state Family {
+    Family : `FamilyView`
+    Family --> FamilyDetail : 家族/チーム選択
+    FamilyDetail : `FamilyDetailView`
+    FamilyDetail --> InviteFlow : 招待コード
+    InviteFlow : `UnifiedInvitationService`
+    InviteFlow --> FamilyDetail : 参加完了
+    FamilyDetail --> Projects : 家族プロジェクトから遷移
+  }
+
+  state Settings {
+    Settings : `SettingsView`
+    Settings --> AISettings : AI 設定を開く
+    AISettings : `APISettingsView`
+    AISettings --> Settings : 保存/閉じる
+    Settings --> ProfileEdit : ユーザー名変更
+    ProfileEdit : シート上で編集
+    ProfileEdit --> Settings
+  }
+
+  Projects --> Settings : タブ切替
+  Projects --> Family : タブ切替
+  Projects --> HomeHub : タブ切替
+  Settings --> Projects : タブ戻り
+  Family --> Projects : タブ戻り
+}
+
+MainTabs --> Login : ログアウト
+
+MainTabs --> OfflineMode : Firestore接続失敗
+OfflineMode : `enableOfflineModeGracefully`
+OfflineMode --> MainTabs : 再接続
+
+@enduml

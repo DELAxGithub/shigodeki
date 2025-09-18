@@ -7,18 +7,21 @@
 
 import SwiftUI
 import FirebaseFirestore
+import UIKit
 
 struct TaskListDetailView: View {
     let taskList: TaskList
     let phase: Phase
     let project: Project
     @EnvironmentObject var sharedManagers: SharedManagerStore
+    @EnvironmentObject private var toastCenter: ToastCenter
     @StateObject private var viewModelHolder = _TaskListVMHolder()
     @ObservedObject private var authManager = AuthenticationManager.shared
     @Environment(\.dismiss) private var dismiss
     var onTapProject: (() -> Void)? = nil
     var onTapPhase: (() -> Void)? = nil
     @State private var showingCreateTask = false
+    @State private var taskAddRoute: TaskAddRoute?
     @State private var showingTaskEditor = false
     @State private var selectedTaskForEdit: ShigodekiTask?
     @State private var showAttachmentPreview = false
@@ -26,6 +29,11 @@ struct TaskListDetailView: View {
     @State private var previewImage: UIImage? = nil
     @State private var showAddAttachment = false
     @State private var selectedTaskForAttachment: ShigodekiTask?
+    @State private var templateDrafts: [TaskDraft] = []
+    @State private var showingTemplatePreview = false
+    @State private var isSavingDrafts = false
+    @State private var aiGenerator: AITaskGenerator?
+    @State private var presentingViewController: UIViewController?
     
     var body: some View {
         VStack {
@@ -43,6 +51,9 @@ struct TaskListDetailView: View {
                     let vm = TaskListDetailViewModel(listId: listId, phaseId: phaseId, projectId: projectId)
                     viewModelHolder.vm = vm
                     await vm.bootstrap(store: sharedManagers)
+                }
+                if aiGenerator == nil {
+                    aiGenerator = await sharedManagers.getAiGenerator()
                 }
             }
             let tasks = viewModelHolder.vm?.tasks ?? []
@@ -128,31 +139,104 @@ struct TaskListDetailView: View {
                         .foregroundColor(.gray)
                     Text("タスクがありません")
                         .font(.title3)
-                    Button("タスクを追加") {
-                        showingCreateTask = true
-                    }
+                    Button("タスクを追加", action: handleAddButton)
                     .buttonStyle(.borderedProminent)
                 }
             }
         }
+        .background(
+            ViewControllerResolver { controller in
+                if presentingViewController !== controller {
+                    presentingViewController = controller
+                }
+            }
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+        )
         .navigationTitle(taskList.name)
         .navigationBarBackButtonHidden(true)
         .enableSwipeBack()
         .loadingOverlay(viewModelHolder.vm?.isLoading ?? false, message: "タスクを更新中...")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button("追加") {
-                    showingCreateTask = true
-                }
+                Button("追加", action: handleAddButton)
             }
         }
         
         .sheet(isPresented: $showingCreateTask) {
             CreatePhaseTaskView(
                 taskList: taskList,
-                phase: phase, 
+                phase: phase,
                 project: project,
                 taskManager: TaskManager()
+            )
+        }
+        .sheet(item: $taskAddRoute) { route in
+            switch route {
+            case .chooser:
+                TaskAddModal(
+                    onSelect: { selection in
+                        guard selection.isAvailable else { return }
+                        taskAddRoute = selection
+                    },
+                    onClose: { taskAddRoute = nil }
+                )
+            case .manual:
+                CreatePhaseTaskView(
+                    taskList: taskList,
+                    phase: phase,
+                    project: project,
+                    taskManager: TaskManager()
+                )
+                .onDisappear { taskAddRoute = nil }
+            case .template:
+                TemplateDraftFlowView(
+                    onComplete: { _, drafts in
+                        taskAddRoute = nil
+                        handleTemplateDrafts(drafts)
+                    },
+                    onCancel: { taskAddRoute = nil }
+                )
+            case .ai:
+                if let generator = aiGenerator {
+                    let tasks = viewModelHolder.vm?.tasks ?? []
+                    AIDraftFlowView(
+                        taskList: taskList,
+                        project: project,
+                        phase: phase,
+                        existingTasks: tasks,
+                        aiGenerator: generator,
+                        onPreviewDrafts: { drafts, source in
+                            taskAddRoute = nil
+                            _ = presentDraftPreview(drafts, source: source)
+                        },
+                        onDirectSave: { generated in
+                            taskAddRoute = nil
+                            handleDirectSave(generated)
+                        }
+                    )
+                } else {
+                    ProgressView()
+                }
+            case .photo:
+                TaskAddPlaceholderView(message: "近日公開予定です", onDismiss: { taskAddRoute = nil })
+            }
+        }
+        .sheet(isPresented: $showingTemplatePreview) {
+            TasksPreview(
+                drafts: templateDrafts,
+                onAccept: { drafts in
+                    guard !isSavingDrafts else { return }
+                    isSavingDrafts = true
+                    Task {
+                        await saveDrafts(drafts)
+                        isSavingDrafts = false
+                    }
+                },
+                onCancel: {
+                    showingTemplatePreview = false
+                    templateDrafts = []
+                }
             )
         }
         .sheet(isPresented: $showAttachmentPreview) {
@@ -186,6 +270,123 @@ struct TaskListDetailView: View {
                     Task { await addAttachment(image: image, to: t) }
                 }
             }
+        }
+    }
+
+    private func handleAddButton() {
+        if FeatureFlags.unifiedPreviewEnabled {
+            taskAddRoute = .chooser
+        } else {
+            showingCreateTask = true
+        }
+    }
+
+    private func handleTemplateDrafts(_ drafts: [TaskDraft]) {
+        guard presentDraftPreview(drafts, source: .template) else {
+            templateDrafts = drafts
+            showingTemplatePreview = true
+            return
+        }
+
+        templateDrafts = []
+        showingTemplatePreview = false
+    }
+
+    @discardableResult
+    private func presentDraftPreview(_ drafts: [TaskDraft], source: TaskDraftSource) -> Bool {
+        guard FeatureFlags.unifiedPreviewEnabled else { return false }
+        guard drafts.isEmpty == false else { return false }
+
+        let sourceEnabled: Bool = {
+            switch source {
+            case .template: return FeatureFlags.previewTemplateEnabled
+            case .ai: return FeatureFlags.previewAIEnabled
+            case .photo: return FeatureFlags.previewPhotoEnabled
+            case .manual: return false
+            }
+        }()
+
+        guard sourceEnabled,
+              let presenter = presentingViewController,
+              let listId = taskList.id,
+              let phaseId = phase.id,
+              let projectId = project.id,
+              let userId = authManager.currentUser?.id,
+              let manager = viewModelHolder.vm?.getManager() else {
+            return false
+        }
+
+        let context = DraftSaveContext(
+            listId: listId,
+            phaseId: phaseId,
+            projectId: projectId,
+            createdBy: userId,
+            taskManager: manager,
+            toastCenter: toastCenter
+        )
+
+        DraftSaveFacade.presentPreview(
+            drafts: drafts,
+            source: source,
+            from: presenter,
+            context: context
+        )
+        return true
+    }
+
+    @MainActor
+    private func saveDrafts(_ drafts: [TaskDraft]) async {
+        guard let manager = viewModelHolder.vm?.getManager(),
+              let listId = taskList.id,
+              let phaseId = phase.id,
+              let projectId = project.id,
+              let userId = authManager.currentUser?.id else {
+            return
+        }
+
+        for draft in drafts {
+            do {
+                _ = try await manager.createTask(
+                    title: draft.title,
+                    description: draft.rationale,
+                    assignedTo: draft.assignee,
+                    createdBy: userId,
+                    dueDate: draft.due,
+                    priority: draft.priority,
+                    listId: listId,
+                    phaseId: phaseId,
+                    projectId: projectId,
+                    order: nil
+                )
+            } catch {
+                #if DEBUG
+                print("Template draft save failed: \(error)")
+                #endif
+            }
+        }
+
+        templateDrafts = []
+        showingTemplatePreview = false
+    }
+
+    private func handleDirectSave(_ tasks: [ShigodekiTask]) {
+        let drafts = tasks.map { task in
+            TaskDraft(
+                title: task.title,
+                assignee: task.assignedTo,
+                due: task.dueDate,
+                rationale: task.description,
+                priority: task.priority
+            )
+        }
+
+        guard !drafts.isEmpty else { return }
+
+        Task {
+            guard !isSavingDrafts else { return }
+            isSavingDrafts = true
+            await saveDrafts(drafts)
+            isSavingDrafts = false
         }
     }
     
@@ -246,6 +447,44 @@ struct TaskListDetailView: View {
             
             return task
         }
+    }
+}
+
+private struct ViewControllerResolver: UIViewControllerRepresentable {
+    let onResolve: (UIViewController) -> Void
+
+    func makeUIViewController(context: Context) -> ResolverViewController {
+        ResolverViewController(onResolve: onResolve)
+    }
+
+    func updateUIViewController(_ uiViewController: ResolverViewController, context: Context) {}
+}
+
+private final class ResolverViewController: UIViewController {
+    private let onResolve: (UIViewController) -> Void
+
+    init(onResolve: @escaping (UIViewController) -> Void) {
+        self.onResolve = onResolve
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func didMove(toParent parent: UIViewController?) {
+        super.didMove(toParent: parent)
+        resolve(with: parent)
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        resolve(with: parent)
+    }
+
+    private func resolve(with parent: UIViewController?) {
+        guard let parent else { return }
+        onResolve(parent)
     }
 }
 

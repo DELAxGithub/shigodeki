@@ -6,19 +6,37 @@
 //
 
 import SwiftUI
+import Combine
 
 struct TemplateLibraryView: View {
     @StateObject private var templateManager = TemplateManager()
     
     @Binding var isPresented: Bool
     @Binding var selectedTemplate: ProjectTemplate?
-    
+    private let entitlementResolver: TemplateEntitlementResolving
+    @Environment(\.entitlementStore) private var entitlementStore
+    @Environment(\.templatePurchaseCoordinator) private var templatePurchaseCoordinator
+    @Environment(\.purchaseProductCatalog) private var purchaseProductCatalog
+    @State private var entitlementsSnapshot = Entitlements.empty
+
     @State private var selectedCategory: TemplateCategory? = nil
     @State private var searchText = ""
     @State private var showFilePicker = false
     @State private var showTemplatePreview = false
     @State private var previewTemplate: ProjectTemplate?
     @State private var sortOption: TemplateFilterService.SortOption = .name
+    @State private var showTemplatePaywall = false
+    @State private var paywallTemplate: ProjectTemplate?
+
+    init(
+        isPresented: Binding<Bool>,
+        selectedTemplate: Binding<ProjectTemplate?>,
+        entitlementResolver: TemplateEntitlementResolving
+    ) {
+        self._isPresented = isPresented
+        self._selectedTemplate = selectedTemplate
+        self.entitlementResolver = entitlementResolver
+    }
     
     var filteredTemplates: [ProjectTemplate] {
         TemplateFilterService.filterAndSort(
@@ -27,6 +45,10 @@ struct TemplateLibraryView: View {
             searchText: searchText,
             sortOption: sortOption
         )
+    }
+
+    private var activeResolver: TemplateEntitlementResolving {
+        FeatureFlags.purchasesEnabled ? entitlementResolver : DefaultTemplateEntitlementResolver.shared
     }
     
     var body: some View {
@@ -66,15 +88,61 @@ struct TemplateLibraryView: View {
             if let template = previewTemplate {
                 TemplatePreviewView(
                     template: template,
-                    isPresented: $showTemplatePreview
+                    isPresented: $showTemplatePreview,
+                    entitlementResolver: activeResolver
                 ) { selectedTemplate in
                     self.selectedTemplate = selectedTemplate
                     isPresented = false
                 }
+                .environment(\.entitlementStore, entitlementStore)
+            }
+        }
+        .sheet(isPresented: $showTemplatePaywall) {
+            if #available(iOS 15.0, *),
+               let template = paywallTemplate,
+               let coordinator = templatePurchaseCoordinator,
+               let catalog = purchaseProductCatalog {
+                TemplatePaywallView(
+                    template: template,
+                    coordinator: coordinator,
+                    catalog: catalog,
+                    onUnlocked: {
+                        showTemplatePaywall = false
+                        paywallTemplate = nil
+                        selectedTemplate = template
+                        isPresented = false
+                    },
+                    onCancel: {
+                        showTemplatePaywall = false
+                        paywallTemplate = nil
+                    }
+                )
+            } else {
+                VStack(spacing: 16) {
+                    Text("テンプレートの購入は現在利用できません。")
+                        .font(.headline)
+                        .multilineTextAlignment(.center)
+                    Button("閉じる") {
+                        showTemplatePaywall = false
+                        paywallTemplate = nil
+                    }
+                }
+                .padding()
             }
         }
         .onAppear {
             templateManager.loadBuiltInTemplates()
+            if let store = entitlementStore {
+                entitlementsSnapshot = store.entitlements
+            }
+        }
+        .onReceive(entitlementStore?.$entitlements.eraseToAnyPublisher() ?? Just(Entitlements.empty).eraseToAnyPublisher()) { value in
+            entitlementsSnapshot = value
+        }
+        .onChange(of: showTemplatePaywall) { _, newValue in
+            if !newValue {
+                paywallTemplate = nil
+            }
         }
     }
     
@@ -159,8 +227,11 @@ struct TemplateLibraryView: View {
                     emptyStateView
                 } else {
                     ForEach(filteredTemplates, id: \.id) { template in
+                        let _ = entitlementsSnapshot.updatedAt
+                        let badge = TemplateMonetizationCatalog.badge(for: template, resolver: activeResolver)
                         TemplateCard(
                             template: template,
+                            monetizationBadge: badge,
                             onTap: {
                                 previewTemplate = template
                                 showTemplatePreview = true
@@ -170,8 +241,7 @@ struct TemplateLibraryView: View {
                                 showTemplatePreview = true
                             },
                             onSelect: {
-                                selectedTemplate = template
-                                isPresented = false
+                                handleDirectSelection(template)
                             }
                         )
                     }
@@ -228,13 +298,36 @@ struct TemplateLibraryView: View {
     }
 }
 
+private extension TemplateLibraryView {
+    func handleDirectSelection(_ template: ProjectTemplate) {
+        if shouldPresentPaywall(for: template),
+           templatePurchaseCoordinator != nil,
+           purchaseProductCatalog != nil,
+           #available(iOS 15.0, *) {
+            paywallTemplate = template
+            showTemplatePaywall = true
+        } else {
+            selectedTemplate = template
+            isPresented = false
+        }
+    }
+
+    func shouldPresentPaywall(for template: ProjectTemplate) -> Bool {
+        guard FeatureFlags.templateIAPEnabled,
+              FeatureFlags.purchasesEnabled,
+              TemplateMonetizationCatalog.isPaid(template) else { return false }
+        return !TemplateMonetizationCatalog.hasEntitlement(for: template, resolver: activeResolver)
+    }
+}
+
 // MARK: - Preview
 
 struct TemplateLibraryView_Previews: PreviewProvider {
     static var previews: some View {
         TemplateLibraryView(
             isPresented: .constant(true),
-            selectedTemplate: .constant(nil)
+            selectedTemplate: .constant(nil),
+            entitlementResolver: DefaultTemplateEntitlementResolver.shared
         )
     }
 }

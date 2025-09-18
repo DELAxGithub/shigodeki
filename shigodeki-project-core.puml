@@ -1,0 +1,95 @@
+@startuml
+title Shigodeki プロジェクト機能フロー
+
+skinparam shadowing false
+skinparam state {
+  BackgroundColor White
+  BorderColor #666666
+  FontSize 13
+}
+
+[*] --> ProjectList
+
+state ProjectList {
+  [*] --> Listing
+  Listing : `ProjectListView`
+  Listing : 所有者フィルタ / 招待参加 / プロジェクト作成
+
+  Listing --> ProjectDetail : プロジェクトを選択
+  Listing --> CreateProject : 「プロジェクトを作成」
+
+  CreateProject : `CreateProjectView`
+  CreateProject --> PhaseSetup : フェーズ追加
+  PhaseSetup : `CreatePhaseView`
+  PhaseSetup --> Listing : 作成完了
+}
+
+state ProjectDetail {
+  [*] --> PhaseOverview
+  PhaseOverview : `ProjectDetailView`
+  PhaseOverview : フェーズ/タスクリストの概要
+
+  PhaseOverview --> TaskListDetail : タスクリスト選択
+  PhaseOverview --> TemplateLibrary : テンプレート呼び出し
+
+  TemplateLibrary : `TemplateLibraryComponents`
+  TemplateLibrary --> PhaseOverview : テンプレ適用
+}
+
+state TaskListDetail {
+  [*] --> TaskTimeline
+  TaskTimeline : `TaskListDetailView`
+  TaskTimeline : 完了切替 / 添付 / プレビュー
+
+  TaskTimeline --> TaskCreation : 「追加」または空状態
+  TaskTimeline --> TaskReview : タスク編集
+  TaskReview : `TaskEditorView`
+  TaskReview --> TaskTimeline : 保存/閉じる
+}
+
+state TaskCreation {
+  [*] --> Form
+  Form : `CreatePhaseTaskView`
+  Form : タイトル/説明/タグ/期日
+
+  Form --> AIAssistant : 「AI アシスタント」
+  Form --> PhotoSuggest : 写真から提案
+  Form --> TemplatePicker : テンプレを参照
+
+  AIAssistant : `TaskAIAssistantView`
+  AIAssistant : `AITaskGenerator` 経由でAI提案
+  AIAssistant --> Form : サジェスト受け入れ
+
+  PhotoSuggest : `PhotoTaskSuggestionSection`
+  PhotoSuggest : `TidyPlanner` / `OpenAIService`
+  PhotoSuggest --> Form : 案を反映
+
+  TemplatePicker : `TemplateLibraryComponents`
+  TemplatePicker --> Form : 事前定義タスクを挿入
+
+  Form --> TaskTimeline : 保存完了
+}
+
+ProjectDetail --> TaskListDetail
+TaskCreation --> TaskTimeline
+TaskTimeline --> ProjectDetail : パンくずで戻る
+
+note right of TaskListDetail
+  `TaskListDetailViewModel` が
+  `TaskListDetailService` / `TaskListListenerService`
+  経由で Firestore と同期
+end note
+
+note right of TaskCreation
+  `TaskManager` + `TaskCreationService`
+  が Firestore へ書き込み
+  添付は Firebase Storage / Data URL
+end note
+
+note bottom of ProjectList
+  `ProjectListViewModel` が
+  `ProjectListService` / `SharedManagerStore`
+  からプロジェクト一覧を取得
+end note
+
+@enduml

@@ -56,7 +56,7 @@ struct PhaseAIService {
             do {
                 let subtask = try await subtaskManager.createPhaseSubtask(
                     title: suggestion.title.trimmingCharacters(in: .whitespacesAndNewlines),
-                    description: suggestion.description.isEmpty ? nil : suggestion.description,
+                    description: preferredRationale(from: suggestion),
                     assignedTo: nil,
                     createdBy: task.createdBy,
                     dueDate: nil,
@@ -390,6 +390,18 @@ struct PhaseAIService {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let withoutTrailing = trimmed.replacingOccurrences(of: #"[：:。．]+$"#, with: "", options: .regularExpression)
         return withoutTrailing
+    }
+}
+
+private extension PhaseAIService {
+    static func preferredRationale(from suggestion: AITaskSuggestion.TaskSuggestion) -> String? {
+        if let rationale = suggestion.rationale, rationale.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            return rationale.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let description = suggestion.description, description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            return description.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return nil
     }
 }
 

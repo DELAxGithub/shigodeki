@@ -122,7 +122,7 @@ struct AITaskPreviewList: View {
                 .foregroundColor(.secondary)
             
             LazyVStack(alignment: .leading, spacing: 8) {
-                ForEach(tasks.prefix(3), id: \.title) { task in
+                ForEach(Array(tasks.prefix(3))) { task in
                     AITaskPreviewRow(task: task)
                 }
                 
@@ -157,11 +157,25 @@ struct AITaskPreviewRow: View {
                     .fontWeight(.medium)
                     .lineLimit(2)
                 
-                if !task.description.isEmpty {
-                    Text(task.description)
+                if let rationale = task.rationale, rationale.isEmpty == false {
+                    Text(rationale)
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                } else if let description = task.description, description.isEmpty == false {
+                    Text(description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+
+                if let dueLabel = formattedDue(task.due) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                        Text(dueLabel)
+                    }
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
                 }
             }
             
@@ -170,12 +184,25 @@ struct AITaskPreviewRow: View {
         .padding(.vertical, 4)
     }
     
-    private func priorityColor(_ priority: AITaskPriority) -> Color {
+    private func priorityColor(_ priority: AITaskPriority?) -> Color {
+        guard let priority else { return .gray }
         switch priority {
         case .low: return .green
-        case .medium: return .yellow
+        case .normal, .medium: return .yellow
         case .high, .urgent: return .red
         }
+    }
+
+    private func formattedDue(_ raw: String?) -> String? {
+        guard let raw = raw, raw.isEmpty == false else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "yyyy-MM-dd"
+        if let date = formatter.date(from: raw) {
+            formatter.dateFormat = "yyyy年M月d日"
+            return formatter.string(from: date)
+        }
+        return raw
     }
 }
 

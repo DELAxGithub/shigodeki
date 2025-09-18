@@ -54,7 +54,13 @@ struct TidyTask: Codable, Identifiable {
     var isHighPriority: Bool { taskPriority >= 4 }
     var dueDate: Date? {
         guard let due_at = due_at else { return nil }
-        return ISO8601DateFormatter().date(from: due_at)
+        if let parsed = ISO8601DateFormatter().date(from: due_at) {
+            return parsed
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: due_at)
     }
 }
 
@@ -76,4 +82,3 @@ extension Plan {
         Plan(project: project, locale: locale, tasks: TidyTask.validate(tasks))
     }
 }
-

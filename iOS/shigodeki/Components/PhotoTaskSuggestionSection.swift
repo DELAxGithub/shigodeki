@@ -20,20 +20,40 @@ struct PhotoTaskSuggestionSection: View {
     @Binding var keepAttachment: Bool
     @Binding var attachments: [String]
     let contextHint: String?
+    private let previewEnabled: Bool
+    private let onPreview: (([TaskDraft]) -> Void)?
 
+    @EnvironmentObject private var toastCenter: ToastCenter
     @State private var showCamera = false
     @State private var showLibrary = false
     @State private var isGenerating = false
     @State private var errorMessage: String?
-    @State private var suggestions: [Suggestion] = []
+    @State private var suggestions: [PhotoDraftBuilder.Suggestion] = []
 
-    struct Suggestion: Identifiable, Hashable {
-        let id = UUID()
-        let title: String
-        let details: String?
-        let labels: [String]
-        let priority: Int // 1-4
-        let dueDate: Date?
+    init(
+        title: Binding<String>,
+        description: Binding<String>,
+        selectedPriority: Binding<TaskPriority>,
+        dueDate: Binding<Date>,
+        hasDueDate: Binding<Bool>,
+        selectedTags: Binding<[String]>,
+        keepAttachment: Binding<Bool>,
+        attachments: Binding<[String]>,
+        contextHint: String?,
+        previewEnabled: Bool = false,
+        onPreview: (([TaskDraft]) -> Void)? = nil
+    ) {
+        self._title = title
+        self._description = description
+        self._selectedPriority = selectedPriority
+        self._dueDate = dueDate
+        self._hasDueDate = hasDueDate
+        self._selectedTags = selectedTags
+        self._keepAttachment = keepAttachment
+        self._attachments = attachments
+        self.contextHint = contextHint
+        self.previewEnabled = previewEnabled && onPreview != nil
+        self.onPreview = onPreview
     }
 
     var body: some View {
@@ -91,7 +111,7 @@ struct PhotoTaskSuggestionSection: View {
                                 .font(.body)
                                 .fontWeight(.medium)
                             Spacer()
-                            Button("反映") {
+                            Button(previewEnabled ? "プレビュー" : "反映") {
                                 applySuggestion(s)
                             }
                         }
@@ -136,16 +156,18 @@ struct PhotoTaskSuggestionSection: View {
         generateSuggestions(from: data)
     }
 
-    private func applySuggestion(_ s: Suggestion) {
+    private func applySuggestion(_ s: PhotoDraftBuilder.Suggestion) {
+        if previewEnabled, let onPreview {
+            let drafts = PhotoDraftBuilder.build(from: [s])
+            guard drafts.isEmpty == false else { return }
+            onPreview(drafts)
+            return
+        }
+
         title = s.title
         description = s.details ?? ""
         selectedTags = s.labels
-        // Map 1-4 to low/medium/high
-        switch s.priority {
-        case ..<3: selectedPriority = .low
-        case 3: selectedPriority = .medium
-        default: selectedPriority = .high
-        }
+        selectedPriority = s.priority
         if let due = s.dueDate {
             dueDate = due
             hasDueDate = true
@@ -157,34 +179,44 @@ struct PhotoTaskSuggestionSection: View {
         Task {
             defer { isGenerating = false }
 
-            // Try to use OpenAI key if present; fall back to local
-            let apiKey = KeychainManager.shared.getAPIKeyIfAvailable(for: .openAI)
-            let allowNetwork = (apiKey?.isEmpty == false)
-            let planner = TidyPlanner(apiKey: apiKey)
+            let hasProvider = KeychainManager.APIProvider.allCases.contains { provider in
+                KeychainManager.shared.getAPIKeyIfAvailable(for: provider)?.isEmpty == false
+            }
+            let allowNetwork = hasProvider
+            let coordinator = VisionPlanCoordinator()
 
             let locale = currentUserLocale()
-            let plan = await planner.generate(from: imageData, locale: locale, allowNetwork: allowNetwork, context: contextHint)
+            let plan = await coordinator.generatePlan(from: imageData, locale: locale, allowNetwork: allowNetwork, context: contextHint)
             if plan.project == "Fallback Moving Plan" {
-                await MainActor.run { errorMessage = "OpenAI未使用: フォールバック結果（キー未設定・通信/JSONエラー）" }
+                await MainActor.run {
+                    errorMessage = nil
+                    toastCenter.show("AIが混雑中のため、テンプレート候補を表示しました")
+                }
             }
 
             // Map to lightweight suggestions for UI consumption
-            let mapped: [Suggestion] = plan.tasks.map { t in
-                let labels = (t.labels ?? []) + (t.exit_tag != nil ? [t.exit_tag!.rawValue] : [])
+            let mapped: [PhotoDraftBuilder.Suggestion] = plan.tasks.map { t in
+                let exitLabels: [String] = {
+                    guard let tag = t.exit_tag, tag != .keep else { return [] }
+                    return [tag.rawValue]
+                }()
                 let details: String? = {
                     let checklist = (t.checklist ?? []).map { "• \($0)" }.joined(separator: "\n")
                     return checklist.isEmpty ? nil : checklist
                 }()
-                let due: Date? = {
-                    if let d = t.due_at, let parsed = ISO8601DateFormatter().date(from: d) { return parsed }
-                    return nil
+                let due: Date? = t.dueDate
+                let priority: TaskPriority = {
+                    let score = t.priority ?? 3
+                    if score <= 2 { return .low }
+                    if score >= 4 { return .high }
+                    return .medium
                 }()
-                return Suggestion(
+                return PhotoDraftBuilder.Suggestion(
                     title: t.title,
                     details: details,
-                    labels: labels,
-                    priority: t.priority ?? 3,
-                    dueDate: due
+                    labels: (t.labels ?? []) + exitLabels,
+                    dueDate: due,
+                    priority: priority
                 )
             }
             await MainActor.run { self.suggestions = mapped }
@@ -192,7 +224,7 @@ struct PhotoTaskSuggestionSection: View {
     }
 
     private func currentUserLocale() -> UserLocale {
-        let country = Locale.current.regionCode ?? "JP"
+        let country = Locale.current.region?.identifier ?? "JP"
         // City detection would require CoreLocation; choose a sensible default
         let city = (country == "JP") ? "Tokyo" : "Toronto"
         return UserLocale(country: country, city: city)
