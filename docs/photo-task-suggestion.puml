@@ -1,0 +1,21 @@
+@startuml
+actor User
+participant "PhotoTaskSuggestionSection\n(View)" as View
+participant "CameraPicker" as Picker
+participant "KeychainManager" as Keychain
+participant "TidyPlanner" as Planner
+
+User -> View : tap 「カメラで撮影」/「写真を選択」
+View -> Picker : present sheet (camera/photo library)
+Picker -> View : return UIImage
+View -> View : processImage()\n• reset errors & suggestions\n• optionally base64-attach photo
+View -> View : generateSuggestions()
+View -> Keychain : getAPIKeyIfAvailable(.openAI)
+Keychain --> View : apiKey (optional)
+View -> Planner : generate(imageData, locale, allowNetwork, context)
+Planner --> View : TPKPlan (project, tasks)
+View -> View : map tasks → Suggestion[]
+View -> View : update UI state\n(isGenerating=false, suggestions populated)
+User -> View : tap 「反映」
+View -> View : applySuggestion()\n• update title/description/bindings\n• infer priority & due date
+@enduml
