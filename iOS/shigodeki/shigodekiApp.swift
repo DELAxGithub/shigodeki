@@ -18,54 +18,19 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Configure Firebase
         FirebaseApp.configure()
         print("🧩 App Build: \(BuildInfo.current.buildString)")
-        
+
         // Log Firebase project at runtime to verify correct config in all builds
         print("🔧 Firebase Project: \(FirebaseApp.app()?.options.projectID ?? "unknown")")
+
+        FeatureFlagOverrides.applyLaunchArguments()
+        RemoteConfigGate.shared.start()
         
-        // 🔧 Ensure we're using production Firebase (not emulator)
         #if DEBUG
         print("🔧 Firebase: Using production backend for dev environment")
-        
-        // Verify Firestore connection
-        let db = Firestore.firestore()
-        print("🔧 Firestore: Backend configured for project")
-        
-        // Test connectivity with retry mechanism
-        Task {
-            await testFirestoreConnectionWithRetry(db: db)
-        }
+        // Note: Firestore connection test moved to AuthenticationManager (requires auth)
         #endif
         
         return true
-    }
-    
-    // MARK: - Firebase Connection Testing
-    private func testFirestoreConnectionWithRetry(db: Firestore, attempt: Int = 1, maxAttempts: Int = 3) async {
-        do {
-            _ = try await db.collection("test").document("connection").getDocument()
-            print("✅ Firestore: Connection test successful on attempt \(attempt)")
-        } catch {
-            print("⚠️ Firestore: Connection test failed (attempt \(attempt)/\(maxAttempts)) - \(error.localizedDescription)")
-            
-            if attempt < maxAttempts {
-                let delay = TimeInterval(pow(2.0, Double(attempt))) // Exponential backoff
-                print("🔄 Firestore: Retrying connection in \(delay) seconds...")
-                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                await testFirestoreConnectionWithRetry(db: db, attempt: attempt + 1, maxAttempts: maxAttempts)
-            } else {
-                print("❌ Firestore: All connection attempts failed, enabling offline mode")
-                await enableOfflineModeGracefully(db: db)
-            }
-        }
-    }
-    
-    private func enableOfflineModeGracefully(db: Firestore) async {
-        do {
-            try await db.disableNetwork()
-            print("📴 Firestore: Offline mode enabled after connection failures")
-        } catch {
-            print("⚠️ Firestore: Failed to enable offline mode - \(error.localizedDescription)")
-        }
     }
 }
 

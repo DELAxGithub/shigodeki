@@ -159,14 +159,14 @@ class AuthenticationManager: NSObject, ObservableObject {
     
     private func handleUserAuthenticated(_ user: FirebaseAuth.User) async {
         let previousUserId = currentUserId
-        
+
         if let userData = await userDataService.loadUserData(uid: user.uid) {
             currentUser = userData
         } else {
             // Create missing user document
             currentUser = await userDataService.createMissingUserDocument(authUser: user)
         }
-        
+
         // Notify components of user change for cache invalidation
         NotificationCenter.default.post(
             name: .authUserChanged,
@@ -178,7 +178,26 @@ class AuthenticationManager: NSObject, ObservableObject {
             ]
         )
         print("👤 AuthManager: User authenticated uid=\(currentUserId ?? "nil"), clearing stale uid-scoped data")
+
+        // Test Firestore connection after authentication (DEBUG only)
+        #if DEBUG
+        await testFirestoreConnection()
+        #endif
     }
+
+    // MARK: - Firestore Connection Testing (DEBUG only)
+
+    #if DEBUG
+    private func testFirestoreConnection() async {
+        let db = Firestore.firestore()
+        do {
+            _ = try await db.collection("test").document("connection").getDocument()
+            print("✅ Firestore: Connection test successful (authenticated)")
+        } catch {
+            print("⚠️ Firestore: Connection test failed - \(error.localizedDescription)")
+        }
+    }
+    #endif
     
     private func handleUserSignedOut() {
         currentUser = nil

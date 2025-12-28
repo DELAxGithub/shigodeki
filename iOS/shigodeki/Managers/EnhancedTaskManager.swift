@@ -61,12 +61,21 @@ class EnhancedTaskManager: ObservableObject {
     func createTask(title: String, description: String? = nil, assignedTo: String? = nil, 
                    createdBy: String, dueDate: Date? = nil, priority: TaskPriority = .medium,
                    listId: String, phaseId: String, projectId: String, order: Int? = nil) async throws -> ShigodekiTask {
-        let task = try await crudService.createTask(
+        var task = try await crudService.createTask(
             title: title, description: description, assignedTo: assignedTo,
             createdBy: createdBy, dueDate: dueDate, priority: priority,
             listId: listId, phaseId: phaseId, projectId: projectId, order: order
         )
         
+        if FeatureFlags.undoEnabled {
+            task.syncStatus = .pending
+            if let id = task.id {
+                Task {
+                    _ = await SyncQueue.shared.enqueue(.confirmPhaseCreate(projectId: projectId, phaseId: phaseId, listId: listId, taskId: id))
+                }
+            }
+        }
+
         listenerService.addOptimisticTask(task)
         return task
     }
@@ -75,13 +84,22 @@ class EnhancedTaskManager: ObservableObject {
                          createdBy: String, dueDate: Date? = nil, priority: TaskPriority = .medium,
                          sectionId: String? = nil, sectionName: String? = nil,
                          phaseId: String, projectId: String, order: Int? = nil) async throws -> ShigodekiTask {
-        let task = try await crudService.createPhaseTask(
+        var task = try await crudService.createPhaseTask(
             title: title, description: description, assignedTo: assignedTo,
             createdBy: createdBy, dueDate: dueDate, priority: priority,
             sectionId: sectionId, sectionName: sectionName,
             phaseId: phaseId, projectId: projectId, order: order
         )
         
+        if FeatureFlags.undoEnabled {
+            task.syncStatus = .pending
+            if let id = task.id, !task.listId.isEmpty {
+                Task {
+                    _ = await SyncQueue.shared.enqueue(.confirmPhaseCreate(projectId: projectId, phaseId: phaseId, listId: task.listId, taskId: id))
+                }
+            }
+        }
+
         listenerService.addOptimisticTask(task)
         return task
     }
@@ -111,6 +129,11 @@ class EnhancedTaskManager: ObservableObject {
     func deleteTask(id: String, listId: String, phaseId: String, projectId: String) async throws {
         listenerService.markTaskForDeletion(id: id)
         try await crudService.deleteTask(id: id, listId: listId, phaseId: phaseId, projectId: projectId)
+        if FeatureFlags.undoEnabled {
+            Task {
+                _ = await SyncQueue.shared.enqueue(.deletePhaseTask(projectId: projectId, phaseId: phaseId, listId: listId, taskId: id))
+            }
+        }
     }
     
     func updateTaskSection(_ task: ShigodekiTask, toSectionId: String?, toSectionName: String?) async throws {

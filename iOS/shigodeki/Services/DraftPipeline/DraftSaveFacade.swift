@@ -79,6 +79,11 @@ enum DraftSaveFacade {
 
         defer { activeContext = nil }
 
+        Telemetry.fire(
+            .onPreviewAccepted,
+            TelemetryPayload(screen: "DraftPipeline", depth: drafts.count, previewSource: source.rawValue)
+        )
+
         var createdTasks: [ShigodekiTask] = []
         for draft in drafts {
             let created = try await context.taskManager.createTask(

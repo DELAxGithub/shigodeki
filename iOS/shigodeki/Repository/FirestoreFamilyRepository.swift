@@ -229,9 +229,21 @@ class FirestoreFamilyRepository: FamilyRepository {
         
         switch action {
         case .add:
-            try await userRef.updateData([
-                "familyIds": FieldValue.arrayUnion([familyId])
-            ])
+            _ = try await db.runTransaction { transaction, errorPointer in
+                do {
+                    let userDoc = try transaction.getDocument(userRef)
+                    var familyIds = (userDoc.data()?["familyIds"] as? [String]) ?? []
+                    if familyIds.contains(familyId) {
+                        return nil
+                    }
+                    familyIds.append(familyId)
+                    transaction.updateData(["familyIds": familyIds], forDocument: userRef)
+                    return nil
+                } catch {
+                    errorPointer?.pointee = error as NSError
+                    return nil
+                }
+            }
         case .remove:
             try await userRef.updateData([
                 "familyIds": FieldValue.arrayRemove([familyId])

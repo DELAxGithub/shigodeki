@@ -102,6 +102,15 @@ struct ProjectDetailView: View {
         .navigationBarBackButtonHidden(true)
         .enableSwipeBack()
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                if shouldShowBackToFamilyButton,
+                   let action = backToFamilyAction {
+                    Button("ファミリーへ戻る") {
+                        action()
+                    }
+                    .accessibilityIdentifier("ProjectDetail.BackToFamily")
+                }
+            }
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 // Brain: AI analysis (falls back to AI settings if not configured)
                 Button {
@@ -229,6 +238,16 @@ struct ProjectDetailView: View {
 }
 
 private extension ProjectDetailView {
+    var shouldShowBackToFamilyButton: Bool {
+        guard FeatureFlags.taskAddModalEnabled else { return false }
+        return project.ownerType == .family
+    }
+
+    var backToFamilyAction: (() -> Void)? {
+        guard shouldShowBackToFamilyButton else { return nil }
+        return { loadOwnerFamilyAndOpen() }
+    }
+
     func loadOwnerFamilyAndOpen() {
         Task {
             await loadOwnerFamily()

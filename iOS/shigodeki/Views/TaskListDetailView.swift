@@ -72,6 +72,9 @@ struct TaskListDetailView: View {
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
+                                if FeatureFlags.offlineBadgesEnabled && task.syncStatus != .confirmed {
+                                    SyncStatusBadge(status: task.syncStatus)
+                                }
                                 // Attachments thumbnails (first 3)
                                 if let atts = task.attachments, !atts.isEmpty {
                                     ScrollView(.horizontal, showsIndicators: false) {
@@ -158,6 +161,15 @@ struct TaskListDetailView: View {
         .enableSwipeBack()
         .loadingOverlay(viewModelHolder.vm?.isLoading ?? false, message: "タスクを更新中...")
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                if shouldShowBackToFamilyButton,
+                   let familyButtonAction = backToFamilyAction {
+                    Button("ファミリーへ戻る") {
+                        familyButtonAction()
+                    }
+                    .accessibilityIdentifier("TaskList.BackToFamily")
+                }
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("追加", action: handleAddButton)
             }
@@ -274,11 +286,27 @@ struct TaskListDetailView: View {
     }
 
     private func handleAddButton() {
-        if FeatureFlags.unifiedPreviewEnabled {
+        let shouldUseModal = FeatureFlags.taskAddModalEnabled || FeatureFlags.unifiedPreviewEnabled
+        if shouldUseModal {
             taskAddRoute = .chooser
         } else {
             showingCreateTask = true
         }
+    }
+
+    private var shouldShowBackToFamilyButton: Bool {
+        guard FeatureFlags.taskAddModalEnabled else { return false }
+        if onTapProject != nil { return true }
+        return project.ownerType == .family
+    }
+
+    private var backToFamilyAction: (() -> Void)? {
+        guard shouldShowBackToFamilyButton else { return nil }
+        if let handler = onTapProject { return handler }
+        if project.ownerType == .family {
+            return { dismiss() }
+        }
+        return nil
     }
 
     private func handleTemplateDrafts(_ drafts: [TaskDraft]) {
@@ -446,6 +474,37 @@ struct TaskListDetailView: View {
             task.completedSubtaskCount = data["completedSubtaskCount"] as? Int ?? 0
             
             return task
+        }
+    }
+}
+
+private struct SyncStatusBadge: View {
+    let status: TaskSyncStatus
+
+    var body: some View {
+        Text(label)
+            .font(.caption2)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(background)
+            .foregroundColor(.white)
+            .clipShape(Capsule())
+            .accessibilityIdentifier("Task.SyncStatusBadge.\(status.rawValue)")
+    }
+
+    private var label: String {
+        switch status {
+        case .pending: return "同期中"
+        case .conflicted: return "要確認"
+        case .confirmed: return ""
+        }
+    }
+
+    private var background: Color {
+        switch status {
+        case .pending: return Color.orange
+        case .conflicted: return Color.red
+        case .confirmed: return Color.clear
         }
     }
 }

@@ -35,6 +35,9 @@ class TaskCRUDService: ObservableObject {
             var task = ShigodekiTask(title: title, description: description, assignedTo: assignedTo, 
                                    createdBy: createdBy, dueDate: dueDate, priority: priority,
                                    listId: listId, phaseId: phaseId, projectId: projectId, order: finalOrder)
+            if FeatureFlags.undoEnabled {
+                task.syncStatus = .pending
+            }
             
             try task.validate()
             
@@ -70,6 +73,9 @@ class TaskCRUDService: ObservableObject {
                                      listId: "", phaseId: phaseId, projectId: projectId, order: finalOrder)
             task.sectionId = sectionId
             task.sectionName = sectionName
+            if FeatureFlags.undoEnabled {
+                task.syncStatus = .pending
+            }
             
             try task.validate()
             
@@ -118,10 +124,36 @@ class TaskCRUDService: ObservableObject {
         do {
             let tasksCollection = getTaskCollection(listId: listId, phaseId: phaseId, projectId: projectId)
             let snapshot = try await tasksCollection.order(by: "order").getDocuments()
-            
-            return try snapshot.documents.compactMap { document in
-                try document.data(as: ShigodekiTask.self)
+
+            var tasks: [ShigodekiTask] = []
+            var backfill: [TaskBackfillInfo] = []
+
+            for (index, document) in snapshot.documents.enumerated() {
+                var task = try document.data(as: ShigodekiTask.self)
+                if task.id == nil { task.id = document.documentID }
+
+                let rawData = document.data()
+                let needsOrderIndex = rawData["orderIndex"] == nil
+                let needsSyncStatus = rawData["syncStatus"] == nil
+
+                if needsOrderIndex || needsSyncStatus,
+                   let documentId = task.id {
+                    let info = TaskBackfillInfo(
+                        documentId: documentId,
+                        collectionPath: .list(listId: listId, phaseId: phaseId, projectId: projectId),
+                        desiredOrderIndex: task.orderIndex ?? index,
+                        desiredSyncStatus: task.syncStatus,
+                        needsOrderIndex: needsOrderIndex,
+                        needsSyncStatus: needsSyncStatus
+                    )
+                    backfill.append(info)
+                }
+
+                tasks.append(task)
             }
+
+            await TaskModelMigrationService.shared.backfillIfNeeded(backfill)
+            return tasks
         } catch {
             let firebaseError = FirebaseError.from(error)
             self.error = firebaseError
@@ -142,7 +174,36 @@ class TaskCRUDService: ObservableObject {
             let snapshot = try await getPhaseTaskCollection(phaseId: phaseId, projectId: projectId)
                 .order(by: "order")
                 .getDocuments()
-            return try snapshot.documents.compactMap { try $0.data(as: ShigodekiTask.self) }
+
+            var tasks: [ShigodekiTask] = []
+            var backfill: [TaskBackfillInfo] = []
+
+            for (index, document) in snapshot.documents.enumerated() {
+                var task = try document.data(as: ShigodekiTask.self)
+                if task.id == nil { task.id = document.documentID }
+
+                let rawData = document.data()
+                let needsOrderIndex = rawData["orderIndex"] == nil
+                let needsSyncStatus = rawData["syncStatus"] == nil
+
+                if needsOrderIndex || needsSyncStatus,
+                   let documentId = task.id {
+                    let info = TaskBackfillInfo(
+                        documentId: documentId,
+                        collectionPath: .phase(phaseId: phaseId, projectId: projectId),
+                        desiredOrderIndex: task.orderIndex ?? index,
+                        desiredSyncStatus: task.syncStatus,
+                        needsOrderIndex: needsOrderIndex,
+                        needsSyncStatus: needsSyncStatus
+                    )
+                    backfill.append(info)
+                }
+
+                tasks.append(task)
+            }
+
+            await TaskModelMigrationService.shared.backfillIfNeeded(backfill)
+            return tasks
         } catch {
             let e = FirebaseError.from(error)
             self.error = e

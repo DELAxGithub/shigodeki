@@ -30,6 +30,7 @@ class SharedManagerStore: ObservableObject {
     @Published private var _taskListManager: TaskListManager?
     @Published private var _aiGenerator: AITaskGenerator?
     @Published private var _taskImprovementEngine: TaskImprovementEngine?
+    private var dashboardService: DashboardDataService?
     
     // MARK: - Preload Management
     
@@ -119,6 +120,15 @@ class SharedManagerStore: ObservableObject {
             assign: { self._taskListManager = $0 },
             logContext: "TaskListManager Created"
         )
+    }
+
+    func getDashboardService() async -> DashboardDataService {
+        if let service = dashboardService {
+            return service
+        }
+        let service = DashboardDataService()
+        dashboardService = service
+        return service
     }
     
     func getAiGenerator() async -> AITaskGenerator {

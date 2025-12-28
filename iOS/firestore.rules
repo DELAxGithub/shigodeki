@@ -17,16 +17,28 @@ service cloud.firestore {
     
     // Users can access their own user data and basic info of family members
     match /users/{userId} {
-      // Users can always read and write their own data
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      
-      // Allow familyIds array updates for invitation joining (明示配列更新)
+      // Users can read/create their own data
+      allow read, create: if request.auth != null && request.auth.uid == userId;
+
+      // Allow updates, but guard familyIds to explicit +1 additions only
       allow update: if request.auth != null && request.auth.uid == userId &&
-        request.resource.data.diff(resource.data).changedKeys().hasOnly(['familyIds']) &&
-        request.resource.data.familyIds is list &&
-        resource.data.familyIds is list &&
-        request.resource.data.familyIds.size() == resource.data.familyIds.size() + 1 &&
-        request.resource.data.familyIds.hasAll(resource.data.familyIds);
+        (
+          !request.resource.data.diff(resource.data).changedKeys().hasAny(['familyIds']) ||
+          (
+            request.resource.data.familyIds is list &&
+            (
+              (
+                resource.data.familyIds is list &&
+                request.resource.data.familyIds.size() == resource.data.familyIds.size() + 1 &&
+                request.resource.data.familyIds.hasAll(resource.data.familyIds)
+              ) ||
+              (
+                resource.data.familyIds == null &&
+                request.resource.data.familyIds.size() == 1
+              )
+            )
+          )
+        );
       
       // Family members can read basic user info of other family members
       // This is needed for displaying family member names in the app
@@ -86,12 +98,6 @@ service cloud.firestore {
         request.auth.uid == resource.data.createdBy;
     }
     
-    // レガシーサポート - 段階的移行期間中のみ
-    // TODO: 移行完了後に削除
-    match /invitations/{invitationId} {
-      allow read, write, create: if request.auth != null;
-    }
-    
     // Family-based access control
     match /families/{familyId} {
       // Allow creation of new families by authenticated users
@@ -119,9 +125,9 @@ service cloud.firestore {
       allow delete: if request.auth != null && 
         request.auth.uid in resource.data.members;
       
-      // Nested collections within families
+      // Nested collections within families (members only)
       match /{document=**} {
-        allow read, write, create, delete: if request.auth != null;
+        allow read, write, create, delete: if isFamilyMember(familyId);
       }
     }
     
@@ -153,9 +159,9 @@ service cloud.firestore {
       allow read, write, create: if request.auth != null;
     }
     
-    // Connection test path for app initialization
+    // Connection test path for app initialization (auth required)
     match /test/connection {
-      allow read: if true; // Temporary: Allow unauthenticated access for connection test
+      allow read: if authed();
     }
   }
 }

@@ -9,11 +9,6 @@
 import Foundation
 import FirebaseFirestore
 
-enum SyncStatus: String {
-    case pending
-    case confirmed
-}
-
 enum SyncOp: Equatable {
     case confirmPhaseCreate(projectId: String, phaseId: String, listId: String, taskId: String)
     case deletePhaseTask(projectId: String, phaseId: String, listId: String, taskId: String)
@@ -82,7 +77,7 @@ actor SyncQueue {
                         .collection("phases").document(phaseId)
                         .collection("lists").document(listId)
                         .collection("tasks").document(taskId)
-                    try await ref.setData(["syncStatus": SyncStatus.confirmed.rawValue], merge: true)
+                    try await ref.setData(["syncStatus": TaskSyncStatus.confirmed.rawValue], merge: true)
                 case let .deletePhaseTask(projectId, phaseId, listId, taskId):
                     let ref = db.collection("projects").document(projectId)
                         .collection("phases").document(phaseId)

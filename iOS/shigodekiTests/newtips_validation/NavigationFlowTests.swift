@@ -14,7 +14,11 @@ class NavigationFlowTests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["isRunningUITests", "skipOnboarding"] 
+        app.launchArguments = [
+            "isRunningUITests",
+            "skipOnboarding",
+            "-FF.taskAddModal", "true"
+        ]
         app.launch()
     }
     
@@ -49,6 +53,9 @@ class NavigationFlowTests: XCTestCase {
             .projectDetail,
             .taskDetail,
             .projectDetail, // back from task
+            .taskListBackToFamily,
+            .projectDetail,
+            .familyDetail,
             .settings,
             .projectList   // back to main
         ]
@@ -167,7 +174,36 @@ class NavigationFlowTests: XCTestCase {
             } else {
                 throw NavigationError.buttonNotFound("Settings navigation not found")
             }
-            
+
+        case .taskListBackToFamily:
+            try navigateToState(.projectDetail)
+
+            let taskListCells = app.tables.cells.allElementsBoundByIndex
+            guard let firstList = taskListCells.first(where: { $0.isHittable }) else {
+                throw NavigationError.stateNotReachable("No task lists available to open")
+            }
+            firstList.tap()
+
+            let backButton = app.buttons["TaskList.BackToFamily"]
+            guard backButton.waitForExistence(timeout: 3) else {
+                throw NavigationError.buttonNotFound("TaskList Back to Family button not found")
+            }
+            backButton.tap()
+
+            let familySheet = app.otherElements["FamilyDetailView"].firstMatch
+            guard familySheet.waitForExistence(timeout: 5) else {
+                throw NavigationError.stateNotReachable("Family detail sheet did not appear from TaskList")
+            }
+
+            if app.buttons["閉じる"].exists {
+                app.buttons["閉じる"].tap()
+            } else {
+                app.swipeDown()
+            }
+
+            try navigateToState(.projectDetail)
+            return
+
         case .profile:
             // Navigate to profile through settings or tab
             if app.tabBars.buttons["プロフィール"].exists {
@@ -210,12 +246,13 @@ class NavigationFlowTests: XCTestCase {
     }
     
     private func verifyBackNavigation(_ state: NavigationState) -> Bool {
-        // Skip back navigation test for root states
-        if state == .projectList {
+        // Skip back navigation test for root states or flows that already return
+        switch state {
+        case .projectList, .taskListBackToFamily:
             return true
+        default:
+            return attemptBackNavigation()
         }
-        
-        return attemptBackNavigation()
     }
     
     private func attemptBackNavigation() -> Bool {
@@ -280,6 +317,8 @@ enum NavigationState: String, CaseIterable {
     case projectDetail = "Project Detail"
     case projectCreate = "New Project" 
     case taskDetail = "Task Detail"
+    case taskListBackToFamily = "Task List"
+    case familyDetail = "Family Detail"
     case settings = "設定"
     case profile = "Profile"
     
@@ -293,6 +332,10 @@ enum NavigationState: String, CaseIterable {
             return ["project_name_field", "save_project_button"]
         case .taskDetail:
             return ["task_title_field", "task_save_button"]
+        case .taskListBackToFamily:
+            return ["TaskListDetailView", "TaskList.BackToFamily"]
+        case .familyDetail:
+            return ["FamilyDetailView"]
         case .settings:
             return ["settings_list", "profile_button"]
         case .profile:
