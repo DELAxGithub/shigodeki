@@ -204,6 +204,15 @@ class NavigationFlowTests: XCTestCase {
             try navigateToState(.projectDetail)
             return
 
+        case .familyDetail:
+            // Navigate to family detail through project detail or tab
+            try navigateToState(.projectDetail)
+            if app.buttons["family_detail_button"].exists {
+                app.buttons["family_detail_button"].tap()
+            } else if app.tabBars.buttons["家族"].exists {
+                app.tabBars.buttons["家族"].tap()
+            }
+
         case .profile:
             // Navigate to profile through settings or tab
             if app.tabBars.buttons["プロフィール"].exists {

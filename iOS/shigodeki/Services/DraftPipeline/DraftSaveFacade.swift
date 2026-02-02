@@ -74,10 +74,14 @@ enum DraftSaveFacade {
 
     @MainActor
     static func saveWithUndo(drafts: [TaskDraft], source: TaskDraftSource) async throws {
-        guard var context = activeContext else { throw DraftPipelineError.missingContext }
-        guard drafts.isEmpty == false else { return }
-
+        guard let context = activeContext else { throw DraftPipelineError.missingContext }
         defer { activeContext = nil }
+        try await executeSaveWithUndo(drafts: drafts, source: source, context: context)
+    }
+
+    @MainActor
+    static func executeSaveWithUndo(drafts: [TaskDraft], source: TaskDraftSource, context: DraftSaveContext) async throws {
+        guard drafts.isEmpty == false else { return }
 
         Telemetry.fire(
             .onPreviewAccepted,

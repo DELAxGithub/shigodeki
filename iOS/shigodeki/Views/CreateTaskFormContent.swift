@@ -24,7 +24,7 @@ struct CreateTaskFormContent: View {
     let creatorUserId: String
     let tagManager: TagManager
     let isCreating: Bool
-    let onCreateTask: () -> Void
+    let onPreview: () -> Void
     let onCancel: () -> Void
     
     var body: some View {
@@ -51,7 +51,7 @@ struct CreateTaskFormContent: View {
                 CreateTaskActionButtons(
                     title: title,
                     isCreating: isCreating,
-                    createAction: onCreateTask,
+                    previewAction: onPreview,
                     cancelAction: onCancel
                 )
                 .padding(.horizontal)

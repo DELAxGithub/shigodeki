@@ -13,10 +13,13 @@ import PhotosUI
 struct PhaseTaskDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var sharedManagers: SharedManagerStore
-    
+
     let project: Project
     let phase: Phase
     let task: ShigodekiTask
+
+    /// Optional callback to navigate back to family view
+    var onBackToFamily: (() -> Void)? = nil
     
     @StateObject private var viewModel: PhaseTaskDetailViewModel
     @ObservedObject private var aiStateManager = AIStateManager.shared
@@ -376,20 +379,35 @@ struct PhaseTaskDetailView: View {
                     }
                 }
         }
-        .toolbar { 
-            ToolbarItem(placement: .navigationBarTrailing) { 
-                Button("保存") { 
-                    Task { 
+        .toolbar {
+            if let backAction = onBackToFamily {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        Telemetry.fire(.onBackToFamilyTapped, TelemetryPayload(screen: "PhaseTaskDetailView"))
+                        backAction()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "house")
+                            Text("家族")
+                        }
+                    }
+                    .accessibilityLabel("家族へ戻る")
+                    .accessibilityIdentifier("PhaseTaskDetail.BackToFamily")
+                }
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("保存") {
+                    Task {
                         do {
                             try await helpers.saveTask(viewModel: viewModel)
                             dismiss()
                         } catch {
                             print("⚠️ 保存エラー: \(error)")
                         }
-                    } 
-                } 
+                    }
+                }
                 .disabled(!viewModel.canSave)
-            } 
+            }
         }
         .onAppear {
             // 🚨 FIX: hasInitializedフラグをチェックし、初回のみ実行

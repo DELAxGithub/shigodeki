@@ -197,19 +197,15 @@ struct AssigneeButton: View {
 struct CreateTaskActionButtons: View {
     let title: String
     let isCreating: Bool
-    let createAction: () -> Void
+    let previewAction: () -> Void
     let cancelAction: () -> Void
-    
+
     var body: some View {
         VStack(spacing: 16) {
-            Button(action: createAction) {
+            Button(action: previewAction) {
                 HStack {
-                    if isCreating {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                            .padding(.trailing, 4)
-                    }
-                    Text(isCreating ? "作成中..." : "タスクを作成")
+                    Image(systemName: "eye")
+                    Text("プレビュー")
                 }
                 .font(.headline)
                 .foregroundColor(.white)
@@ -219,7 +215,8 @@ struct CreateTaskActionButtons: View {
                 .cornerRadius(12)
             }
             .disabled(title.isEmpty || isCreating)
-            
+            .accessibilityIdentifier("CreateTask.PreviewButton")
+
             Button("キャンセル", action: cancelAction)
                 .font(.body)
                 .foregroundColor(.secondary)

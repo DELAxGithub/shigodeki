@@ -12,6 +12,7 @@ import XCTest
 // MARK: - Operation: Decoupling Tests
 // These tests define the expected behavior for a properly decoupled TaskDetailView
 
+@MainActor
 class PhaseTaskDetailViewModelTests: XCTestCase {
     
     var viewModel: PhaseTaskDetailViewModel!
@@ -21,45 +22,40 @@ class PhaseTaskDetailViewModelTests: XCTestCase {
     
     override func setUp() {
         super.setUp()
-        
-        // Create mock data
+
+        // Create mock data using current model initializers
         mockProject = Project(
-            id: "test-project-id",
             name: "Test Project",
             description: "Test Description",
-            createdBy: "test-user",
             ownerId: "test-user",
-            ownerType: .individual,
-            createdAt: Date(),
-            updatedAt: Date()
+            ownerType: .individual
         )
-        
+        mockProject.id = "test-project-id"
+
         mockPhase = Phase(
-            id: "test-phase-id",
             name: "Test Phase",
             description: "Test Phase Description",
             projectId: "test-project-id",
             createdBy: "test-user",
-            createdAt: Date(),
             order: 0
         )
-        
+        mockPhase.id = "test-phase-id"
+
         mockTask = ShigodekiTask(
-            id: "test-task-id",
             title: "Test Task",
             description: "Test Description",
-            isCompleted: false,
-            priority: .medium,
-            dueDate: nil,
-            createdBy: "test-user",
             assignedTo: nil,
-            projectId: "test-project-id",
+            createdBy: "test-user",
+            dueDate: nil,
+            priority: .medium,
+            listId: "test-list-id",
             phaseId: "test-phase-id",
-            createdAt: Date(),
-            updatedAt: Date()
+            projectId: "test-project-id",
+            order: 0
         )
-        
-        // Initialize ViewModel (will fail until we create it)
+        mockTask.id = "test-task-id"
+
+        // Initialize ViewModel
         viewModel = PhaseTaskDetailViewModel(
             task: mockTask,
             project: mockProject,

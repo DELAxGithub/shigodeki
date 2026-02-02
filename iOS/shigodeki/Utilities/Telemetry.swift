@@ -23,6 +23,7 @@ enum TelemetryEvent: String {
     case onProPaywallShown
     case onProPriceRetry
     case onProPurchaseResult
+    case onBackToFamilyTapped
 }
 
 struct TelemetryPayload: Encodable {

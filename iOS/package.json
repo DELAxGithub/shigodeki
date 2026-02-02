@@ -5,7 +5,9 @@
   "scripts": {
     "test": "mocha --timeout 10000",
     "test:family": "mocha test/family-access.test.js --timeout 10000",
-    "test:emulator": "firebase emulators:exec --only firestore 'npm run test:family'"
+    "test:project": "mocha test/project-access.test.js --timeout 10000",
+    "test:emulator": "firebase emulators:exec --only firestore 'npm run test:family'",
+    "test:project:emulator": "firebase emulators:exec --only firestore 'npm run test:project'"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^3.0.3",

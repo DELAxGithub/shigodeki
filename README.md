@@ -416,6 +416,50 @@ firebase emulators:start
 
 ---
 
+## 🚀 TestFlight ベータ配信
+
+### ビルド作成
+
+TestFlight用のビルドを作成するスクリプトを用意しています:
+
+```bash
+# プロジェクトルートで実行
+cd shigodeki
+
+# バージョン情報を確認
+./scripts/archive-and-upload.sh version
+
+# アーカイブを作成
+./scripts/archive-and-upload.sh archive
+
+# Xcode Organizerを開いてアップロード
+open build/Shigodeki.xcarchive
+```
+
+### アップロード手順
+
+1. **Xcode Organizer** → アーカイブを選択
+2. **Distribute App** → **App Store Connect**
+3. **Upload** → オプションを確認して完了
+
+### テスター向けドキュメント
+
+| ドキュメント | 内容 |
+|-------------|------|
+| [testflight-beta-manual.md](./docs/testflight-beta-manual.md) | ベータテスター向け操作マニュアル |
+| [app-store-connect-setup.md](./docs/app-store-connect-setup.md) | App Store Connect設定手順 |
+| [validation-test.md](./docs/validation-test.md) | 手動検証チェックリスト |
+
+### 現在のバージョン
+
+| 項目 | 値 |
+|------|-----|
+| Version | 1.6 |
+| Build | 2 |
+| Bundle ID | com.hiroshikodera.shigodeki |
+
+---
+
 ## 📚 開発ガイドライン
 
 ### 必読ドキュメント

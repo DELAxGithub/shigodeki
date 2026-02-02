@@ -112,6 +112,8 @@ struct CreatePhaseTaskView: View {
     @State private var keepAttachment: Bool = false
     @State private var attachments: [String] = []
     
+    var onSaveDraft: ((TaskDraft) -> Void)? = nil
+    
     var body: some View {
         NavigationView {
             Form {
@@ -121,47 +123,49 @@ struct CreatePhaseTaskView: View {
                         .lineLimit(3...6)
                 }
 
-                Section(header: Text("写真から提案（任意）")) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 12) {
-                            Button {
-                                showCamera = true
-                            } label: {
-                                Label("カメラで提案", systemImage: "camera")
-                            }
-                            .buttonStyle(.bordered)
+                if !FeatureFlags.taskAddModalEnabled {
+                    Section(header: Text("写真から提案（任意）")) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 12) {
+                                Button {
+                                    showCamera = true
+                                } label: {
+                                    Label("カメラで提案", systemImage: "camera")
+                                }
+                                .buttonStyle(.bordered)
 
-                            Button {
-                                showLibrary = true
-                            } label: {
-                                Label("写真を選択", systemImage: "photo.on.rectangle")
+                                Button {
+                                    showLibrary = true
+                                } label: {
+                                    Label("写真を選択", systemImage: "photo.on.rectangle")
+                                }
+                                .buttonStyle(.bordered)
                             }
-                            .buttonStyle(.bordered)
-                        }
 
-                        if isGeneratingFromPhoto {
-                            HStack(spacing: 8) {
-                                ProgressView()
-                                Text("写真を解析して提案を生成中…")
+                            if isGeneratingFromPhoto {
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                    Text("写真を解析して提案を生成中…")
+                                        .font(.footnote)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+
+                            if let genError {
+                                Text(genError)
+                                    .font(.footnote)
+                                    .foregroundColor(.red)
+                            }
+
+                            // 内蔵のプランナーを使用します
+                            Toggle(isOn: $keepAttachment) {
+                                Text("添付として保持")
+                            }
+                            if keepAttachment {
+                                Text("現在の添付: \(attachments.count) 件")
                                     .font(.footnote)
                                     .foregroundColor(.secondary)
                             }
-                        }
-
-                        if let genError {
-                            Text(genError)
-                                .font(.footnote)
-                                .foregroundColor(.red)
-                        }
-
-                        // 内蔵のプランナーを使用します
-                        Toggle(isOn: $keepAttachment) {
-                            Text("添付として保持")
-                        }
-                        if keepAttachment {
-                            Text("現在の添付: \(attachments.count) 件")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
                         }
                     }
                 }
@@ -196,13 +200,15 @@ struct CreatePhaseTaskView: View {
                     }
                     .disabled(taskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreating)
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showCamera = true
-                    } label: {
-                        Image(systemName: "camera")
+                if !FeatureFlags.taskAddModalEnabled {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button {
+                            showCamera = true
+                        } label: {
+                            Image(systemName: "camera")
+                        }
+                        .accessibilityLabel("写真から提案")
                     }
-                    .accessibilityLabel("写真から提案")
                 }
             }
         }
@@ -219,6 +225,19 @@ struct CreatePhaseTaskView: View {
     }
     
     private func createTask() {
+        if let onSaveDraft = onSaveDraft {
+            let draft = TaskDraft(
+                title: taskTitle,
+                assignee: nil,
+                due: nil,
+                rationale: taskDescription.isEmpty ? nil : taskDescription,
+                priority: selectedPriority
+            )
+            onSaveDraft(draft)
+            dismiss()
+            return
+        }
+
         guard let userId = authManager.currentUser?.id,
               let taskListId = taskList.id,
               let phaseId = phase.id,

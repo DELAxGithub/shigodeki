@@ -19,7 +19,7 @@ enum FeatureFlags {
     }
 
     static var taskAddModalEnabled: Bool {
-        resolvedBool(for: "taskAddModal", default: false)
+        resolvedBool(for: "taskAddModal", default: true)
     }
 
     // Phase 4 KPI dashboards
@@ -33,27 +33,27 @@ enum FeatureFlags {
 
     // Unified Preview pipeline (TaskDraft -> Preview -> Save)
     static var unifiedPreviewEnabled: Bool {
-        resolvedBool(for: "unifiedPreviewEnabled", default: false)
+        resolvedBool(for: "unifiedPreviewEnabled", default: true)
     }
 
     static var previewTemplateEnabled: Bool {
-        resolvedBool(for: "previewTemplateEnabled", default: false)
+        resolvedBool(for: "previewTemplateEnabled", default: true)
     }
 
     static var previewAIEnabled: Bool {
-        resolvedBool(for: "previewAIEnabled", default: false)
+        resolvedBool(for: "previewAIEnabled", default: true)
     }
 
     static var previewPhotoEnabled: Bool {
-        resolvedBool(for: "previewPhotoEnabled", default: false)
+        resolvedBool(for: "previewPhotoEnabled", default: true)
     }
 
     static var undoEnabled: Bool {
-        resolvedBool(for: "undoEnabled", default: false)
+        resolvedBool(for: "undoEnabled", default: true)
     }
 
     static var offlineBadgesEnabled: Bool {
-        resolvedBool(for: "offlineBadgesEnabled", default: false)
+        resolvedBool(for: "offlineBadgesEnabled", default: true)
     }
 
     static var taskOrderIndexEnabled: Bool {

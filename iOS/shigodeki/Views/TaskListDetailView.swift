@@ -31,6 +31,7 @@ struct TaskListDetailView: View {
     @State private var selectedTaskForAttachment: ShigodekiTask?
     @State private var templateDrafts: [TaskDraft] = []
     @State private var showingTemplatePreview = false
+    @State private var currentDraftSource: TaskDraftSource = .manual
     @State private var isSavingDrafts = false
     @State private var aiGenerator: AITaskGenerator?
     @State private var presentingViewController: UIViewController?
@@ -198,7 +199,15 @@ struct TaskListDetailView: View {
                     taskList: taskList,
                     phase: phase,
                     project: project,
-                    taskManager: TaskManager()
+                    taskManager: TaskManager(),
+                    onSaveDraft: { draft in
+                        taskAddRoute = nil
+                        templateDrafts = [draft]
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            currentDraftSource = .manual
+                            showingTemplatePreview = true
+                        }
+                    }
                 )
                 .onDisappear { taskAddRoute = nil }
             case .template:
@@ -231,7 +240,16 @@ struct TaskListDetailView: View {
                     ProgressView()
                 }
             case .photo:
-                TaskAddPlaceholderView(message: "近日公開予定です", onDismiss: { taskAddRoute = nil })
+                PhotoDraftFlowView(
+                    taskList: taskList,
+                    project: project,
+                    phase: phase,
+                    onPreviewDrafts: { drafts, source in
+                        taskAddRoute = nil
+                        _ = presentDraftPreview(drafts, source: source)
+                    },
+                    onCancel: { taskAddRoute = nil }
+                )
             }
         }
         .sheet(isPresented: $showingTemplatePreview) {
@@ -312,6 +330,7 @@ struct TaskListDetailView: View {
     private func handleTemplateDrafts(_ drafts: [TaskDraft]) {
         guard presentDraftPreview(drafts, source: .template) else {
             templateDrafts = drafts
+            currentDraftSource = .template
             showingTemplatePreview = true
             return
         }
@@ -329,8 +348,8 @@ struct TaskListDetailView: View {
             switch source {
             case .template: return FeatureFlags.previewTemplateEnabled
             case .ai: return FeatureFlags.previewAIEnabled
-            case .photo: return FeatureFlags.previewPhotoEnabled
-            case .manual: return false
+            case .photo: return true // Enabled for Unified flow
+            case .manual: return true
             }
         }()
 
@@ -363,7 +382,7 @@ struct TaskListDetailView: View {
     }
 
     @MainActor
-    private func saveDrafts(_ drafts: [TaskDraft]) async {
+    private func saveDrafts(_ drafts: [TaskDraft], overrideSource: TaskDraftSource? = nil) async {
         guard let manager = viewModelHolder.vm?.getManager(),
               let listId = taskList.id,
               let phaseId = phase.id,
@@ -372,25 +391,25 @@ struct TaskListDetailView: View {
             return
         }
 
-        for draft in drafts {
-            do {
-                _ = try await manager.createTask(
-                    title: draft.title,
-                    description: draft.rationale,
-                    assignedTo: draft.assignee,
-                    createdBy: userId,
-                    dueDate: draft.due,
-                    priority: draft.priority,
-                    listId: listId,
-                    phaseId: phaseId,
-                    projectId: projectId,
-                    order: nil
-                )
-            } catch {
-                #if DEBUG
-                print("Template draft save failed: \(error)")
-                #endif
-            }
+        let context = DraftSaveContext(
+            listId: listId,
+            phaseId: phaseId,
+            projectId: projectId,
+            createdBy: userId,
+            taskManager: manager,
+            toastCenter: toastCenter
+        )
+
+        do {
+            try await DraftSaveFacade.executeSaveWithUndo(
+                drafts: drafts,
+                source: overrideSource ?? currentDraftSource,
+                context: context
+            )
+        } catch {
+            #if DEBUG
+            print("Draft save failed: \(error)")
+            #endif
         }
 
         templateDrafts = []
@@ -413,7 +432,7 @@ struct TaskListDetailView: View {
         Task {
             guard !isSavingDrafts else { return }
             isSavingDrafts = true
-            await saveDrafts(drafts)
+            await saveDrafts(drafts, overrideSource: .ai)
             isSavingDrafts = false
         }
     }

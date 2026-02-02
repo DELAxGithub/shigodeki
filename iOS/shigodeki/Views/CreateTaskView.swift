@@ -10,6 +10,7 @@ import SwiftUI
 
 struct CreateTaskView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var toastCenter: ToastCenter
     @State private var title: String = ""
     @State private var description: String = ""
     @State private var selectedPriority: TaskPriority = .medium
@@ -19,16 +20,19 @@ struct CreateTaskView: View {
     @State private var selectedTags: [String] = []
     @State private var keepAttachment: Bool = false
     @State private var attachments: [String] = [] // base64 data URLs or remote URLs
-    
+    @State private var showingPreview: Bool = false
+    @State private var isCreating: Bool = false
+    @State private var errorMessage: String?
+
     // Services
     @StateObject private var tagManager = TagManager()
-    @StateObject private var creationService: TaskCreationService
-    
+    private let enhancedTaskManager = EnhancedTaskManager()
+
     let taskList: TaskList
     let family: Family
     let creatorUserId: String
     let familyMembers: [User]
-    
+
     init(
         taskList: TaskList,
         family: Family,
@@ -40,14 +44,6 @@ struct CreateTaskView: View {
         self.family = family
         self.creatorUserId = creatorUserId
         self.familyMembers = familyMembers
-        
-        // Initialize service with dependencies
-        self._creationService = StateObject(
-            wrappedValue: TaskCreationService(
-                taskManager: taskManager,
-                tagManager: TagManager()
-            )
-        )
     }
     
     var body: some View {
@@ -66,8 +62,8 @@ struct CreateTaskView: View {
                 familyMembers: familyMembers,
                 creatorUserId: creatorUserId,
                 tagManager: tagManager,
-                isCreating: creationService.isCreating,
-                onCreateTask: createTask,
+                isCreating: isCreating,
+                onPreview: showPreview,
                 onCancel: { dismiss() }
             )
             .navigationTitle("タスク作成")
@@ -80,44 +76,91 @@ struct CreateTaskView: View {
                 }
             }
         }
-        .alert("タスク作成完了", isPresented: $creationService.showSuccess) {
-            Button("OK") {
-                dismiss()
-            }
-        } message: {
-            Text("タスク「\(title)」が作成されました。")
+        .sheet(isPresented: $showingPreview) {
+            TasksPreview(
+                drafts: [buildDraft()],
+                onAccept: { acceptedDrafts in
+                    createTaskWithUndo(drafts: acceptedDrafts)
+                },
+                onCancel: {
+                    showingPreview = false
+                }
+            )
         }
         .alert("エラー", isPresented: Binding<Bool>(
-            get: { creationService.errorMessage != nil },
-            set: { _ in creationService.errorMessage = nil }
+            get: { errorMessage != nil },
+            set: { _ in errorMessage = nil }
         )) {
             Button("OK") {}
         } message: {
-            Text(creationService.errorMessage ?? "")
+            Text(errorMessage ?? "")
         }
         .task {
-            await creationService.loadTags(projectId: taskList.projectId)
+            await tagManager.loadTags(projectId: taskList.projectId)
+            tagManager.startListening(projectId: taskList.projectId)
         }
         .onDisappear {
-            creationService.stopTagListening()
+            tagManager.stopListening()
         }
     }
     
-    private func createTask() {
+    private func showPreview() {
+        Telemetry.fire(.onPreviewShown, TelemetryPayload(previewSource: "manual"))
+        showingPreview = true
+    }
+
+    private func buildDraft() -> TaskDraft {
+        let assigneeName: String? = {
+            guard let assigneeId = selectedAssignee else { return nil }
+            return familyMembers.first { $0.id == assigneeId }?.name
+        }()
+
+        return TaskDraft(
+            title: title,
+            assignee: assigneeName,
+            due: hasDueDate ? dueDate : nil,
+            rationale: description.isEmpty ? nil : description,
+            priority: selectedPriority
+        )
+    }
+
+    private func createTaskWithUndo(drafts: [TaskDraft]) {
+        guard let listId = taskList.id else {
+            errorMessage = "タスクリストIDが見つかりません"
+            return
+        }
+
+        isCreating = true
+        showingPreview = false
+
         Task {
-            await creationService.createTask(
-                title: title,
-                description: description,
-                taskList: taskList,
-                family: family,
-                creatorUserId: creatorUserId,
-                selectedAssignee: selectedAssignee,
-                dueDate: dueDate,
-                hasDueDate: hasDueDate,
-                selectedPriority: selectedPriority,
-                selectedTags: selectedTags,
-                attachments: keepAttachment ? attachments : []
-            )
+            do {
+                let context = DraftSaveContext(
+                    listId: listId,
+                    phaseId: taskList.phaseId,
+                    projectId: taskList.projectId,
+                    createdBy: creatorUserId,
+                    taskManager: enhancedTaskManager,
+                    toastCenter: toastCenter
+                )
+
+                try await DraftSaveFacade.executeSaveWithUndo(
+                    drafts: drafts,
+                    source: .manual,
+                    context: context
+                )
+
+                // Update tag usage
+                for tagName in selectedTags {
+                    await tagManager.incrementUsage(for: tagName, projectId: taskList.projectId)
+                }
+
+                isCreating = false
+                dismiss()
+            } catch {
+                isCreating = false
+                errorMessage = "タスクの作成に失敗しました: \(error.localizedDescription)"
+            }
         }
     }
 }
