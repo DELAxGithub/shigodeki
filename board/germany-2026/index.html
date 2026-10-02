@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🇩🇪 エッセン旅のしおり & 作戦ボード｜シゴデキ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(22, 30, 49, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-hover-border: rgba(99, 102, 241, 0.4);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #6366f1;
+      --primary-light: #818cf8;
+      --accent: #38bdf8;
+      --amber: #f59e0b;
+      --emerald: #10b981;
+      --rose: #f43f5e;
+      --surface-glass: rgba(15, 23, 42, 0.65);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.12) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2.5rem 1.5rem;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    /* Top Navigation */
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #6366f1, #38bdf8);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.25rem;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+    }
+
+    .brand-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.85rem;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 9999px;
+      font-size: 0.825rem;
+      font-weight: 600;
+      color: var(--primary-light);
+    }
+
+    .badge-status::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: var(--emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--emerald);
+    }
+
+    /* Hero Banner */
+    .hero {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 2.25rem;
+      margin-bottom: 2.5rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+    }
+
+    .hero::after {
+      content: '🇩🇪';
+      position: absolute;
+      right: 1.5rem;
+      top: 1rem;
+      font-size: 6rem;
+      opacity: 0.15;
+      pointer-events: none;
+    }
+
+    .hero-pretitle {
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .hero-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.25rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      margin-top: 1rem;
+    }
+
+    .hero-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .hero-meta-item strong {
+      color: var(--text);
+    }
+
+    /* Weather Alert Callout */
+    .weather-callout {
+      margin-top: 1.5rem;
+      padding: 1rem 1.25rem;
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.925rem;
+    }
+
+    .weather-icon {
+      font-size: 1.75rem;
+    }
+
+    /* Grid Layout */
+    .section-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    /* Hotel Cards Grid */
+    .hotels-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2.75rem;
+    }
+
+    .hotel-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+    }
+
+    .hotel-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--card-hover-border);
+      box-shadow: 0 12px 24px -8px rgba(99, 102, 241, 0.2);
+    }
+
+    .hotel-badge {
+      position: absolute;
+      top: 1.25rem;
+      right: 1.25rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.25rem 0.65rem;
+      border-radius: 6px;
+      background: rgba(99, 102, 241, 0.2);
+      color: var(--primary-light);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .hotel-name {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+      padding-right: 5rem;
+    }
+
+    .hotel-rating {
+      color: var(--amber);
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .hotel-price {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--emerald);
+      margin-bottom: 0.75rem;
+    }
+
+    .hotel-location {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.35rem;
+    }
+
+    .pros-cons {
+      margin-bottom: 1.25rem;
+      font-size: 0.85rem;
+    }
+
+    .pros-list, .cons-list {
+      list-style: none;
+    }
+
+    .pros-list li {
+      color: #93c5fd;
+      margin-bottom: 0.3rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .pros-list li::before {
+      content: '✓';
+      color: var(--emerald);
+      font-weight: bold;
+    }
+
+    .cons-list li {
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .cons-list li::before {
+      content: '•';
+      color: var(--rose);
+    }
+
+    .hotel-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      padding: 0.65rem 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .hotel-link:hover {
+      background: var(--primary);
+      border-color: var(--primary);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    /* Transit & Checklist 2-Column Section */
+    .two-cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.75rem;
+      margin-bottom: 2.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .two-cols {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .col-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.75rem;
+    }
+
+    .transit-step {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+      position: relative;
+    }
+
+    .transit-icon {
+      width: 36px;
+      height: 36px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 1.1rem;
+    }
+
+    .transit-info h4 {
+      font-size: 0.975rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .transit-info p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* Interactive Checklist */
+    .checklist-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.75rem 0.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checklist-item:last-child {
+      border-bottom: none;
+    }
+
+    .checklist-checkbox {
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      border: 2px solid var(--text-muted);
+      margin-top: 0.2rem;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .checklist-item.checked .checklist-checkbox {
+      background: var(--emerald);
+      border-color: var(--emerald);
+    }
+
+    .checklist-item.checked .checklist-checkbox::after {
+      content: '✓';
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: bold;
+    }
+
+    .checklist-item.checked .checklist-label {
+      text-decoration: line-through;
+      color: var(--text-muted);
+    }
+
+    .checklist-label {
+      font-size: 0.925rem;
+      flex-grow: 1;
+    }
+
+    .owner-pill {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding-top: 2rem;
+      border-top: 1px solid var(--card-border);
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    
+    <!-- Top Nav -->
+    <header class="top-nav">
+      <a href="../index.html" class="brand">
+        <div class="brand-logo">シ</div>
+        <span class="brand-title">シゴデキ・ボード</span>
+      </a>
+      <div class="badge-status">
+        <span>寿美様リード 🤝 仕込み進行中</span>
+      </div>
+    </header>
+
+    <!-- Hero Banner -->
+    <section class="hero">
+      <div class="hero-pretitle">TRAVEL LOG & STRATEGY</div>
+      <h1 class="hero-title">🇩🇪 ドイツ・エッセン旅のしおり & 作戦ボード</h1>
+      <p style="color: var(--text-muted); max-width: 680px;">
+        10月後半のエッセン滞在。デュッセルドルフ空港からのアクセス、エッセン中央駅およびメッセ周辺のホテル選定、秋の気候対策を夫婦で連携して仕込み中。
+      </p>
+
+      <div class="hero-meta">
+        <div class="hero-meta-item">
+          <span>📅</span>
+          <span>日程: <strong>2026年10月22日（木）〜 10月25日（日）</strong></span>
+        </div>
+        <div class="hero-meta-item">
+          <span>📍</span>
+          <span>目的地: <strong>エッセン（Essen, ドイツ）</strong></span>
+        </div>
+        <div class="hero-meta-item">
+          <span>🔄</span>
+          <span>最終更新: <strong>2026-10-02 14:30</strong></span>
+        </div>
+      </div>
+
+      <div class="weather-callout">
+        <div class="weather-icon">🧥</div>
+        <div>
+          <strong>秋の気温差に注意（防寒対策必須）</strong><br>
+          10月のエッセンは最高気温 14℃ / 最低 7℃ 前後。マラガ（25℃前後）と比べて<strong>10℃以上寒い</strong>ため、ウルトラライトダウンや風を通さないコート・マフラーの持参が推奨されます。
+        </div>
+      </div>
+    </section>
+
+    <!-- Hotels Grid -->
+    <section>
+      <h2 class="section-title">
+        <span>🏨</span>
+        <span>宿泊先・ホテル候補（比較中）</span>
+      </h2>
+      <div class="hotels-grid">
+        
+        <!-- Hotel 1 -->
+        <div class="hotel-card">
+          <span class="hotel-badge">⭐ 有力候補</span>
+          <div>
+            <h3 class="hotel-name">Motel One Essen</h3>
+            <div class="hotel-rating">★ 4.5 <span>（デザイン・清潔感高評価）</span></div>
+            <div class="hotel-price">約 110〜140 € / 泊</div>
+            <div class="hotel-location">
+              <span>📍</span>
+              <span>Kennedyplatz 3 (旧市街中心・中央駅徒歩8分)</span>
+            </div>
+            <div class="pros-cons">
+              <ul class="pros-list">
+                <li>デザインが洗練されていて清潔・ベッドが高品質</li>
+                <li>旧市街の飲食店やカフェが目の前で便利</li>
+                <li>直前キャンセル無料プランあり</li>
+              </ul>
+            </div>
+          </div>
+          <a href="https://www.motel-one.com/de/hotels/essen/hotel-essen/" target="_blank" class="hotel-link">公式サイトで見る ↗</a>
+        </div>
+
+        <!-- Hotel 2 -->
+        <div class="hotel-card">
+          <span class="hotel-badge">⭐ 移動最優先</span>
+          <div>
+            <h3 class="hotel-name">Select Hotel Handelshof</h3>
+            <div class="hotel-rating">★ 4.1 <span>（駅直結の利便性）</span></div>
+            <div class="hotel-price">約 100〜130 € / 泊</div>
+            <div class="hotel-location">
+              <span>📍</span>
+              <span>Am Hauptbahnhof 2 (エッセン中央駅の真向かい)</span>
+            </div>
+            <div class="pros-cons">
+              <ul class="pros-list">
+                <li>中央駅出口の真向かいで移動ストレスがゼロ</li>
+                <li>到着日・出発日のスーツケース預けが極めて楽</li>
+              </ul>
+              <ul class="cons-list" style="margin-top: 0.3rem;">
+                <li>歴史ある重厚な建物（部屋はクラシック調）</li>
+              </ul>
+            </div>
+          </div>
+          <a href="https://www.novum-hotels.com/hotel-handelshof-essen" target="_blank" class="hotel-link">詳細・空室を見る ↗</a>
+        </div>
+
+        <!-- Hotel 3 -->
+        <div class="hotel-card">
+          <span class="hotel-badge">ゆったり滞在</span>
+          <div>
+            <h3 class="hotel-name">Atlantic Congress Hotel</h3>
+            <div class="hotel-rating">★ 4.4 <span>（メッセ直結・広々）</span></div>
+            <div class="hotel-price">約 150〜190 € / 泊</div>
+            <div class="hotel-location">
+              <span>📍</span>
+              <span>Norbertstraße 2a (Messe Essen直結 / 地下鉄駅前)</span>
+            </div>
+            <div class="pros-cons">
+              <ul class="pros-list">
+                <li>客室が広めでバスタブ付き</li>
+                <li>メッセ会場直結で緑豊かな静かな環境</li>
+                <li>サウナ・フィットネス併設</li>
+              </ul>
+              <ul class="cons-list" style="margin-top: 0.3rem;">
+                <li>中央駅までは地下鉄（U11）で約5分移動</li>
+              </ul>
+            </div>
+          </div>
+          <a href="https://www.atlantic-hotels.de/congress-hotel-essen/" target="_blank" class="hotel-link">詳細・空室を見る ↗</a>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Transit & Checklist Grid -->
+    <div class="two-cols">
+      
+      <!-- Column 1: Transit -->
+      <div class="col-card">
+        <h2 class="section-title">
+          <span>🚆</span>
+          <span>空港からの移動ルート</span>
+        </h2>
+        
+        <div class="transit-step">
+          <div class="transit-icon">✈️</div>
+          <div class="transit-info">
+            <h4>デュッセルドルフ国際空港 (DUS) 到着</h4>
+            <p>マラガ空港（AGP）から直行便で約2時間50分。</p>
+          </div>
+        </div>
+
+        <div class="transit-step">
+          <div class="transit-icon">🚟</div>
+          <div class="transit-info">
+            <h4>スカイトレイン（SkyTrain）</h4>
+            <p>ターミナルから「Düsseldorf Flughafen 駅」へ移動（約5分）。</p>
+          </div>
+        </div>
+
+        <div class="transit-step">
+          <div class="transit-icon">🚆</div>
+          <div class="transit-info">
+            <h4>RE（快速列車）でエッセン中央駅へ</h4>
+            <p><strong>乗り換えなしで約22〜25分！</strong>（RE1, RE2, RE6 などが頻繁に運行。普通乗車券またはVRRチケットで乗車）。</p>
+          </div>
+        </div>
+
+        <div class="transit-step" style="margin-bottom: 0;">
+          <div class="transit-icon">🏨</div>
+          <div class="transit-info">
+            <h4>エッセン中央駅（Essen Hbf）到着 & チェックイン</h4>
+            <p>駅周辺またはメッセ周辺のホテルへ移動。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Column 2: Interactive Checklist -->
+      <div class="col-card">
+        <h2 class="section-title">
+          <span>📋</span>
+          <span>手配・仕込みチェックリスト</span>
+        </h2>
+        
+        <div class="checklist">
+          <div class="checklist-item" onclick="this.classList.toggle('checked')">
+            <div class="checklist-checkbox"></div>
+            <div class="checklist-label">フライト便（マラガ ⇄ デュッセルドルフ等）比較・決定</div>
+            <span class="owner-pill">寿美様</span>
+          </div>
+
+          <div class="checklist-item" onclick="this.classList.toggle('checked')">
+            <div class="checklist-checkbox"></div>
+            <div class="checklist-label">エッセン宿の予約（キャンセル無料プラン推奨）</div>
+            <span class="owner-pill">2人</span>
+          </div>
+
+          <div class="checklist-item" onclick="this.classList.toggle('checked')">
+            <div class="checklist-checkbox"></div>
+            <div class="checklist-label">ドイツ鉄道アプリ（DB Navigator）インストール</div>
+            <span class="owner-pill">デラさん</span>
+          </div>
+
+          <div class="checklist-item" onclick="this.classList.toggle('checked')">
+            <div class="checklist-checkbox"></div>
+            <div class="checklist-label">秋の防寒具（ライトダウン・コート）パッキング確認</div>
+            <span class="owner-pill">2人</span>
+          </div>
+
+          <div class="checklist-item" onclick="this.classList.toggle('checked')">
+            <div class="checklist-checkbox"></div>
+            <div class="checklist-label">世界遺産ツォルフェアアイン炭鉱の見学計画</div>
+            <span class="owner-pill">寿美様</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <p>シゴデキ・ボード ｜ 夫婦のプロジェクト・家族管理システム（Antigravity連携）</p>
+    </footer>
+
+  </div>
+</body>
+</html>

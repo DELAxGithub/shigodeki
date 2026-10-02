@@ -1,0 +1,56 @@
+{
+  "project_id": "germany-2026",
+  "title": "🇩🇪 ドイツ・エッセン旅のしおり & 作戦ボード",
+  "dates": "2026年10月22日（木）〜 10月25日（日）",
+  "destination": "ドイツ・エッセン（Essen, Nordrhein-Westfalen）",
+  "lead": "寿美様（よっしー）リード 🤝 デラさんサポート",
+  "status": "宿・移動リサーチ中",
+  "last_updated": "2026-10-02 14:30",
+  "summary": "10月後半のエッセン滞在。デュッセルドルフ空港からのアクセス、エッセン中央駅およびメッセ周辺のホテル選定、秋の気候対策を夫婦で連携して仕込み中。",
+  "weather_note": "10月のエッセンは最高14℃ / 最低7℃。マラガ（25℃前後）より10℃以上低いため、薄手のダウンやコートが必須。",
+  "hotels": [
+    {
+      "name": "Motel One Essen",
+      "rating": 4.5,
+      "price_estimate": "約110〜140€ / 泊",
+      "location": "Kennedyplatz 3 (旧市街中心・中央駅徒歩8分)",
+      "pros": ["デザインが洗練されていて清潔", "旧市街の飲食店やカフェが目の前", "キャンセル無料プランあり"],
+      "cons": ["部屋がややコンパクト"],
+      "url": "https://www.motel-one.com/de/hotels/essen/hotel-essen/",
+      "status": "⭐ 有力候補"
+    },
+    {
+      "name": "Select Hotel Handelshof Essen",
+      "rating": 4.1,
+      "price_estimate": "約100〜130€ / 泊",
+      "location": "Am Hauptbahnhof 2 (エッセン中央駅の真向かい)",
+      "pros": ["中央駅出口の目の前で移動のストレスゼロ", "到着日・出発日のスーツケース預けが極めて楽"],
+      "cons": ["歴史ある建物でクラシックな内装"],
+      "url": "https://www.novum-hotels.com/hotel-handelshof-essen",
+      "status": "⭐ 移動最優先候補"
+    },
+    {
+      "name": "Atlantic Congress Hotel Essen",
+      "rating": 4.4,
+      "price_estimate": "約150〜190€ / 泊",
+      "location": "Norbertstraße 2a (Messe Essen直結 / 地下鉄Messe Ost駅前)",
+      "pros": ["部屋が広くバスタブ付き", "メッセ会場直結で静かな環境", "サウナ・フィットネスあり"],
+      "cons": ["中央駅までは地下鉄（U11）で約5分"],
+      "url": "https://www.atlantic-hotels.de/congress-hotel-essen/",
+      "status": "ゆったり滞在候補"
+    }
+  ],
+  "transport": {
+    "arrival_airport": "デュッセルドルフ国際空港 (DUS)",
+    "transit_route": "空港駅 (Düsseldorf Flughafen) ➔ エッセン中央駅 (Essen Hbf)",
+    "transit_time": "RE（快速列車）で乗り換えなし約22分（頻繁に運行）",
+    "ticket_tip": "DB Navigatorアプリ、または駅の券売機で「VRR（ライン・ルール運輸連合）チケット」またはRE普通乗車券を購入"
+  },
+  "checklist": [
+    {"task": "フライト便（マラガ ⇄ デュッセルドルフ等）の時刻・価格リサーチ", "owner": "寿美様", "done": false},
+    {"task": "エッセン宿の確定・予約（キャンセル無料プラン推奨）", "owner": "寿美様 & デラさん", "done": false},
+    {"task": "ドイツ鉄道アプリ（DB Navigator）の準備", "owner": "デラさん", "done": false},
+    {"task": "秋の防寒具（マラガとの気温差10℃対策）のパッキング確認", "owner": "2人", "done": false},
+    {"task": "ツォルフェアアイン炭鉱遺産群（世界遺産）の見学プラン検討", "owner": "寿美様", "done": false}
+  ]
+}
