@@ -112,8 +112,33 @@
     "transit_time": "RE（快速列車）で乗り換えなし約22分（頻繁に運行）",
     "departure_airport_dela": "フランクフルト国際空港 (FRA) ➔ エッセンからICEで約1時間50分直通"
   },
+  "event_tickets": {
+    "event_name": "SPIEL Essen 2026（世界最大ボードゲームの祭典）",
+    "venue": "メッセ・エッセン（Messe Essen）",
+    "period": "2026年10月22日（木）〜 10月25日（日）",
+    "strategy": "初日（10/22 木）と最終日（10/25 日）の1日券（Day Ticket）を購入する方針 ⭐",
+    "ticket_system": {
+      "note": "4日間通し券（4-day pass）は廃止されており、単日券（Day Ticket: 1日25€）のみの販売体系。初日と最終日だけの購入は最も合理的です。",
+      "price_per_day": "25€ / 人（大人1日券）",
+      "two_days_total_for_two": "100€（2人 × 2日間）",
+      "official_shop_url": "https://www.spiel-essen.de"
+    },
+    "days_selected": [
+      {
+        "date": "2026年10月22日（木）Day 1",
+        "hours": "10:00〜19:00",
+        "purpose": "開幕日の熱気体験、新作チェック、下見"
+      },
+      {
+        "date": "2026年10月25日（日）Day 4（最終日）",
+        "hours": "10:00〜18:00",
+        "purpose": "閉幕日の総括取材、セール品・気になったゲームの最終買い納め"
+      }
+    ]
+  },
   "checklist": [
     {"task": "デラさんJAL航空券予約（10/26 FRA 20:00発 ⇄ 11/17 羽田発 往復）", "owner": "デラさん", "done": false},
+    {"task": "SPIEL Essen 2026 オンラインチケット購入（10/22 木 & 10/25 日の1日券 各2枚）", "owner": "2人", "done": false},
     {"task": "ヨッシーさんの10/26動線決定（DUSからマラガ直行便？同行？）", "owner": "寿美様", "done": false},
     {"task": "10/22往路フライト（マラガ ➔ デュッセルドルフ）確定", "owner": "寿美様", "done": false},
     {"task": "エッセン宿（10/22〜26 4泊）予約（キャンセル無料プラン）", "owner": "2人", "done": false},
