@@ -21,7 +21,7 @@
       --amber: #f59e0b;
       --emerald: #10b981;
       --rose: #f43f5e;
-      --surface-glass: rgba(15, 23, 42, 0.65);
+      --purple: #c084fc;
     }
 
     * {
@@ -34,7 +34,7 @@
       font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background-color: var(--bg);
       background-image: 
-        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.16) 0px, transparent 50%),
         radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.12) 0px, transparent 50%);
       background-attachment: fixed;
       color: var(--text);
@@ -187,10 +187,10 @@
       font-size: 1.75rem;
     }
 
-    /* Grid Layout */
+    /* Section Title */
     .section-title {
       font-family: 'Outfit', sans-serif;
-      font-size: 1.4rem;
+      font-size: 1.35rem;
       font-weight: 700;
       margin-bottom: 1.25rem;
       display: flex;
@@ -198,7 +198,147 @@
       gap: 0.6rem;
     }
 
-    /* Hotel Cards Grid */
+    /* Day-by-Day Itinerary Cards */
+    .itinerary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .itinerary-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .itinerary-card:hover {
+      border-color: var(--card-hover-border);
+      transform: translateY(-2px);
+    }
+
+    .itinerary-card.highlight {
+      border-color: rgba(99, 102, 241, 0.5);
+      background: rgba(30, 41, 69, 0.85);
+    }
+
+    .itinerary-card.alert {
+      border-color: rgba(244, 63, 94, 0.4);
+      background: rgba(45, 23, 34, 0.7);
+    }
+
+    .itinerary-day {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      margin-bottom: 0.25rem;
+    }
+
+    .itinerary-date {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    .itinerary-tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.2rem 0.55rem;
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+    }
+
+    .tag-travel { background: rgba(56, 189, 248, 0.15); color: var(--accent); }
+    .tag-work { background: rgba(192, 132, 252, 0.15); color: var(--purple); }
+    .tag-sightseeing { background: rgba(16, 185, 129, 0.15); color: var(--emerald); }
+    .tag-critical { background: rgba(244, 63, 94, 0.15); color: var(--rose); }
+
+    .itinerary-content {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    /* Critical Path Connection Banner */
+    .connection-banner {
+      background: linear-gradient(135deg, rgba(30, 27, 75, 0.85) 0%, rgba(15, 23, 42, 0.9) 100%);
+      border: 1px solid rgba(129, 140, 248, 0.3);
+      border-radius: 16px;
+      padding: 1.75rem;
+      margin-bottom: 2.75rem;
+      position: relative;
+    }
+
+    .connection-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .connection-badge {
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 0.25rem 0.65rem;
+      border-radius: 6px;
+      background: var(--rose);
+      color: #fff;
+    }
+
+    .connection-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+
+    .connection-flow {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .flow-item {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      padding: 1rem;
+    }
+
+    .flow-date {
+      font-size: 0.8rem;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+
+    .flow-desc {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .flow-sub {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    /* Hotels Grid */
     .hotels-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
@@ -326,7 +466,7 @@
       box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
     }
 
-    /* Transit & Checklist 2-Column Section */
+    /* 2-Column Section */
     .two-cols {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -465,31 +605,150 @@
     <section class="hero">
       <div class="hero-pretitle">TRAVEL LOG & STRATEGY</div>
       <h1 class="hero-title">🇩🇪 ドイツ・エッセン旅のしおり & 作戦ボード</h1>
-      <p style="color: var(--text-muted); max-width: 680px;">
-        10月後半のエッセン滞在。デュッセルドルフ空港からのアクセス、エッセン中央駅およびメッセ周辺のホテル選定、秋の気候対策を夫婦で連携して仕込み中。
+      <p style="color: var(--text-muted); max-width: 720px;">
+        10月後半のエッセン滞在（4泊5日）。日別の基本タイムライン、デュッセルドルフ空港からのアクセス、エッセン中央駅・メッセ周辺のホテル選定、そして<strong>10/26の日本一時帰国フライトへの接続</strong>を夫婦で連携して仕込み中。
       </p>
 
       <div class="hero-meta">
         <div class="hero-meta-item">
           <span>📅</span>
-          <span>日程: <strong>2026年10月22日（木）〜 10月25日（日）</strong></span>
+          <span>滞在日程: <strong>2026年10月22日（木）〜 10月26日（月）（4泊5日）</strong></span>
         </div>
         <div class="hero-meta-item">
           <span>📍</span>
-          <span>目的地: <strong>エッセン（Essen, ドイツ）</strong></span>
+          <span>目的地: <strong>エッセン（Essen, ノルトライン＝ヴェストファーレン州）</strong></span>
         </div>
         <div class="hero-meta-item">
           <span>🔄</span>
-          <span>最終更新: <strong>2026-10-02 14:30</strong></span>
+          <span>最終更新: <strong>2026-10-02 15:00</strong></span>
         </div>
       </div>
 
       <div class="weather-callout">
         <div class="weather-icon">🧥</div>
         <div>
-          <strong>秋の気温差に注意（防寒対策必須）</strong><br>
-          10月のエッセンは最高気温 14℃ / 最低 7℃ 前後。マラガ（25℃前後）と比べて<strong>10℃以上寒い</strong>ため、ウルトラライトダウンや風を通さないコート・マフラーの持参が推奨されます。
+          <strong>秋の寒暖差に注意（防寒対策必須）</strong><br>
+          10月のエッセンは最高気温 14℃ / 最低 7℃ 前後。マラガ（25℃前後）と比べて<strong>10℃以上寒い</strong>ため、ウルトラライトダウンや風を通さないコート・マフラーの持参が必須です。
         </div>
+      </div>
+    </section>
+
+    <!-- Day-by-Day Itinerary Section -->
+    <section>
+      <h2 class="section-title">
+        <span>📅</span>
+        <span>基本日程・日別タイムライン（10/22 〜 10/26）</span>
+      </h2>
+
+      <div class="itinerary-grid">
+        
+        <!-- Day 1 -->
+        <div class="itinerary-card">
+          <div>
+            <div class="itinerary-day">Day 1</div>
+            <div class="itinerary-date">10/22 (木)</div>
+            <span class="itinerary-tag tag-travel">✈️ 移動日</span>
+            <p class="itinerary-content">
+              <strong>マラガ ➔ エッセン</strong><br>
+              マラガ（AGP）発 ➔ デュッセルドルフ（DUS）着。空港駅からRE快速でエッセン中央駅へ移動（約22分）、ホテルチェックイン。
+            </p>
+          </div>
+        </div>
+
+        <!-- Day 2 -->
+        <div class="itinerary-card">
+          <div>
+            <div class="itinerary-day">Day 2</div>
+            <div class="itinerary-date">10/23 (金)</div>
+            <span class="itinerary-tag tag-work">🔍 リサーチ</span>
+            <p class="itinerary-content">
+              <strong>エッセン市内 / メッセ</strong><br>
+              エッセン市内散策、メッセ（Messe Essen）周辺のリサーチ、カフェ・街並み散策。
+            </p>
+          </div>
+        </div>
+
+        <!-- Day 3 -->
+        <div class="itinerary-card">
+          <div>
+            <div class="itinerary-day">Day 3</div>
+            <div class="itinerary-date">10/24 (土)</div>
+            <span class="itinerary-tag tag-sightseeing">🏛️ 世界遺産</span>
+            <p class="itinerary-content">
+              <strong>ツォルフェアアイン炭鉱</strong><br>
+              ユネスコ世界遺産の炭鉱業遺産群（Zollverein）見学、デザインミュージアム、旧市街でのディナー。
+            </p>
+          </div>
+        </div>
+
+        <!-- Day 4 -->
+        <div class="itinerary-card highlight">
+          <div>
+            <div class="itinerary-day">Day 4</div>
+            <div class="itinerary-date">10/25 (日)</div>
+            <span class="itinerary-tag tag-work">🎬 取材・本番</span>
+            <p class="itinerary-content">
+              <strong>現地取材・エッセン最終夜</strong><br>
+              取材・撮影仕込み（丸山Pへ事前連絡済み）。荷物の最終パッキングと翌朝の移動準備。
+            </p>
+          </div>
+        </div>
+
+        <!-- Day 5 -->
+        <div class="itinerary-card alert">
+          <div>
+            <div class="itinerary-day">Day 5</div>
+            <div class="itinerary-date">10/26 (月)</div>
+            <span class="itinerary-tag tag-critical">🛫 帰国・移動</span>
+            <p class="itinerary-content">
+              <strong>エッセン発 ➔ 日本一時帰国へ</strong><br>
+              ホテルチェックアウト。空港へ移動し日本へのフライト（※重要分岐点：直行便 or マラガ経由）。
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Critical Path: Japan Business Deadlines -->
+    <section class="connection-banner">
+      <div class="connection-header">
+        <span class="connection-badge">CRITICAL</span>
+        <h3 class="connection-title">⚠️ 直後の日本一時帰国 & 撮影・収録デッドライン（制約条件）</h3>
+      </div>
+      <p style="font-size: 0.9rem; color: #cbd5e1; line-height: 1.5;">
+        エッセン滞在（10/22〜26）の直後から、日本での大型ロケ・MAが連続しています。<strong>「10/26（月）にドイツからどう動くか」</strong>がフライト予約の決定キーになります。
+      </p>
+
+      <div class="connection-flow">
+        <div class="flow-item">
+          <div class="flow-date">10月26日（月）</div>
+          <div class="flow-desc">日本一時帰国フライト</div>
+          <div class="flow-sub">ドイツ発 ➔ 日本（羽田/成田）直行便 or マラガ経由？</div>
+        </div>
+
+        <div class="flow-item">
+          <div class="flow-date">10月28日（水）11:00-15:00</div>
+          <div class="flow-desc">JAL ナレーションMA 1日目</div>
+          <div class="flow-sub">井上真央さん収録 @ウインクツー（東京）</div>
+        </div>
+
+        <div class="flow-item">
+          <div class="flow-date">10月29日（木）終日</div>
+          <div class="flow-desc">トヨタ財団 ロケ撮影</div>
+          <div class="flow-sub">羽田理事長・長谷川様対談 @表参道GOBLIN.</div>
+        </div>
+
+        <div class="flow-item">
+          <div class="flow-date">10月30日（金）11:00-15:00</div>
+          <div class="flow-desc">JAL ナレーションMA 2日目</div>
+          <div class="flow-sub">ナレーション仕上げ @ウインクツー（東京）</div>
+        </div>
+      </div>
+
+      <div style="margin-top: 1.25rem; padding: 0.85rem 1rem; background: rgba(0,0,0,0.3); border-radius: 8px; font-size: 0.875rem; color: #fecdd3;">
+        💡 <strong>ヨッシーさんとの確認ポイント</strong>:  
+        「10/26にデラさんは日本へ飛びますが、ヨッシーさんはマラガへ戻るのか、それとも一緒に日本へ一時帰国するのか？」によって、10/26の航空券手配が変わります！
       </div>
     </section>
 
@@ -497,7 +756,7 @@
     <section>
       <h2 class="section-title">
         <span>🏨</span>
-        <span>宿泊先・ホテル候補（比較中）</span>
+        <span>宿泊先・ホテル候補（10/22〜10/26 4泊）</span>
       </h2>
       <div class="hotels-grid">
         
@@ -628,13 +887,19 @@
         <div class="checklist">
           <div class="checklist-item" onclick="this.classList.toggle('checked')">
             <div class="checklist-checkbox"></div>
-            <div class="checklist-label">フライト便（マラガ ⇄ デュッセルドルフ等）比較・決定</div>
+            <div class="checklist-label">10/26以降の動線確認（デラさん日本直行？ヨッシーさんマラガ戻り？）</div>
+            <span class="owner-pill" style="color: var(--rose);">最優先</span>
+          </div>
+
+          <div class="checklist-item" onclick="this.classList.toggle('checked')">
+            <div class="checklist-checkbox"></div>
+            <div class="checklist-label">フライト便（10/22往路・10/26復路）比較・決定</div>
             <span class="owner-pill">寿美様</span>
           </div>
 
           <div class="checklist-item" onclick="this.classList.toggle('checked')">
             <div class="checklist-checkbox"></div>
-            <div class="checklist-label">エッセン宿の予約（キャンセル無料プラン推奨）</div>
+            <div class="checklist-label">エッセン宿（10/22〜26 4泊）予約（キャンセル無料プラン）</div>
             <span class="owner-pill">2人</span>
           </div>
 
@@ -648,12 +913,6 @@
             <div class="checklist-checkbox"></div>
             <div class="checklist-label">秋の防寒具（ライトダウン・コート）パッキング確認</div>
             <span class="owner-pill">2人</span>
-          </div>
-
-          <div class="checklist-item" onclick="this.classList.toggle('checked')">
-            <div class="checklist-checkbox"></div>
-            <div class="checklist-label">世界遺産ツォルフェアアイン炭鉱の見学計画</div>
-            <span class="owner-pill">寿美様</span>
           </div>
         </div>
       </div>
