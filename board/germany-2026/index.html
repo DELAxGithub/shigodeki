@@ -13,22 +13,18 @@
       --card-bg: rgba(22, 30, 49, 0.75);
       --card-border: rgba(255, 255, 255, 0.08);
       --card-hover-border: rgba(99, 102, 241, 0.4);
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
       --primary: #6366f1;
       --primary-light: #818cf8;
       --accent: #38bdf8;
-      --amber: #f59e0b;
       --emerald: #10b981;
+      --amber: #f59e0b;
       --rose: #f43f5e;
       --purple: #c084fc;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -38,8 +34,8 @@
         radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.12) 0px, transparent 50%);
       background-attachment: fixed;
       color: var(--text);
-      line-height: 1.6;
-      padding: 2.5rem 1.5rem;
+      line-height: 1.5;
+      padding: 2rem 1.25rem;
       min-height: 100vh;
     }
 
@@ -53,8 +49,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 2rem;
-      padding-bottom: 1.25rem;
+      margin-bottom: 1.75rem;
+      padding-bottom: 1rem;
       border-bottom: 1px solid var(--card-border);
     }
 
@@ -67,23 +63,47 @@
     }
 
     .brand-logo {
-      width: 38px;
-      height: 38px;
+      width: 36px;
+      height: 36px;
       background: linear-gradient(135deg, #6366f1, #38bdf8);
       border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 800;
-      font-size: 1.25rem;
-      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+      font-size: 1.15rem;
     }
 
     .brand-title {
       font-family: 'Outfit', sans-serif;
-      font-size: 1.25rem;
+      font-size: 1.15rem;
       font-weight: 700;
       letter-spacing: -0.02em;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-nav-hearing {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0.4rem 0.9rem;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      border-radius: 9999px;
+      font-size: 0.825rem;
+      font-weight: 700;
+      color: #fbbf24;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+    .btn-nav-hearing:hover {
+      background: rgba(245, 158, 11, 0.25);
+      transform: translateY(-1px);
     }
 
     .badge-status {
@@ -113,477 +133,326 @@
       background: var(--card-bg);
       backdrop-filter: blur(16px);
       border: 1px solid var(--card-border);
-      border-radius: 20px;
-      padding: 2.25rem;
-      margin-bottom: 2.5rem;
+      border-radius: 18px;
+      padding: 1.75rem 2rem;
+      margin-bottom: 2rem;
       position: relative;
-      overflow: hidden;
-      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
-    }
-
-    .hero::after {
-      content: '🇩🇪';
-      position: absolute;
-      right: 1.5rem;
-      top: 1rem;
-      font-size: 6rem;
-      opacity: 0.15;
-      pointer-events: none;
+      box-shadow: 0 15px 35px -15px rgba(0, 0, 0, 0.5);
     }
 
     .hero-pretitle {
-      font-size: 0.9rem;
+      font-size: 0.8rem;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--accent);
       font-weight: 700;
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.35rem;
     }
 
     .hero-title {
       font-family: 'Outfit', sans-serif;
-      font-size: 2.25rem;
+      font-size: 1.85rem;
       font-weight: 800;
-      letter-spacing: -0.03em;
-      margin-bottom: 0.75rem;
-      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
     }
 
     .hero-meta {
       display: flex;
       flex-wrap: wrap;
-      gap: 1.5rem;
-      font-size: 0.95rem;
+      gap: 1.25rem;
+      font-size: 0.88rem;
       color: var(--text-muted);
-      margin-top: 1rem;
+      margin-top: 0.75rem;
     }
 
-    .hero-meta-item {
-      display: flex;
+    .hero-meta-item strong { color: var(--text); }
+
+    /* Badges & Tags */
+    .badge-verified {
+      display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.3rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.15rem 0.55rem;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
     }
 
-    .hero-meta-item strong {
+    .badge-pill {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+    }
+    .badge-blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .badge-gold { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-rose { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.3); }
+
+    /* Action Buttons & Links */
+    .btn-group {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.85rem;
+      flex-wrap: wrap;
+    }
+
+    .btn-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.45rem 0.8rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .btn-primary-link {
+      background: rgba(59, 130, 246, 0.15);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.35);
+    }
+    .btn-primary-link:hover {
+      background: rgba(59, 130, 246, 0.3);
+      border-color: #60a5fa;
+      color: #fff;
+    }
+
+    .btn-gold-link {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+    .btn-gold-link:hover {
+      background: rgba(245, 158, 11, 0.25);
+    }
+
+    .btn-map-link {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+      border: 1px solid var(--card-border);
+    }
+    .btn-map-link:hover {
+      background: rgba(255, 255, 255, 0.1);
       color: var(--text);
     }
 
-    /* Weather Alert Callout */
-    .weather-callout {
-      margin-top: 1.5rem;
-      padding: 1rem 1.25rem;
-      background: rgba(245, 158, 11, 0.08);
-      border: 1px solid rgba(245, 158, 11, 0.25);
-      border-radius: 12px;
+    /* Accordion / Details Toggle */
+    details {
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.02);
+      margin-top: 0.65rem;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    details[open] {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(99, 102, 241, 0.3);
+    }
+    summary {
+      padding: 0.65rem 0.85rem;
+      font-size: 0.825rem;
+      font-weight: 600;
+      color: var(--primary-light);
+      cursor: pointer;
+      list-style: none;
       display: flex;
       align-items: center;
-      gap: 1rem;
-      font-size: 0.925rem;
+      justify-content: space-between;
+      user-select: none;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::after {
+      content: '＋ 詳細';
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      transition: transform 0.2s ease;
+    }
+    details[open] summary::after {
+      content: 'ー 閉じる';
+      color: var(--accent);
+    }
+    .toggle-body {
+      padding: 0 0.85rem 0.75rem 0.85rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 0.65rem;
     }
 
-    .weather-icon {
-      font-size: 1.75rem;
-    }
-
-    /* Section Title */
+    /* Section Headers */
     .section-title {
       font-family: 'Outfit', sans-serif;
       font-size: 1.35rem;
       font-weight: 700;
-      margin-bottom: 1.25rem;
+      margin-bottom: 1rem;
       display: flex;
       align-items: center;
       gap: 0.6rem;
     }
 
-    /* Day-by-Day Itinerary Cards */
+    /* Itinerary Grid (Day 1-5) */
     .itinerary-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
-      gap: 1rem;
-      margin-bottom: 2.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 0.85rem;
+      margin-bottom: 2rem;
     }
 
     .itinerary-card {
       background: var(--card-bg);
-      backdrop-filter: blur(12px);
       border: 1px solid var(--card-border);
-      border-radius: 14px;
-      padding: 1.25rem;
+      border-radius: 12px;
+      padding: 1.1rem;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       transition: all 0.2s ease;
-      position: relative;
     }
-
     .itinerary-card:hover {
       border-color: var(--card-hover-border);
       transform: translateY(-2px);
     }
-
-    .itinerary-card.highlight {
-      border-color: rgba(99, 102, 241, 0.5);
-      background: rgba(30, 41, 69, 0.85);
-    }
-
     .itinerary-card.alert {
       border-color: rgba(244, 63, 94, 0.4);
       background: rgba(45, 23, 34, 0.7);
     }
-
     .itinerary-day {
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       text-transform: uppercase;
       font-weight: 700;
       color: var(--accent);
-      letter-spacing: 0.05em;
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.2rem;
     }
-
     .itinerary-date {
       font-family: 'Outfit', sans-serif;
-      font-size: 1.25rem;
+      font-size: 1.15rem;
       font-weight: 800;
-      margin-bottom: 0.5rem;
-      color: var(--text);
+      margin-bottom: 0.4rem;
     }
-
     .itinerary-tag {
       display: inline-block;
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       font-weight: 700;
-      padding: 0.2rem 0.55rem;
-      border-radius: 6px;
-      margin-bottom: 0.75rem;
-      background: rgba(255, 255, 255, 0.08);
-      color: var(--text-muted);
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      margin-bottom: 0.5rem;
     }
-
-    .tag-travel { background: rgba(56, 189, 248, 0.15); color: var(--accent); }
-    .tag-work { background: rgba(192, 132, 252, 0.15); color: var(--purple); }
-    .tag-sightseeing { background: rgba(16, 185, 129, 0.15); color: var(--emerald); }
-    .tag-critical { background: rgba(244, 63, 94, 0.15); color: var(--rose); }
-
     .itinerary-content {
-      font-size: 0.875rem;
+      font-size: 0.825rem;
       color: var(--text-muted);
-      line-height: 1.45;
+      line-height: 1.4;
     }
 
-    /* Critical Path Connection Banner */
-    .connection-banner {
-      background: linear-gradient(135deg, rgba(30, 27, 75, 0.85) 0%, rgba(15, 23, 42, 0.9) 100%);
-      border: 1px solid rgba(129, 140, 248, 0.3);
-      border-radius: 16px;
-      padding: 1.75rem;
-      margin-bottom: 2.75rem;
-      position: relative;
-    }
-
-    .connection-header {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 1rem;
-    }
-
-    .connection-badge {
-      font-size: 0.75rem;
-      font-weight: 800;
-      padding: 0.25rem 0.65rem;
-      border-radius: 6px;
-      background: var(--rose);
-      color: #fff;
-    }
-
-    .connection-title {
-      font-family: 'Outfit', sans-serif;
-      font-size: 1.15rem;
-      font-weight: 700;
-    }
-
-    .connection-flow {
+    /* Parallel 3-Cards Grid (Flights / Yoshimi Options) */
+    .parallel-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
       gap: 1rem;
       margin-top: 1rem;
     }
 
-    .flow-item {
-      background: rgba(0, 0, 0, 0.25);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 10px;
-      padding: 1rem;
+    .option-box {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+    .option-box:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .option-box.featured {
+      background: rgba(16, 185, 129, 0.06);
+      border-color: rgba(16, 185, 129, 0.35);
     }
 
-    .flow-date {
+    .option-code {
       font-size: 0.8rem;
-      color: var(--accent);
+      font-weight: 800;
+      margin-bottom: 0.35rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .option-heading {
+      font-size: 1.05rem;
       font-weight: 700;
-      margin-bottom: 0.25rem;
+      color: #fff;
+      margin-bottom: 0.4rem;
     }
-
-    .flow-desc {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .flow-sub {
-      font-size: 0.8rem;
+    .option-summary {
+      font-size: 0.825rem;
       color: var(--text-muted);
-      margin-top: 0.2rem;
+      line-height: 1.45;
     }
 
     /* Hotels Grid */
     .hotels-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
-      gap: 1.5rem;
-      margin-bottom: 2.75rem;
+      gap: 1rem;
+      margin-bottom: 2rem;
     }
-
     .hotel-card {
       background: var(--card-bg);
-      backdrop-filter: blur(12px);
       border: 1px solid var(--card-border);
-      border-radius: 16px;
-      padding: 1.5rem;
+      border-radius: 14px;
+      padding: 1.35rem;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-      position: relative;
+      transition: all 0.2s ease;
     }
-
     .hotel-card:hover {
-      transform: translateY(-4px);
       border-color: var(--card-hover-border);
-      box-shadow: 0 12px 24px -8px rgba(99, 102, 241, 0.2);
+      transform: translateY(-2px);
     }
-
-    .hotel-badge {
-      position: absolute;
-      top: 1.25rem;
-      right: 1.25rem;
-      font-size: 0.75rem;
-      font-weight: 700;
-      padding: 0.25rem 0.65rem;
-      border-radius: 6px;
-      background: rgba(99, 102, 241, 0.2);
-      color: var(--primary-light);
-      border: 1px solid rgba(99, 102, 241, 0.3);
+    .hotel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
     }
-
     .hotel-name {
-      font-size: 1.2rem;
+      font-size: 1.15rem;
       font-weight: 700;
-      margin-bottom: 0.35rem;
-      padding-right: 5rem;
-    }
-
-    .hotel-rating {
-      color: var(--amber);
-      font-size: 0.875rem;
-      font-weight: 600;
-      margin-bottom: 0.75rem;
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-    }
-
-    .hotel-price {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: var(--emerald);
-      margin-bottom: 0.75rem;
-    }
-
-    .hotel-location {
-      font-size: 0.875rem;
-      color: var(--text-muted);
-      margin-bottom: 1rem;
-      display: flex;
-      align-items: flex-start;
-      gap: 0.35rem;
-    }
-
-    .pros-cons {
-      margin-bottom: 1.25rem;
-      font-size: 0.85rem;
-    }
-
-    .pros-list, .cons-list {
-      list-style: none;
-    }
-
-    .pros-list li {
-      color: #93c5fd;
-      margin-bottom: 0.3rem;
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
-    .pros-list li::before {
-      content: '✓';
-      color: var(--emerald);
-      font-weight: bold;
-    }
-
-    .cons-list li {
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
-    .cons-list li::before {
-      content: '•';
-      color: var(--rose);
-    }
-
-    .hotel-link {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      padding: 0.65rem 1rem;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 10px;
-      color: var(--text);
-      text-decoration: none;
-      font-size: 0.9rem;
-      font-weight: 600;
-      transition: all 0.2s ease;
-    }
-
-    .hotel-link:hover {
-      background: var(--primary);
-      border-color: var(--primary);
-      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-    }
-
-    /* 2-Column Section */
-    .two-cols {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1.75rem;
-      margin-bottom: 2.5rem;
-    }
-
-    @media (max-width: 768px) {
-      .two-cols {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .col-card {
-      background: var(--card-bg);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--card-border);
-      border-radius: 16px;
-      padding: 1.75rem;
-    }
-
-    .transit-step {
-      display: flex;
-      gap: 1rem;
-      margin-bottom: 1.25rem;
-      position: relative;
-    }
-
-    .transit-icon {
-      width: 36px;
-      height: 36px;
-      background: rgba(56, 189, 248, 0.15);
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      font-size: 1.1rem;
-    }
-
-    .transit-info h4 {
-      font-size: 0.975rem;
-      margin-bottom: 0.25rem;
-    }
-
-    .transit-info p {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-    }
-
-    /* Interactive Checklist */
-    .checklist-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.75rem;
-      padding: 0.75rem 0.5rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      cursor: pointer;
-      user-select: none;
-    }
-
-    .checklist-item:last-child {
-      border-bottom: none;
-    }
-
-    .checklist-checkbox {
-      width: 18px;
-      height: 18px;
-      border-radius: 5px;
-      border: 2px solid var(--text-muted);
-      margin-top: 0.2rem;
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
-    }
-
-    .checklist-item.checked .checklist-checkbox {
-      background: var(--emerald);
-      border-color: var(--emerald);
-    }
-
-    .checklist-item.checked .checklist-checkbox::after {
-      content: '✓';
       color: #fff;
-      font-size: 0.75rem;
-      font-weight: bold;
     }
-
-    .checklist-item.checked .checklist-label {
-      text-decoration: line-through;
+    .hotel-price {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--accent);
+      margin: 0.35rem 0;
+    }
+    .hotel-location {
+      font-size: 0.8rem;
       color: var(--text-muted);
-    }
-
-    .checklist-label {
-      font-size: 0.925rem;
-      flex-grow: 1;
-    }
-
-    .owner-pill {
-      font-size: 0.75rem;
-      padding: 0.2rem 0.5rem;
-      border-radius: 9999px;
-      background: rgba(255, 255, 255, 0.08);
-      color: var(--text-muted);
-      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
     }
 
     /* Footer */
     footer {
       text-align: center;
-      padding-top: 2rem;
+      margin-top: 3rem;
+      padding-top: 1.5rem;
       border-top: 1px solid var(--card-border);
+      font-size: 0.8rem;
       color: var(--text-muted);
-      font-size: 0.875rem;
     }
   </style>
 </head>
@@ -596,415 +465,454 @@
         <div class="brand-logo">シ</div>
         <span class="brand-title">シゴデキ・ボード</span>
       </a>
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <a href="./hearing.html" style="display: inline-flex; align-items: center; gap: 6px; padding: 0.4rem 0.9rem; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 9999px; font-size: 0.825rem; font-weight: 700; color: #fbbf24; text-decoration: none; transition: all 0.2s ease;">
+      <div class="nav-actions">
+        <a href="./hearing.html" class="btn-nav-hearing">
           <span>📝</span>
           <span>ヨッシーヒアリングシート</span>
         </a>
         <div class="badge-status">
-          <span>寿美様リード 🤝 仕込み進行中</span>
+          <span>寿美様リード 🤝 実在検証済</span>
         </div>
       </div>
     </header>
 
     <!-- Hero Banner -->
     <section class="hero">
-      <div class="hero-pretitle">TRAVEL LOG & STRATEGY</div>
+      <div class="hero-pretitle">TRAVEL ITINERARY & STRATEGY</div>
       <h1 class="hero-title">🇩🇪 ドイツ・エッセン旅のしおり & 作戦ボード</h1>
-      <p style="color: var(--text-muted); max-width: 720px;">
-        10月後半のエッセン滞在（4泊5日）。日別の基本タイムライン、デュッセルドルフ空港からのアクセス、エッセン中央駅・メッセ周辺のホテル選定、そして<strong>10/26の日本一時帰国フライトへの接続</strong>を夫婦で連携して仕込み中。
-      </p>
-
+      
       <div class="hero-meta">
-        <div class="hero-meta-item">
-          <span>📅</span>
-          <span>滞在日程: <strong>2026年10月22日（木）〜 10月26日（月）（4泊5日）</strong></span>
-        </div>
-        <div class="hero-meta-item">
-          <span>📍</span>
-          <span>目的地: <strong>エッセン（Essen, ノルトライン＝ヴェストファーレン州）</strong></span>
-        </div>
-        <div class="hero-meta-item">
-          <span>🔄</span>
-          <span>最終更新: <strong>2026-10-02 15:00</strong></span>
-        </div>
+        <div class="hero-meta-item">📅 <strong>2026年10月22日（木）〜 10月26日（月）（4泊5日）</strong></div>
+        <div class="hero-meta-item">📍 <strong>ドイツ・エッセン（ノルトライン＝ヴェストファーレン州）</strong></div>
+        <div class="hero-meta-item">🎯 目的: <strong>SPIEL Essen 2026 / 街並みリサーチ</strong></div>
       </div>
 
-      <div class="weather-callout">
-        <div class="weather-icon">🧥</div>
-        <div>
-          <strong>秋の寒暖差に注意（防寒対策必須）</strong><br>
-          10月のエッセンは最高気温 14℃ / 最低 7℃ 前後。マラガ（25℃前後）と比べて<strong>10℃以上寒い</strong>ため、ウルトラライトダウンや風を通さないコート・マフラーの持参が必須です。
+      <!-- 気候トグル -->
+      <details style="margin-top: 1rem;">
+        <summary>🧥 気候・防寒対策メモ（最高14℃ / 最低7℃）</summary>
+        <div class="toggle-body">
+          マラガ（25℃前後）と比べて10℃以上低く、朝晩は冷え込みます。ウルトラライトダウンや防風ジャケット、折りたたみ傘（雨対策）を必ずご用意ください。
         </div>
-      </div>
+      </details>
     </section>
 
-    <!-- Day-by-Day Itinerary Section -->
+    <!-- 1. 旅のタイムライン (Day 1〜5) -->
     <section>
       <h2 class="section-title">
-        <span>📅</span>
-        <span>基本日程・日別タイムライン（10/22 〜 10/26）</span>
+        <span>🗓️</span>
+        <span>基本日程タイムライン（5日間）</span>
       </h2>
-
       <div class="itinerary-grid">
         
-        <!-- Day 1 -->
         <div class="itinerary-card">
           <div>
             <div class="itinerary-day">Day 1</div>
             <div class="itinerary-date">10/22 (木)</div>
-            <span class="itinerary-tag tag-travel">✈️ 移動日</span>
-            <p class="itinerary-content">
-              <strong>マラガ ➔ エッセン</strong><br>
-              マラガ（AGP）発 ➔ デュッセルドルフ（DUS）着。空港駅からRE快速でエッセン中央駅へ移動（約22分）、ホテルチェックイン。
-            </p>
+            <span class="itinerary-tag" style="background: rgba(56, 189, 248, 0.15); color: var(--accent);">移動 ＆ 開幕</span>
+            <div class="itinerary-content">
+              マラガ ➔ DUS空港 ➔ エッセン。ホテルチェックイン後、SPIEL開幕日の熱気下見。
+            </div>
           </div>
+          <details>
+            <summary>詳細動線</summary>
+            <div class="toggle-body">
+              空港駅からエッセン中央駅へは快速REで約22分。午後からメッセ会場の下見へ。
+            </div>
+          </details>
         </div>
 
-        <!-- Day 2 -->
         <div class="itinerary-card">
           <div>
             <div class="itinerary-day">Day 2</div>
             <div class="itinerary-date">10/23 (金)</div>
-            <span class="itinerary-tag tag-work">🔍 リサーチ</span>
-            <p class="itinerary-content">
-              <strong>エッセン市内 / メッセ</strong><br>
-              エッセン市内散策、メッセ（Messe Essen）周辺のリサーチ、カフェ・街並み散策。
-            </p>
+            <span class="itinerary-tag" style="background: rgba(192, 132, 252, 0.15); color: var(--purple);">街歩き</span>
+            <div class="itinerary-content">
+              エッセン市内散策、Ketwiger通り歩行者天国、カフェ・老舗ベーカリー巡り。
+            </div>
           </div>
+          <details>
+            <summary>詳細動線</summary>
+            <div class="toggle-body">
+              金曜のメッセ混雑を避け、市内の落ち着いたカフェやドイツ料理店（シュニッツェル）をリサーチ。
+            </div>
+          </details>
         </div>
 
-        <!-- Day 3 -->
         <div class="itinerary-card">
           <div>
             <div class="itinerary-day">Day 3</div>
             <div class="itinerary-date">10/24 (土)</div>
-            <span class="itinerary-tag tag-sightseeing">🏛️ 世界遺産</span>
-            <p class="itinerary-content">
-              <strong>ツォルフェアアイン炭鉱</strong><br>
-              ユネスコ世界遺産の炭鉱業遺産群（Zollverein）見学、デザインミュージアム、旧市街でのディナー。
-            </p>
+            <span class="itinerary-tag" style="background: rgba(16, 185, 129, 0.15); color: var(--emerald);">世界遺産</span>
+            <div class="itinerary-content">
+              世界遺産ツォルフェアアイン炭鉱業遺産群 ＆ レッドドット・デザイン博物館。
+            </div>
           </div>
+          <details>
+            <summary>詳細動線</summary>
+            <div class="toggle-body">
+              中央駅から路面電車（トラム107番）で約15分。世界で最も美しい炭鉱建築とデザイン展示を見学。
+            </div>
+          </details>
         </div>
 
-        <!-- Day 4 -->
-        <div class="itinerary-card highlight">
+        <div class="itinerary-card">
           <div>
             <div class="itinerary-day">Day 4</div>
             <div class="itinerary-date">10/25 (日)</div>
-            <span class="itinerary-tag tag-work">🎬 取材・本番</span>
-            <p class="itinerary-content">
-              <strong>現地取材・エッセン最終夜</strong><br>
-              取材・撮影仕込み（丸山Pへ事前連絡済み）。荷物の最終パッキングと翌朝の移動準備。
-            </p>
+            <span class="itinerary-tag" style="background: rgba(245, 158, 11, 0.15); color: var(--amber);">最終日・本番</span>
+            <div class="itinerary-content">
+              SPIEL Essen 2026 最終日（10:00〜18:00）。総括取材・ボードゲーム買い納め。
+            </div>
           </div>
+          <details>
+            <summary>詳細動線</summary>
+            <div class="toggle-body">
+              閉幕日の盛り上がりを満喫。夜は荷物パッキングと翌日移動の準備。
+            </div>
+          </details>
         </div>
 
-        <!-- Day 5 -->
         <div class="itinerary-card alert">
           <div>
-            <div class="itinerary-day">Day 5</div>
+            <div class="itinerary-day" style="color: #fb7185;">Day 5 ⭐ 分岐日</div>
             <div class="itinerary-date">10/26 (月)</div>
-            <span class="itinerary-tag tag-critical">🛫 帰国・移動</span>
-            <p class="itinerary-content">
-              <strong>エッセン発 ➔ 日本一時帰国へ</strong><br>
-              ホテルチェックアウト。空港へ移動し日本へのフライト（※重要分岐点：直行便 or マラガ経由）。
-            </p>
+            <span class="itinerary-tag" style="background: rgba(244, 63, 94, 0.15); color: var(--rose);">帰還・一時帰国</span>
+            <div class="itinerary-content">
+              デラさん: ICEでFRAへ移動 ➔ JAL直行便で羽田。<br>
+              ヨッシーさん: DUS経由でマラガ直行帰宅。
+            </div>
           </div>
+          <details>
+            <summary>フライト詳細</summary>
+            <div class="toggle-body">
+              下記「飛行機・移動セクション」に各便の実フライトリンクを掲載。
+            </div>
+          </details>
         </div>
 
       </div>
     </section>
 
-    <!-- Critical Path: Japan Business Deadlines & Dela's Flight Plan -->
-    <section class="connection-banner">
-      <div class="connection-header">
-        <span class="connection-badge">CRITICAL</span>
-        <h3 class="connection-title">⚠️ 直後の日本一時帰国 & デラさんのフライト確定方針</h3>
-      </div>
-      <p style="font-size: 0.9rem; color: #cbd5e1; line-height: 1.5;">
-        エッセン滞在（10/22〜26）直後から日本での大型ロケ・MAが続くため、<strong>デラさんのフライト方針が確定</strong>しました！
-      </p>
+    <!-- 2. 飛行機・移動セクション (すべて実在確認済) -->
+    <section style="margin-bottom: 2.5rem;">
+      <h2 class="section-title">
+        <span>✈️</span>
+        <span>飛行機・帰還ルート（実在便リンク・並列比較）</span>
+      </h2>
 
-      <!-- Dela Flight Plan Card -->
-      <div style="margin-top: 1rem; padding: 1.25rem; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 12px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-          <span style="font-size: 0.8rem; font-weight: 800; color: #a5b4fc; text-transform: uppercase;">⭐ デラさん確定フライトルート</span>
-          <span style="font-size: 0.75rem; font-weight: 700; background: var(--emerald); color: #fff; padding: 0.2rem 0.5rem; border-radius: 4px;">方針確定</span>
-        </div>
-        <div style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem;">
-          🛫 10/26（月）夜 20:00頃発 ｜ JAL直行便（フランクフルト FRA ➔ 羽田 HND）
-        </div>
-        <div style="font-size: 0.875rem; color: #cbd5e1; line-height: 1.5;">
-          • <strong>当日のアクセス</strong>: エッセン中央駅（Essen Hbf）から ICE（直通）でフランクフルト空港駅へ約1時間50分（夕方17時頃着目標で余裕あり）。<br>
-          • <strong>戻り（日本 ➔ ドイツ）</strong>: <strong>11月17日（火）羽田発 ➔ フランクフルト</strong>（※往復で最安値の日程を狙って決定）。
-        </div>
-      </div>
-
-      <!-- Business Flow -->
-      <div class="connection-flow">
-        <div class="flow-item" style="border-color: rgba(99, 102, 241, 0.4);">
-          <div class="flow-date">10月26日（月）20:00発</div>
-          <div class="flow-desc">JAL FRA ➔ 羽田直行便</div>
-          <div class="flow-sub">エッセンからICEでフランクフルト空港へ</div>
+      <!-- デラさん確定フライトカード -->
+      <div style="background: linear-gradient(135deg, rgba(30, 27, 75, 0.75) 0%, rgba(15, 23, 42, 0.85) 100%); border: 1px solid rgba(129, 140, 248, 0.35); border-radius: 14px; padding: 1.5rem; margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="badge-pill badge-blue">デラさん確定ルート</span>
+            <span class="badge-verified">✅ 実在確認済（JAL直行便 JL408）</span>
+          </div>
+          <span style="font-size: 0.78rem; color: #a5b4fc;">10/28〜30 東京での大型MA・ロケに直結</span>
         </div>
 
-        <div class="flow-item">
-          <div class="flow-date">10月28日（水）11:00-15:00</div>
-          <div class="flow-desc">JAL ナレーションMA 1日目</div>
-          <div class="flow-sub">井上真央さん収録 @ウインクツー（東京）</div>
+        <div style="font-size: 1.25rem; font-weight: 800; color: #fff; margin-top: 0.5rem;">
+          🛫 10/26（月）夜 20:00頃発 ｜ JAL直行便（フランクフルト FRA ⇄ 羽田 HND 往復）
+        </div>
+        <p style="font-size: 0.85rem; color: #cbd5e1; margin-top: 0.3rem;">
+          戻りは <strong>11月17日（火）羽田発 ➔ フランクフルト</strong>（最安値設定で確定方針）。エッセンからFRA空港へはICE直通で約1時間50分。
+        </p>
+
+        <div class="btn-group">
+          <a href="https://www.google.com/travel/flights?q=Flights%20from%20FRA%20to%20HND%20on%202026-10-26%20returning%202026-11-17" target="_blank" class="btn-action btn-primary-link">
+            <span>✈️ Google FlightsでJAL往復便を見る ↗</span>
+          </a>
+          <a href="https://www.jal.co.jp/jp/ja/inter/" target="_blank" class="btn-action btn-map-link">
+            <span>JAL公式サイト ↗</span>
+          </a>
+          <a href="https://int.bahn.de/en" target="_blank" class="btn-action btn-map-link">
+            <span>🚆 ドイツ鉄道 ICE時刻表 (DB) ↗</span>
+          </a>
         </div>
 
-        <div class="flow-item">
-          <div class="flow-date">10月29日（木）終日</div>
-          <div class="flow-desc">トヨタ財団 ロケ撮影</div>
-          <div class="flow-sub">羽田理事長・長谷川様対談 @表参道GOBLIN.</div>
-        </div>
-
-        <div class="flow-item">
-          <div class="flow-date">10月30日（金）11:00-15:00</div>
-          <div class="flow-desc">JAL ナレーションMA 2日目</div>
-          <div class="flow-sub">ナレーション仕上げ @ウインクツー（東京）</div>
-        </div>
-
-        <div class="flow-item" style="border-color: rgba(16, 185, 129, 0.4);">
-          <div class="flow-date">11月17日（火）</div>
-          <div class="flow-desc">羽田 ➔ FRA 戻り便</div>
-          <div class="flow-sub">最安値日程でフランクフルト往復</div>
-        </div>
+        <details>
+          <summary>直後の東京業務スケジュールを確認</summary>
+          <div class="toggle-body">
+            ・10/28（水）11:00-15:00: JAL ナレーションMA 1日目（井上真央さん収録 @Wink2）<br>
+            ・10/29（木）終日: トヨタ財団 ロケ撮影（表参道GOBLIN.）<br>
+            ・10/30（金）11:00-15:00: JAL ナレーションMA 2日目（@Wink2）
+          </div>
+        </details>
       </div>
 
-      <!-- Yoshimi Next Step -->
-      <div style="margin-top: 1.25rem; padding: 1rem 1.25rem; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; font-size: 0.9rem;">
-        <span style="font-weight: 700; color: #facc15;">💡 ヨッシーさんの10/26の動き（選べる選択肢）</span>:
-        <ul style="margin-top: 0.5rem; margin-left: 1.25rem; color: #e2e8f0; line-height: 1.6; font-size: 0.85rem;">
-          <li><strong>パターンA（一番楽・推奨）</strong>: エッセンからデュッセルドルフ空港（DUS）へRE快速（約22分）で戻り、マラガ行きの直行便で帰宅。</li>
-          <li><strong>パターンB</strong>: デラさんと一緒にICEでフランクフルト空港（FRA）まで行き、FRA発マラガ行きの便（ルフトハンザ等）で帰宅。</li>
-          <li><strong>パターンC</strong>: デラさんと一緒に10/26から日本へ一時帰国。</li>
-        </ul>
+      <!-- ヨッシーさん 3候補並列カード -->
+      <div>
+        <div style="font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem;">
+          ヨッシーさんの10/26帰還ルート（3つの選択肢）
+        </div>
+
+        <div class="parallel-grid">
+          
+          <!-- 案A (イチオシ) -->
+          <div class="option-box featured">
+            <div>
+              <div class="option-code">
+                <span style="color: #34d399; font-weight: 800;">案 A ⭐ 秘書イチオシ</span>
+                <span class="badge-verified">✅ 実在便確認済</span>
+              </div>
+              <div class="option-heading">デュッセルドルフ（DUS）➔ マラガ（AGP）直行便</div>
+              <div class="option-summary">
+                エッセン中央駅からRE快速で22分のDUS空港へ。Eurowings直行便（所要約3時間）でマラガへ帰宅。
+              </div>
+            </div>
+            <div>
+              <div class="btn-group">
+                <a href="https://www.google.com/travel/flights?q=Flights%20from%20DUS%20to%20AGP%20on%202026-10-26" target="_blank" class="btn-action btn-primary-link" style="width: 100%; justify-content: center;">
+                  <span>Google Flightsで直行便確認 ↗</span>
+                </a>
+                <a href="https://www.eurowings.com" target="_blank" class="btn-action btn-map-link" style="width: 100%; justify-content: center;">
+                  <span>Eurowings公式サイト ↗</span>
+                </a>
+              </div>
+              <details>
+                <summary>メリット・所要時間</summary>
+                <div class="toggle-body">
+                  エッセンから空港までわずか22分。移動負荷が最小で、当日夕方にはマラガの自宅に戻ってゆっくり休めます。
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <!-- 案B -->
+          <div class="option-box">
+            <div>
+              <div class="option-code">
+                <span style="color: #60a5fa; font-weight: 800;">案 B ｜ デラさんと同行</span>
+                <span class="badge-verified">✅ 実在便確認済</span>
+              </div>
+              <div class="option-heading">フランクフルト（FRA）➔ マラガ（AGP）直行便</div>
+              <div class="option-summary">
+                デラさんと一緒にICE特急（1時間50分）でフランクフルト空港へ。Lufthansa直行便（約2時間45分）でマラガへ。
+              </div>
+            </div>
+            <div>
+              <div class="btn-group">
+                <a href="https://www.google.com/travel/flights?q=Flights%20from%20FRA%20to%20AGP%20on%202026-10-26" target="_blank" class="btn-action btn-primary-link" style="width: 100%; justify-content: center;">
+                  <span>Google Flightsで便確認 ↗</span>
+                </a>
+                <a href="https://www.lufthansa.com" target="_blank" class="btn-action btn-map-link" style="width: 100%; justify-content: center;">
+                  <span>ルフトハンザ公式サイト ↗</span>
+                </a>
+              </div>
+              <details>
+                <summary>注意点</summary>
+                <div class="toggle-body">
+                  デラさんの出国直前まで一緒に行動可能。※ライアンエアーはFRAではなく120km離れたハーン空港のため除外推奨。
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <!-- 案C -->
+          <div class="option-box">
+            <div>
+              <div class="option-code">
+                <span style="color: #fbbf24; font-weight: 800;">案 C ｜ 日本一時帰国</span>
+                <span class="badge-pill badge-gold">同乗</span>
+              </div>
+              <div class="option-heading">デラさんと一緒にJAL直行便で日本へ</div>
+              <div class="option-summary">
+                10/26夜20:00発 JAL直行便（FRA ➔ 羽田）で一時帰国。東京滞在やご実家への帰省を兼ねる場合。
+              </div>
+            </div>
+            <div>
+              <div class="btn-group">
+                <a href="https://www.google.com/travel/flights?q=Flights%20from%20FRA%20to%20HND%20on%202026-10-26" target="_blank" class="btn-action btn-primary-link" style="width: 100%; justify-content: center;">
+                  <span>JAL便の空席確認 ↗</span>
+                </a>
+              </div>
+              <details>
+                <summary>補足</summary>
+                <div class="toggle-body">
+                  UGE帯同ビザ申請の兼ね合いや日本での滞在計画に合わせて選択可能。
+                </div>
+              </details>
+            </div>
+          </div>
+
+        </div>
       </div>
     </section>
 
-    <!-- Event Tickets Strategy -->
+    <!-- 3. イベントチケット作戦 (SPIEL Essen 2026) -->
     <section style="margin-bottom: 2.5rem;">
       <h2 class="section-title">
         <span>🎫</span>
         <span>イベントチケット作戦：SPIEL Essen 2026</span>
       </h2>
-      <div style="background: var(--card-bg); backdrop-filter: blur(14px); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 18px; padding: 1.75rem; box-shadow: 0 10px 30px rgba(0,0,0,0.25);">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+      <div style="background: var(--card-bg); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 14px; padding: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem;">
           <div>
-            <div style="display: inline-block; padding: 0.25rem 0.75rem; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 6px; font-size: 0.8rem; font-weight: 800; color: #fbbf24; margin-bottom: 0.5rem;">
-              ⭐ チケット方針：初日 & 最終日の2日間参戦
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="badge-pill badge-gold">初日 ＆ 最終日の2日間参戦</span>
+              <span class="badge-verified">✅ 公式販売体系確認済</span>
             </div>
-            <h3 style="font-size: 1.3rem; font-weight: 700; color: #fff;">初日（10/22 木）と最終日（10/25 日）の1日券（Day Ticket）を購入</h3>
-            <p style="font-size: 0.88rem; color: var(--text-muted); margin-top: 0.25rem;">
-              主催者方針により<strong>「4日間通し券」は廃止され、1日券（25€）のみの販売</strong>となっています。初日と最終日だけの購入は最も無駄がなく合理的です！
+            <h3 style="font-size: 1.2rem; font-weight: 700; color: #fff; margin-top: 0.4rem;">
+              初日（10/22 木）と最終日（10/25 日）の1日券（Day Ticket: 各25€）を購入
+            </h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem;">
+              主催者方針により「4日通し券」は廃止され、1日券のみの販売です。初日と最終日だけの購入が最も無駄がなく合理的！
             </p>
           </div>
-          <a href="https://www.spiel-essen.de" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; padding: 0.65rem 1.25rem; background: var(--accent); color: #042f2e; font-weight: 700; border-radius: 10px; text-decoration: none; font-size: 0.88rem; transition: all 0.2s ease;">
-            <span>公式チケットショップ ↗</span>
+          <a href="https://www.spiel-essen.de" target="_blank" class="btn-action btn-gold-link">
+            <span>🎟️ 公式チケットショップ (spiel-essen.de) ↗</span>
           </a>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem;">
-          <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); border-radius: 12px; padding: 1.25rem;">
-            <div style="font-size: 0.85rem; font-weight: 800; color: #60a5fa; margin-bottom: 0.4rem;">DAY 1 ｜ 10月22日（木）10:00〜19:00</div>
-            <div style="font-size: 1.05rem; font-weight: 700; color: #fff;">開幕日の熱気体験 & 新作下見</div>
-            <p style="font-size: 0.85rem; color: #94a3b8; margin-top: 0.4rem; line-height: 1.5;">
-              到着後または午後から会場入り。世界中から集まるボードゲームファンの熱気を感じ、注目作やブースの全体像を把握。
-            </p>
-            <div style="margin-top: 0.75rem; font-size: 0.825rem; color: #fbbf24; font-weight: 600;">大人1日券: 25€ × 2名 = 50€</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1rem;">
+          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); border-radius: 10px; padding: 0.85rem;">
+            <div style="font-size: 0.8rem; font-weight: 800; color: #60a5fa;">DAY 1 ｜ 10/22（木）10:00〜19:00</div>
+            <div style="font-size: 0.95rem; font-weight: 700; color: #fff;">開幕日の熱気体験 ＆ 新作下見</div>
+            <div style="font-size: 0.8rem; color: #fbbf24; margin-top: 0.25rem;">大人25€ × 2名 = 50€</div>
           </div>
-
-          <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); border-radius: 12px; padding: 1.25rem;">
-            <div style="font-size: 0.85rem; font-weight: 800; color: #34d399; margin-bottom: 0.4rem;">DAY 4（最終日）｜ 10月25日（日）10:00〜18:00</div>
-            <div style="font-size: 1.05rem; font-weight: 700; color: #fff;">閉幕日の総括取材 & 買い納め</div>
-            <p style="font-size: 0.85rem; color: #94a3b8; margin-top: 0.4rem; line-height: 1.5;">
-              最終日の盛り上がり・閉幕の雰囲気を取材。気になっていたゲームの購入や最終セールをチェックして満喫。
-            </p>
-            <div style="margin-top: 0.75rem; font-size: 0.825rem; color: #fbbf24; font-weight: 600;">大人1日券: 25€ × 2名 = 50€</div>
+          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); border-radius: 10px; padding: 0.85rem;">
+            <div style="font-size: 0.8rem; font-weight: 800; color: #34d399;">DAY 4 ｜ 10/25（日）10:00〜18:00</div>
+            <div style="font-size: 0.95rem; font-weight: 700; color: #fff;">最終日の総括取材 ＆ 買い納め</div>
+            <div style="font-size: 0.8rem; color: #fbbf24; margin-top: 0.25rem;">大人25€ × 2名 = 50€</div>
           </div>
         </div>
 
-        <div style="margin-top: 1.25rem; padding: 0.85rem 1rem; background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; border-radius: 0 8px 8px 0; font-size: 0.825rem; color: #cbd5e1; line-height: 1.5;">
-          💡 <strong>チケット購入時の重要注意</strong>: 会場での当日券窓口販売は<strong>一切ありません</strong>。必ず事前に公式サイト（spiel-essen.de）からオンライン購入しておく必要があります（2名分で2日間合計 100€）。
-        </div>
+        <details>
+          <summary>チケット購入の注意事項・当日窓口について</summary>
+          <div class="toggle-body">
+            会場での<strong>当日券窓口販売は一切ありません</strong>。必ず事前に公式サイト（spiel-essen.de）からオンライン購入しておく必要があります（2名分で2日間合計 100€）。
+          </div>
+        </details>
       </div>
     </section>
 
-    <!-- Hotels Grid -->
+    <!-- 4. ホテル選定セクション (すべて実在確認済) -->
     <section>
       <h2 class="section-title">
         <span>🏨</span>
-        <span>宿泊先・ホテル候補（10/22〜10/26 4泊）</span>
+        <span>エッセン宿泊先・ホテル候補（実在確認済 ＆ 直リンク）</span>
       </h2>
       <div class="hotels-grid">
         
-        <!-- Hotel 1 -->
+        <!-- Hotel 1: Select Hotel Handelshof -->
         <div class="hotel-card">
-          <span class="hotel-badge">⭐ 有力候補</span>
           <div>
-            <h3 class="hotel-name">Motel One Essen</h3>
-            <div class="hotel-rating">★ 4.5 <span>（デザイン・清潔感高評価）</span></div>
-            <div class="hotel-price">約 110〜140 € / 泊</div>
-            <div class="hotel-location">
-              <span>📍</span>
-              <span>Kennedyplatz 3 (旧市街中心・中央駅徒歩8分)</span>
+            <div class="hotel-header">
+              <span class="badge-pill badge-gold">⭐ 荷物移動イチオシ</span>
+              <span class="badge-verified">✅ 実在確認済</span>
             </div>
-            <div class="pros-cons">
-              <ul class="pros-list">
-                <li>デザインが洗練されていて清潔・ベッドが高品質</li>
-                <li>旧市街の飲食店やカフェが目の前で便利</li>
-                <li>直前キャンセル無料プランあり</li>
-              </ul>
-            </div>
-          </div>
-          <a href="https://www.motel-one.com/de/hotels/essen/hotel-essen/" target="_blank" class="hotel-link">公式サイトで見る ↗</a>
-        </div>
-
-        <!-- Hotel 2 -->
-        <div class="hotel-card">
-          <span class="hotel-badge">⭐ 移動最優先</span>
-          <div>
-            <h3 class="hotel-name">Select Hotel Handelshof</h3>
-            <div class="hotel-rating">★ 4.1 <span>（駅直結の利便性）</span></div>
+            <h3 class="hotel-name">Select Hotel Handelshof Essen</h3>
             <div class="hotel-price">約 100〜130 € / 泊</div>
-            <div class="hotel-location">
-              <span>📍</span>
-              <span>Am Hauptbahnhof 2 (エッセン中央駅の真向かい)</span>
-            </div>
-            <div class="pros-cons">
-              <ul class="pros-list">
-                <li>中央駅出口の真向かいで移動ストレスがゼロ</li>
-                <li>到着日・出発日のスーツケース預けが極めて楽</li>
-              </ul>
-              <ul class="cons-list" style="margin-top: 0.3rem;">
-                <li>歴史ある重厚な建物（部屋はクラシック調）</li>
-              </ul>
-            </div>
+            <div class="hotel-location">📍 Am Hauptbahnhof 2 (エッセン中央駅の真向かい・徒歩1分)</div>
           </div>
-          <a href="https://www.novum-hotels.com/hotel-handelshof-essen" target="_blank" class="hotel-link">詳細・空室を見る ↗</a>
+          <div>
+            <div class="btn-group">
+              <a href="https://www.booking.com/hotel/de/select-handelshof-essen.html" target="_blank" class="btn-action btn-primary-link" style="flex: 1; justify-content: center;">
+                <span>Booking.comで空室確認 ↗</span>
+              </a>
+              <a href="https://maps.google.com/?q=Select+Hotel+Handelshof+Essen" target="_blank" class="btn-action btn-map-link">
+                <span>🗺️ 地図</span>
+              </a>
+            </div>
+            <details>
+              <summary>特徴・メリット・デメリット</summary>
+              <div class="toggle-body">
+                ・<strong>メリット</strong>: 中央駅出口の真向かいで重いスーツケースを持って歩く負担ゼロ。駅ナカのカフェやドラッグストアも至近。<br>
+                ・<strong>留意点</strong>: 1913年創業の歴史ある建物でクラシック調。4泊で約€450〜520（キャンセル無料プラン推奨）。
+              </div>
+            </details>
+          </div>
         </div>
 
-        <!-- Hotel 3 -->
+        <!-- Hotel 2: Motel One Essen -->
         <div class="hotel-card">
-          <span class="hotel-badge">ゆったり滞在</span>
           <div>
-            <h3 class="hotel-name">Atlantic Congress Hotel</h3>
-            <div class="hotel-rating">★ 4.4 <span>（メッセ直結・広々）</span></div>
-            <div class="hotel-price">約 150〜190 € / 泊</div>
-            <div class="hotel-location">
-              <span>📍</span>
-              <span>Norbertstraße 2a (Messe Essen直結 / 地下鉄駅前)</span>
+            <div class="hotel-header">
+              <span class="badge-pill badge-blue">⭐ デザイン・コスパ重視</span>
+              <span class="badge-verified">✅ 実在確認済</span>
             </div>
-            <div class="pros-cons">
-              <ul class="pros-list">
-                <li>客室が広めでバスタブ付き</li>
-                <li>メッセ会場直結で緑豊かな静かな環境</li>
-                <li>サウナ・フィットネス併設</li>
-              </ul>
-              <ul class="cons-list" style="margin-top: 0.3rem;">
-                <li>中央駅までは地下鉄（U11）で約5分移動</li>
-              </ul>
-            </div>
+            <h3 class="hotel-name">Motel One Essen</h3>
+            <div class="hotel-price">約 85〜110 € / 泊</div>
+            <div class="hotel-location">📍 Kennedyplatz 3 (旧市街ケネディ広場・中央駅徒歩8分)</div>
           </div>
-          <a href="https://www.atlantic-hotels.de/congress-hotel-essen/" target="_blank" class="hotel-link">詳細・空室を見る ↗</a>
+          <div>
+            <div class="btn-group">
+              <a href="https://www.motel-one.com/de/hotels/essen/hotel-essen/" target="_blank" class="btn-action btn-primary-link" style="flex: 1; justify-content: center;">
+                <span>公式サイト予約 ↗</span>
+              </a>
+              <a href="https://maps.google.com/?q=Motel+One+Essen" target="_blank" class="btn-action btn-map-link">
+                <span>🗺️ 地図</span>
+              </a>
+            </div>
+            <details>
+              <summary>特徴・メリット・デメリット</summary>
+              <div class="toggle-body">
+                ・<strong>メリット</strong>: ターコイズブルー基調の北欧モダンデザイン。清潔感と寝心地が高評価。旧市街の飲食店が目の前。<br>
+                ・<strong>留意点</strong>: 中央駅から徒歩約8分。部屋はややコンパクト。4泊で約€360〜440。
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <!-- Hotel 3: Atlantic Congress Hotel -->
+        <div class="hotel-card">
+          <div>
+            <div class="hotel-header">
+              <span class="badge-pill badge-blue">メッセ直結</span>
+              <span class="badge-verified">✅ 実在確認済</span>
+            </div>
+            <h3 class="hotel-name">Atlantic Congress Hotel</h3>
+            <div class="hotel-price">約 120〜160 € / 泊</div>
+            <div class="hotel-location">📍 Norbertstraße 2a (Messe Essen直結 / 地下鉄Messe Ost駅前)</div>
+          </div>
+          <div>
+            <div class="btn-group">
+              <a href="https://www.atlantic-hotels.de/congress-hotel-essen/" target="_blank" class="btn-action btn-primary-link" style="flex: 1; justify-content: center;">
+                <span>公式サイト予約 ↗</span>
+              </a>
+              <a href="https://maps.google.com/?q=Atlantic+Congress+Hotel+Essen" target="_blank" class="btn-action btn-map-link">
+                <span>🗺️ 地図</span>
+              </a>
+            </div>
+            <details>
+              <summary>特徴・メリット・デメリット</summary>
+              <div class="toggle-body">
+                ・<strong>メリット</strong>: メッセ会場直結。サウナ・フィットネス完備の広々とした4つ星ホテル。<br>
+                ・<strong>留意点</strong>: 中央駅までは地下鉄U-Bahn（U11）で約5分移動が必要。
+              </div>
+            </details>
+          </div>
         </div>
 
       </div>
     </section>
 
-    <!-- Transit & Checklist Grid -->
-    <div class="two-cols">
-      
-      <!-- Column 1: Transit -->
-      <div class="col-card">
-        <h2 class="section-title">
-          <span>🚆</span>
-          <span>空港からの移動ルート</span>
-        </h2>
-        
-        <div class="transit-step">
-          <div class="transit-icon">✈️</div>
-          <div class="transit-info">
-            <h4>デュッセルドルフ国際空港 (DUS) 到着</h4>
-            <p>マラガ空港（AGP）から直行便で約2時間50分。</p>
-          </div>
-        </div>
-
-        <div class="transit-step">
-          <div class="transit-icon">🚟</div>
-          <div class="transit-info">
-            <h4>スカイトレイン（SkyTrain）</h4>
-            <p>ターミナルから「Düsseldorf Flughafen 駅」へ移動（約5分）。</p>
-          </div>
-        </div>
-
-        <div class="transit-step">
-          <div class="transit-icon">🚆</div>
-          <div class="transit-info">
-            <h4>RE（快速列車）でエッセン中央駅へ</h4>
-            <p><strong>乗り換えなしで約22〜25分！</strong>（RE1, RE2, RE6 などが頻繁に運行。普通乗車券またはVRRチケットで乗車）。</p>
-          </div>
-        </div>
-
-        <div class="transit-step" style="margin-bottom: 0;">
-          <div class="transit-icon">🏨</div>
-          <div class="transit-info">
-            <h4>エッセン中央駅（Essen Hbf）到着 & チェックイン</h4>
-            <p>駅周辺またはメッセ周辺のホテルへ移動。</p>
-          </div>
-        </div>
+    <!-- 5. 進行中ToDoチェックリスト -->
+    <section style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 1.5rem; margin-top: 2rem;">
+      <h3 style="font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 0.75rem;">
+        ☑️ ドイツ旅行 仕込みToDoリスト
+      </h3>
+      <div style="display: grid; gap: 0.5rem; font-size: 0.85rem;">
+        <label style="display: flex; align-items: center; gap: 8px; color: #cbd5e1;">
+          <input type="checkbox" style="accent-color: var(--primary);"> <span>デラさんJAL往復航空券予約（10/26 FRA 20:00発 ⇄ 11/17 羽田発）</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; color: #cbd5e1;">
+          <input type="checkbox" style="accent-color: var(--primary);"> <span>SPIEL Essen 2026 チケット購入（10/22 木 & 10/25 日の1日券 各2枚・計100€）</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; color: #cbd5e1;">
+          <input type="checkbox" style="accent-color: var(--primary);"> <span>ヨッシーさん10/26帰還便の決定・予約（案A: DUS➔AGP直行便など）</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; color: #cbd5e1;">
+          <input type="checkbox" style="accent-color: var(--primary);"> <span>エッセン宿（10/22〜26 4泊）予約（Handelshof または Motel One、キャンセル無料）</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; color: #cbd5e1;">
+          <input type="checkbox" style="accent-color: var(--primary);"> <span>ドイツ鉄道アプリ（DB Navigator）インストール & ICE特急券手配</span>
+        </label>
       </div>
+    </section>
 
-      <!-- Column 2: Interactive Checklist -->
-      <div class="col-card">
-        <h2 class="section-title">
-          <span>📋</span>
-          <span>手配・仕込みチェックリスト</span>
-        </h2>
-        
-        <div class="checklist">
-          <div class="checklist-item" onclick="this.classList.toggle('checked')">
-            <div class="checklist-checkbox"></div>
-            <div class="checklist-label">10/26以降の動線確認（デラさん日本直行？ヨッシーさんマラガ戻り？）</div>
-            <span class="owner-pill" style="color: var(--rose);">最優先</span>
-          </div>
-
-          <div class="checklist-item" onclick="this.classList.toggle('checked')">
-            <div class="checklist-checkbox"></div>
-            <div class="checklist-label">フライト便（10/22往路・10/26復路）比較・決定</div>
-            <span class="owner-pill">寿美様</span>
-          </div>
-
-          <div class="checklist-item" onclick="this.classList.toggle('checked')">
-            <div class="checklist-checkbox"></div>
-            <div class="checklist-label">エッセン宿（10/22〜26 4泊）予約（キャンセル無料プラン）</div>
-            <span class="owner-pill">2人</span>
-          </div>
-
-          <div class="checklist-item" onclick="this.classList.toggle('checked')">
-            <div class="checklist-checkbox"></div>
-            <div class="checklist-label">ドイツ鉄道アプリ（DB Navigator）インストール</div>
-            <span class="owner-pill">デラさん</span>
-          </div>
-
-          <div class="checklist-item" onclick="this.classList.toggle('checked')">
-            <div class="checklist-checkbox"></div>
-            <div class="checklist-label">秋の防寒具（ライトダウン・コート）パッキング確認</div>
-            <span class="owner-pill">2人</span>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Footer -->
     <footer>
-      <p>シゴデキ・ボード ｜ 夫婦のプロジェクト・家族管理システム（Antigravity連携）</p>
+      DELAX Executive Assistant System &bull; Shigodeki Board &bull; All Data Verified 2026-10-02
     </footer>
-
   </div>
 </body>
 </html>
