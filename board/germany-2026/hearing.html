@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🇩🇪 ドイツ・エッセン旅行 ヨッシーヒアリングシート | シゴデキ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(19, 26, 42, 0.85);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-blue: #3b82f6;
+      --accent-gold: #f59e0b;
+      --accent-emerald: #10b981;
+      --accent-purple: #8b5cf6;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif;
+      line-height: 1.6;
+      padding: 32px 20px;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(245, 158, 11, 0.08) 0%, transparent 40%);
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    header {
+      margin-bottom: 28px;
+    }
+    .nav-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--accent-blue);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      padding: 6px 12px;
+      background: rgba(59, 130, 246, 0.1);
+      border-radius: 8px;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      transition: all 0.2s ease;
+    }
+    .nav-back:hover {
+      background: rgba(59, 130, 246, 0.2);
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+    }
+    .badge-gold { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    
+    h1 {
+      font-size: 1.85rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+    .lead-text {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .info-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 28px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .dela-confirmed-banner {
+      background: linear-gradient(135deg, rgba(30, 58, 138, 0.4), rgba(15, 23, 42, 0.6));
+      border: 1px solid rgba(96, 165, 250, 0.3);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .dela-confirmed-banner .icon { font-size: 2rem; }
+    .dela-confirmed-banner h3 { font-size: 1.05rem; font-weight: 700; color: #93c5fd; margin-bottom: 4px; }
+    .dela-confirmed-banner p { font-size: 0.88rem; color: #cbd5e1; }
+
+    .question-block {
+      margin-bottom: 32px;
+    }
+    .question-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .question-title .num {
+      background: var(--accent-blue);
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+
+    .options-grid {
+      display: grid;
+      gap: 12px;
+    }
+    .option-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+    .option-card:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+    .option-card.selected {
+      background: rgba(59, 130, 246, 0.12);
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 1px var(--accent-blue);
+    }
+    .option-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .option-code {
+      font-weight: 800;
+      font-size: 0.95rem;
+      color: #60a5fa;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .option-card.selected .option-code {
+      color: #93c5fd;
+    }
+    .option-name {
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text-main);
+    }
+    .option-desc {
+      font-size: 0.86rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+
+    .submit-box {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-top: 36px;
+      text-align: center;
+    }
+    .submit-box h3 {
+      font-size: 1.15rem;
+      margin-bottom: 8px;
+      color: #34d399;
+    }
+    .submit-box p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+    .answer-preview {
+      background: #000;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: #a7f3d0;
+      text-align: left;
+      white-space: pre-wrap;
+      margin-bottom: 16px;
+    }
+    .btn-copy {
+      background: var(--accent-emerald);
+      color: #042f2e;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+    .btn-copy:hover {
+      background: #34d399;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+    }
+
+    footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      margin-top: 40px;
+      border-top: 1px solid var(--card-border);
+      padding-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="./index.html" class="nav-back">← 🇩🇪 エッセン旅のしおりへ戻る</a>
+
+    <header>
+      <span class="badge badge-gold">Yoshimi x Assistant Hearing</span>
+      <h1>🇩🇪 エッセン旅行 ヨッシーヒアリングシート</h1>
+      <p class="lead-text">デラさんのフライト確定に伴い、ヨッシーさんのご希望と動線をスムーズに決定するための事前調査済みシートです。気になる項目をタップしてください。</p>
+    </header>
+
+    <!-- デラさん確定情報 -->
+    <div class="dela-confirmed-banner">
+      <div class="icon">✈️</div>
+      <div>
+        <h3>デラさんの日本一時帰国フライト（確定）</h3>
+        <p><strong>10/26（月）夜20:00頃発 JAL直行便（フランクフルト FRA ➔ 東京・羽田 HND）</strong><br>
+        戻りは <strong>11/17（火）FRA往復</strong> で決定！<br>
+        10/26夕方にエッセンからICE特急（約1時間50分）でフランクフルト空港駅へ移動します。</p>
+      </div>
+    </div>
+
+    <!-- 設問1 -->
+    <div class="question-block">
+      <div class="question-title">
+        <span class="num">Q1</span>
+        <span>10/26（月）エッセンからの帰還ルート（ヨッシーさん動線）</span>
+      </div>
+      <div class="options-grid" id="q1-options">
+        <div class="option-card selected" onclick="selectOption('q1', 'A', this)">
+          <div class="option-header">
+            <span class="option-code">案 A ⭐ 秘書イチオシ</span>
+            <span class="badge badge-green">最もスムーズ</span>
+          </div>
+          <div class="option-name">デュッセルドルフ（DUS）経由 直行便でマラガ帰宅</div>
+          <div class="option-desc">
+            エッセン中央駅からRE快速でわずか22分のデュッセルドルフ空港へ。Eurowings直行便（約3時間）でマラガへ帰宅。<br>
+            <strong>メリット:</strong> 移動時間が短く、当日夕方〜夜にはマラガの自宅でゆっくり休息できます。
+          </div>
+        </div>
+
+        <div class="option-card" onclick="selectOption('q1', 'B', this)">
+          <div class="option-header">
+            <span class="option-code">案 B</span>
+            <span class="badge badge-blue">デラさんと同行</span>
+          </div>
+          <div class="option-name">フランクフルト（FRA）経由 ルフトハンザ直行便でマラガ帰宅</div>
+          <div class="option-desc">
+            デラさんと一緒にエッセンからICE特急（約1時間50分）でフランクフルト空港へ。デラさんの出国直前まで一緒に行動し、Lufthansa直行便でマラガへ帰宅。<br>
+            <strong>メリット:</strong> フランクフルト空港で一緒に過ごせます。
+          </div>
+        </div>
+
+        <div class="option-card" onclick="selectOption('q1', 'C', this)">
+          <div class="option-header">
+            <span class="option-code">案 C</span>
+            <span class="badge badge-gold">日本一時帰国</span>
+          </div>
+          <div class="option-name">デラさんと一緒にJAL直行便で日本へ一時帰国</div>
+          <div class="option-desc">
+            10/26夜20:00発 JAL直行便で羽田へ。東京滞在やご実家への帰省を兼ねる場合。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 設問2 -->
+    <div class="question-block">
+      <div class="question-title">
+        <span class="num">Q2</span>
+        <span>エッセンでの宿泊先ホテル（10/22〜10/26、4泊）</span>
+      </div>
+      <div class="options-grid" id="q2-options">
+        <div class="option-card selected" onclick="selectOption('q2', '1', this)">
+          <div class="option-header">
+            <span class="option-code">候補 1 ⭐ 荷物移動イチオシ</span>
+            <span class="badge badge-green">駅徒歩1分</span>
+          </div>
+          <div class="option-name">Select Hotel Handelshof Essen</div>
+          <div class="option-desc">
+            エッセン中央駅の真向かい（徒歩1分）。1913年創業の重厚なクラシックホテル。重いスーツケースを持って歩く必要ゼロ。駅ナカのカフェ・ドラッグストアも至近。<br>
+            <strong>目安:</strong> 約€100〜130/泊（4泊で約€450〜520）
+          </div>
+        </div>
+
+        <div class="option-card" onclick="selectOption('q2', '2', this)">
+          <div class="option-header">
+            <span class="option-code">候補 2 ⭐ デザイン重視</span>
+            <span class="badge badge-blue">旧市街徒歩8分</span>
+          </div>
+          <div class="option-name">Motel One Essen</div>
+          <div class="option-desc">
+            中央駅から徒歩約8分、旧市街ケネディ広場至近。ターコイズブルー基調の北欧モダンなデザイナーズホテル。清潔で快適・コスパ抜群。<br>
+            <strong>目安:</strong> 約€85〜110/泊（4泊で約€360〜440）
+          </div>
+        </div>
+
+        <div class="option-card" onclick="selectOption('q2', '3', this)">
+          <div class="option-header">
+            <span class="option-code">候補 3</span>
+            <span class="badge badge-gold">メッセ直結</span>
+          </div>
+          <div class="option-name">Atlantic Congress Hotel Essen</div>
+          <div class="option-desc">
+            メッセ・エッセン直結（中央駅から地下鉄U-Bahnで5分）。サウナ・フィットネス完備の広々とした4つ星スーペリアホテル。<br>
+            <strong>目安:</strong> 約€120〜160/泊
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 設問3 -->
+    <div class="question-block">
+      <div class="question-title">
+        <span class="num">Q3</span>
+        <span>現地で「行きたい場所・体験したいこと」（複数選択可）</span>
+      </div>
+      <div class="options-grid" id="q3-options">
+        <div class="option-card selected" onclick="toggleMultiOption('q3', '世界遺産ツォルフェアアイン炭鉱（デザインミュージアム）', this)">
+          <div class="option-name">🏛️ 世界遺産ツォルフェアアイン炭鉱 & レッドドット・デザイン博物館</div>
+          <div class="option-desc">「世界で最も美しい炭鉱」。建築・デザイン好きにはたまらないエッセンの誇る世界遺産。</div>
+        </div>
+        <div class="option-card selected" onclick="toggleMultiOption('q3', 'エッセン旧市街・カフェ散策（ドイツパン・スイーツ）', this)">
+          <div class="option-name">☕ エッセン旧市街散策 & カフェめぐり（ドイツパン・スイーツ・シュニッツェル）</div>
+          <div class="option-desc">歩行者天国のKetwiger通り散策、老舗ベーカリーでの朝食やカフェタイム。</div>
+        </div>
+        <div class="option-card" onclick="toggleMultiOption('q3', 'デュッセルドルフ日本街（インマーマン通り・ラーメン/食材）', this)">
+          <div class="option-name">🍜 デュッセルドルフ日本街への寄り道（電車で約30分）</div>
+          <div class="option-desc">欧州最大の日本人街インマーマン通り。日本の本屋、本格ラーメン、日本食材の調達など。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 回答コピー用ボックス -->
+    <div class="submit-box">
+      <h3>📋 ヨッシーさんの回答テキスト</h3>
+      <p>下のテキストが自動生成されます。「回答をコピー」を押して、Slackでお送りください！</p>
+      <div class="answer-preview" id="answer-preview">集計中...</div>
+      <button class="btn-copy" onclick="copyAnswer()">
+        <span>📋</span>
+        <span>回答をクリップボードにコピー</span>
+      </button>
+    </div>
+
+    <footer>
+      DELAX Executive Assistant System &bull; Shigodeki Board &bull; 2026-10-02
+    </footer>
+  </div>
+
+  <script>
+    const state = {
+      q1: '案A（デュッセルドルフ経由でマラガ直行）',
+      q2: '候補1（Select Hotel Handelshof Essen 駅前）',
+      q3: ['世界遺産ツォルフェアアイン炭鉱（デザインミュージアム）', 'エッセン旧市街・カフェ散策（ドイツパン・スイーツ）']
+    };
+
+    function selectOption(q, val, el) {
+      const container = document.getElementById(`${q}-options`);
+      container.querySelectorAll('.option-card').forEach(card => card.classList.remove('selected'));
+      el.classList.add('selected');
+
+      if (q === 'q1') {
+        if (val === 'A') state.q1 = '案A（デュッセルドルフ経由でマラガ直行）';
+        if (val === 'B') state.q1 = '案B（フランクフルト経由でルフトハンザ直行）';
+        if (val === 'C') state.q1 = '案C（デラさんと一緒に日本一時帰国）';
+      } else if (q === 'q2') {
+        if (val === '1') state.q2 = '候補1（Select Hotel Handelshof Essen 駅前）';
+        if (val === '2') state.q2 = '候補2（Motel One Essen 旧市街）';
+        if (val === '3') state.q2 = '候補3（Atlantic Congress Hotel メッセ直結）';
+      }
+      renderPreview();
+    }
+
+    function toggleMultiOption(q, val, el) {
+      el.classList.toggle('selected');
+      const idx = state.q3.indexOf(val);
+      if (idx > -1) {
+        state.q3.splice(idx, 1);
+      } else {
+        state.q3.push(val);
+      }
+      renderPreview();
+    }
+
+    function renderPreview() {
+      const text = `【ドイツ・エッセン旅行 ヨッシー回答】🇩🇪✨\n` +
+        `・10/26 帰還ルート: ${state.q1}\n` +
+        `・宿泊先ホテル: ${state.q2}\n` +
+        `・行きたい場所: ${state.q3.join(' / ') || '特になし'}\n` +
+        `よろしくお願いします！`;
+      document.getElementById('answer-preview').textContent = text;
+    }
+
+    function copyAnswer() {
+      const text = document.getElementById('answer-preview').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('回答をコピーしました！Slackに貼り付けて送信してください。');
+      }).catch(err => {
+        alert('コピーに失敗しました。枠内のテキストを手動でコピーしてください。');
+      });
+    }
+
+    // 初回レンダリング
+    renderPreview();
+  </script>
+</body>
+</html>
