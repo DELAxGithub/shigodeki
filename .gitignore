@@ -91,3 +91,7 @@ node_modules/
 .build/
 *.xcarchive
 build/
+
+# Firebase client configs (local only; copy-config.sh reads Firebase/Config at build time)
+iOS/Firebase/Config/GoogleService-Info*.plist
+iOS/shigodeki/GoogleService-Info.plist
