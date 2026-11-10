@@ -85,3 +85,9 @@ docs/setup-ph1.md# Build logs and temporary files
 sigodekinai/
 *.txt
 .DS_Store
+
+# Build artifacts / dependencies
+node_modules/
+.build/
+*.xcarchive
+build/
